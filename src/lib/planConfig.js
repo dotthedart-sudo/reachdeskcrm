@@ -19,6 +19,16 @@ export const PLAN_SEATS = {
   teams: 5,
 };
 
+/** Paid add-on beyond Teams included seats ($5/seat/month). */
+export const EXTRA_SEAT_USD_MONTHLY = 5;
+export const TEAMS_INCLUDED_SEATS = PLAN_SEATS.teams;
+
+/** Paddle price for paid seats beyond the 5 included (sync with supabase/functions/_shared/prices.ts). */
+export const EXTRA_TEAMS_SEAT_PRICE_ID = 'pri_01kzhm4mb02kxwged2bqfyqxhx';
+
+/** Max extra seats selectable in one checkout or purchase action. */
+export const MAX_EXTRA_SEATS_PER_ACTION = 50;
+
 export function normalizePlan(plan) {
   const p = (plan || 'trial').toLowerCase();
   if (p === 'enterprise') return 'lifetime';
@@ -126,10 +136,16 @@ export function getPlanSeatLimit(plan) {
   return PLAN_SEATS[normalizePlan(plan)] ?? 1;
 }
 
-/** Seat cap for team workspace UI (trial/Teams = 5; grandfathered Pro owners with team_id = 3). */
-export function getTeamWorkspaceSeatLimit(plan) {
+export function getExtraSeats(profile) {
+  if (!profile || normalizePlan(profile.plan) !== 'teams') return 0;
+  return Math.max(0, Number(profile.extra_seats) || 0);
+}
+
+/** Seat cap for team workspace UI (trial/Teams = 5 + paid extras; grandfathered Pro owners with team_id = 3). */
+export function getTeamWorkspaceSeatLimit(plan, extraSeats = 0) {
   const key = normalizePlan(plan);
-  if (key === 'teams' || key === 'trial') return PLAN_SEATS.teams;
+  if (key === 'teams') return PLAN_SEATS.teams + Math.max(0, extraSeats);
+  if (key === 'trial') return PLAN_SEATS.teams;
   if (key === 'pro') return LEGACY_PRO_TEAM_SEATS;
   return 1;
 }

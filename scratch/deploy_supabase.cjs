@@ -24,6 +24,7 @@ const PRIORITY_FUNCTIONS = [
   'notify-admin-signup',
   'respond-upgrade-request',
   'upgrade-subscription',
+  'purchase-extra-seat',
   'admin-sync-paddle-subscriptions',
   'paddle-webhook',
   'sync-paddle-subscription',

@@ -711,13 +711,13 @@ export default function CRM({
   });
   const [folderForm, setFolderForm] = useState({ name: '', color: '#A3A3A3' });
   const [importText, setImportText] = useState('');
-  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showCrmMoreMenu, setShowCrmMoreMenu] = useState(false);
   const [exporting, setExporting] = useState(null);
 
   const handleExportLeadsClick = async () => {
     if (exporting) return;
     setExporting('leads');
-    setShowExportDropdown(false);
+    setShowCrmMoreMenu(false);
     try {
       await exportLeads(currentUser.id, leads);
     } catch (err) {
@@ -731,7 +731,7 @@ export default function CRM({
   const handleExportNotesClick = async () => {
     if (exporting) return;
     setExporting('notes');
-    setShowExportDropdown(false);
+    setShowCrmMoreMenu(false);
     try {
       await exportNotes(currentUser.id);
     } catch (err) {
@@ -742,7 +742,6 @@ export default function CRM({
     }
   };
 
-  const [showQuickClean, setShowQuickClean] = useState(false);
   const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
 
   if (!currentUser) {
@@ -2158,7 +2157,7 @@ export default function CRM({
   };
 
   const handleQuickCleanSelect = (type) => {
-    setShowQuickClean(false);
+    setShowCrmMoreMenu(false);
     if (type === 'not_interested') {
       setSelectedIds(leads.filter(l => l.status === 'Not Interested').map(l => l.id));
     } else if (type === 'no_reply_24h') {
@@ -2487,7 +2486,7 @@ export default function CRM({
   const handleExportLeadsSubset = async (subset, label = 'all', options = {}) => {
     if (exporting) return;
     setExporting('leads');
-    setShowExportDropdown(false);
+    setShowCrmMoreMenu(false);
     try {
       const filename = label === 'all'
         ? 'reachdesk-leads.csv'
@@ -2521,7 +2520,7 @@ export default function CRM({
   };
 
   const openExportSheetsForLeads = (subset, options = {}) => {
-    setShowExportDropdown(false);
+    setShowCrmMoreMenu(false);
     if (!sheetsConnected || sheetsNeedsReconnect) {
       startGoogleSheetsOAuth(`${window.location.pathname}${window.location.search}`);
       return;
@@ -2678,20 +2677,18 @@ export default function CRM({
         {outreachMode === 'messages' ? (
         <>
         {/* Message sub-views */}
-        <div className="flex gap-2" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1px', marginBottom: '1rem' }}>
-          <button 
+        <div className="crm-tabs">
+          <button
             type="button"
             onClick={() => handleViewChange('contact_details')}
-            className={`btn btn-sm ${view === 'contact_details' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+            className={`crm-tab ${view === 'contact_details' ? 'crm-tab--active' : ''}`}
           >
             Contact Details
           </button>
-          <button 
+          <button
             type="button"
             onClick={() => handleViewChange('pipeline')}
-            className={`btn btn-sm ${view === 'pipeline' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+            className={`crm-tab ${view === 'pipeline' ? 'crm-tab--active' : ''}`}
           >
             Pipeline View
           </button>
@@ -2700,20 +2697,18 @@ export default function CRM({
         ) : (
         <>
         {/* Calls sub-views */}
-        <div className="flex gap-2" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1px', marginBottom: '1rem' }}>
+        <div className="crm-tabs">
           <button
             type="button"
             onClick={() => handleCallSubViewChange('queue')}
-            className={`btn btn-sm ${callSubView === 'queue' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+            className={`crm-tab ${callSubView === 'queue' ? 'crm-tab--active' : ''}`}
           >
             Call Queue
           </button>
           <button
             type="button"
             onClick={() => handleCallSubViewChange('log')}
-            className={`btn btn-sm ${callSubView === 'log' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+            className={`crm-tab ${callSubView === 'log' ? 'crm-tab--active' : ''}`}
           >
             Call Log
           </button>
@@ -2815,82 +2810,93 @@ export default function CRM({
         ) : (
         <>
         {/* Toolbar */}
-        <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '1rem' }}>
-          <div className="flex gap-2 align-center" style={{ flex: 1, minWidth: '300px' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                <Search size={16} />
-              </span>
-              <input
-                type="text"
-                placeholder="Search leads..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="form-input w-full"
-                style={{ paddingLeft: '2.5rem' }}
-              />
-            </div>
+        <div className="crm-toolbar">
+          <div className="crm-toolbar__search">
+            <span className="crm-toolbar__search-icon">
+              <Search size={16} />
+            </span>
+            <input
+              type="text"
+              placeholder="Search leads..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="form-input w-full"
+            />
           </div>
 
-          <div className="flex gap-2">
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setShowQuickClean(!showQuickClean)} className="btn btn-secondary">
-                <Zap size={14} /> Quick Clean <ChevronDown size={14} />
-              </button>
-              {showQuickClean && (
-                <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', zIndex: 100, display: 'flex', flexDirection: 'column', width: '200px', boxShadow: 'var(--glow-shadow)', padding: '0.25rem' }}>
-                  <button onClick={() => handleQuickCleanSelect('not_interested')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)' }}>Select "Not Interested"</button>
-                  <button onClick={() => handleQuickCleanSelect('no_reply_24h')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)' }}>Select No Reply (24h+)</button>
-                  <button onClick={() => handleQuickCleanSelect('current_folder')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)' }}>Select Current Folder</button>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => handleOpenBulkImport(() => setShowNewImportModal(true))}
-              className="btn btn-secondary"
-              disabled={isLeadLimitReached}
-              title={isLeadLimitReached ? leadLimitTooltip : undefined}
-              style={isLeadLimitReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              <Upload size={16} /> Import CSV
-            </button>
-
-            {/* Import from Google Sheets — Pro+ only */}
-            {canUseIntegrations && (
+          <div className="crm-toolbar__actions">
+            <div className="crm-toolbar__more">
               <button
-                onClick={() => {
-                  if (!sheetsConnected || sheetsNeedsReconnect) {
-                    startGoogleSheetsOAuth(`${window.location.pathname}${window.location.search}`);
-                  } else {
-                    setShowSheetsImportModal(true);
-                  }
-                }}
-                className="btn btn-secondary"
-                title={!sheetsConnectedChecked ? 'Checking connection…' : undefined}
-                disabled={isLeadLimitReached}
-                style={isLeadLimitReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                type="button"
+                onClick={() => setShowCrmMoreMenu(!showCrmMoreMenu)}
+                className="btn btn-secondary btn-sm"
+                disabled={!!exporting}
               >
-                <Database size={16} />
-                {sheetsNeedsReconnect
-                  ? 'Reconnect Sheets to Import'
-                  : sheetsConnected
-                    ? 'Import from Sheets'
-                    : 'Connect Sheets to Import'}
+                <MoreVertical size={14} /> More <ChevronDown size={14} />
               </button>
-            )}
+              {showCrmMoreMenu && (
+                <div className="crm-more-menu">
+                  <div className="crm-more-menu__label">Quick clean</div>
+                  <button type="button" onClick={() => handleQuickCleanSelect('not_interested')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
+                    Select &quot;Not Interested&quot;
+                  </button>
+                  <button type="button" onClick={() => handleQuickCleanSelect('no_reply_24h')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
+                    Select No Reply (24h+)
+                  </button>
+                  <button type="button" onClick={() => handleQuickCleanSelect('current_folder')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
+                    Select Current Folder
+                  </button>
 
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setShowExportDropdown(!showExportDropdown)} className="btn btn-secondary" disabled={!!exporting}>
-                <Download size={16} /> Export Data <ChevronDown size={14} />
-              </button>
-              {showExportDropdown && (
-                <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', zIndex: 100, display: 'flex', flexDirection: 'column', width: '180px', boxShadow: 'var(--glow-shadow)', padding: '0.25rem' }}>
-                  <button onClick={() => handleExportLeadsClick()} className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
+                  <div className="crm-more-menu__divider" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCrmMoreMenu(false);
+                      handleOpenBulkImport(() => setShowNewImportModal(true));
+                    }}
+                    className="dropdown-item"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}
+                    disabled={isLeadLimitReached}
+                    title={isLeadLimitReached ? leadLimitTooltip : undefined}
+                  >
+                    <Upload size={14} /> Import CSV
+                  </button>
+
+                  {canUseIntegrations && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCrmMoreMenu(false);
+                        if (!sheetsConnected || sheetsNeedsReconnect) {
+                          startGoogleSheetsOAuth(`${window.location.pathname}${window.location.search}`);
+                        } else {
+                          setShowSheetsImportModal(true);
+                        }
+                      }}
+                      className="dropdown-item"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}
+                      disabled={isLeadLimitReached}
+                      title={isLeadLimitReached ? leadLimitTooltip : (!sheetsConnectedChecked ? 'Checking connection…' : undefined)}
+                    >
+                      <Database size={14} />
+                      {sheetsNeedsReconnect
+                        ? 'Reconnect Sheets to Import'
+                        : sheetsConnected
+                          ? 'Import from Sheets'
+                          : 'Connect Sheets to Import'}
+                    </button>
+                  )}
+
+                  <div className="crm-more-menu__divider" />
+                  <div className="crm-more-menu__label">Export</div>
+
+                  <button type="button" onClick={() => handleExportLeadsClick()} className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
                     <Download size={14} /> Export all leads (CSV)
                   </button>
                   {canExportCurrentFolder && (
                     <button
+                      type="button"
                       onClick={() => handleExportLeadsSubset(activeList, currentExportFolder.name)}
                       className="dropdown-item"
                       style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}
@@ -2898,17 +2904,16 @@ export default function CRM({
                       <Download size={14} /> Export this folder (CSV)
                     </button>
                   )}
-                  <button onClick={handleExportNotesClick} className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
+                  <button type="button" onClick={handleExportNotesClick} className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
                     <FileText size={14} /> Export Notes (TXT)
                   </button>
-                  {/* Google Sheets export — Pro+ only */}
                   {canUseIntegrations && (
                     <>
-                      <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.25rem 0.5rem' }} />
                       <button
+                        type="button"
                         onClick={() => openExportSheetsForLeads(leads)}
                         className="dropdown-item"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: '#10b981', width: '100%', fontSize: '0.875rem' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-secondary)', width: '100%', fontSize: '0.875rem' }}
                       >
                         <Download size={14} />
                         {sheetsNeedsReconnect
@@ -2919,9 +2924,10 @@ export default function CRM({
                       </button>
                       {canExportCurrentFolder && sheetsConnected && (
                         <button
+                          type="button"
                           onClick={() => openExportSheetsForLeads(activeList, getFolderExportOptions(activeFolderId))}
                           className="dropdown-item"
-                          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: '#10b981', width: '100%', fontSize: '0.875rem' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-secondary)', width: '100%', fontSize: '0.875rem' }}
                         >
                           <Download size={14} /> Export folder to Google Sheets
                         </button>
@@ -2934,7 +2940,7 @@ export default function CRM({
 
             <button
               onClick={handleOpenAddLead}
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm"
               disabled={isLeadLimitReached}
               title={isLeadLimitReached ? leadLimitTooltip : undefined}
               style={isLeadLimitReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
@@ -3096,14 +3102,13 @@ export default function CRM({
 
         {/* Bulk Actions Menu Overlay */}
         {selectedIds.length > 0 && (
-          <div className="flex justify-between align-center" style={{ background: 'var(--bg-card)', border: '0.5px solid var(--border-strong)', borderRadius: '6px', gap: '1rem', flexWrap: 'wrap' }}>
-            <div className="flex align-center gap-3">
-              <span style={{ fontWeight: 600 }}>{selectedIds.length} leads selected</span>
+          <div className="bulk-action-bar">
+            <div className="bulk-action-bar__meta">
+              <span>{selectedIds.length} leads selected</span>
               {selectedIds.length === paginatedList.length && activeList.length > paginatedList.length && (
                 <button 
                   onClick={() => setSelectedIds(activeList.map(l => l.id))} 
-                  className="btn btn-secondary btn-sm"
-                  style={{ border: '1px dashed var(--border-strong)', padding: '0.2rem 0.6rem', color: 'var(--accent-blue, #58A6FF)', fontWeight: 600, background: 'rgba(56, 139, 253, 0.05)' }}
+                  className="btn btn-secondary btn-sm bulk-action-bar__link"
                 >
                   Select all {activeList.length} leads in this view
                 </button>
@@ -3111,14 +3116,13 @@ export default function CRM({
               {selectedIds.length === activeList.length && activeList.length > paginatedList.length && (
                 <button 
                   onClick={() => setSelectedIds(paginatedList.map(l => l.id))} 
-                  className="btn btn-secondary btn-sm"
-                  style={{ border: '1px dashed var(--border-strong)', padding: '0.2rem 0.6rem', color: 'var(--accent-blue, #58A6FF)', fontWeight: 600, background: 'rgba(56, 139, 253, 0.05)' }}
+                  className="btn btn-secondary btn-sm bulk-action-bar__link"
                 >
                   Clear selection (keep current page only)
                 </button>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="bulk-action-bar__actions">
               {/* Change Status Dropdown */}
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setShowBulkStatusMenu(!showBulkStatusMenu)} className="btn btn-secondary btn-sm">

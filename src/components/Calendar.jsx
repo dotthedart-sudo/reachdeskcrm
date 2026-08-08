@@ -37,6 +37,7 @@ import {
 } from '../lib/calendarActivity';
 import { hasTeammates } from '../lib/teamWorkspace';
 import MemberActivityFilter from './CRM/callActivity/MemberActivityFilter';
+import './Calendar/Calendar.css';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const VIEWS = [
@@ -108,19 +109,7 @@ function isWriteScopeError(err, data) {
 
 function ViewSwitcher({ view, onChange }) {
   return (
-    <div
-      role="tablist"
-      aria-label="Calendar view"
-      style={{
-        display: 'inline-flex',
-        padding: 3,
-        borderRadius: 8,
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-tertiary)',
-        gap: 2,
-        flexWrap: 'wrap',
-      }}
-    >
+    <div role="tablist" aria-label="Calendar view" className="cal-segment">
       {VIEWS.map(({ id, label, icon: Icon }) => {
         const active = view === id;
         return (
@@ -130,20 +119,7 @@ function ViewSwitcher({ view, onChange }) {
             role="tab"
             aria-selected={active}
             onClick={() => onChange(id)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0.4rem 0.75rem',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              background: active ? 'var(--bg-card)' : 'transparent',
-              color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-              boxShadow: active ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
-            }}
+            className={`cal-segment__btn${active ? ' cal-segment__btn--active' : ''}`}
           >
             <Icon size={14} />
             {label}
@@ -156,22 +132,15 @@ function ViewSwitcher({ view, onChange }) {
 
 function MeetingCard({ ev, onEdit, onDelete, deleting, timeZone }) {
   return (
-    <div
-      style={{
-        padding: '0.65rem 0.75rem',
-        borderRadius: 6,
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-tertiary)',
-      }}
-    >
-      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{ev.summary}</div>
-      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+    <div className="cal-list-row">
+      <div className="cal-list-row__title">{ev.summary}</div>
+      <div className="cal-list-row__meta">
         {formatLocalTime(ev.start, { timeZone, showZone: true, allDay: ev.allDay })}
         {ev.attendees?.length > 0 && (
           <> · {ev.attendees.map((a) => a.email).join(', ')}</>
         )}
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+      <div className="cal-list-row__actions">
         {(ev.hangoutLink || ev.htmlLink) && (
           <a
             href={ev.hangoutLink || ev.htmlLink}
@@ -220,14 +189,7 @@ function PlanTaskRow({ task, onLog, onCancel, onOpenLead, defaultCountryCode }) 
   const ActionIcon = taskType === 'email' ? Mail : taskType === 'follow_up' ? Bell : Phone;
 
   return (
-    <div
-      style={{
-        padding: '0.65rem 0.75rem',
-        borderRadius: 6,
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-tertiary)',
-      }}
-    >
+    <div className="cal-list-row">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
         <button
           type="button"
@@ -250,11 +212,11 @@ function PlanTaskRow({ task, onLog, onCancel, onOpenLead, defaultCountryCode }) 
           )}
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', border: 'none', fontSize: '0.65rem' }}>
+          <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
             {isCheckpoint ? 'Due follow-up' : TASK_TYPE_LABELS[taskType] || taskType}
           </span>
           {!isCheckpoint && (
-            <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', fontSize: '0.65rem' }}>
+            <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
               {task.status}
             </span>
           )}
@@ -262,7 +224,7 @@ function PlanTaskRow({ task, onLog, onCancel, onOpenLead, defaultCountryCode }) 
         </div>
       </div>
       {(task.status === 'pending' || task.status === 'missed' || isCheckpoint) && onLog && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="cal-list-row__actions">
           <button type="button" className="btn btn-primary btn-sm" onClick={() => onLog(task)}>
             <ActionIcon size={12} /> {actionLabel}
           </button>
@@ -869,16 +831,7 @@ export default function CalendarPage({ currentUser }) {
           />
         )}
         {isMeetings && (
-          <div
-            style={{
-              display: 'inline-flex',
-              padding: 2,
-              borderRadius: 6,
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-tertiary)',
-              gap: 2,
-            }}
-          >
+          <div className="cal-segment">
             {[
               { id: 'month', label: 'Month' },
               { id: 'upcoming', label: 'Next 14 days' },
@@ -887,16 +840,7 @@ export default function CalendarPage({ currentUser }) {
                 key={opt.id}
                 type="button"
                 onClick={() => setMeetingsLayout(opt.id)}
-                style={{
-                  padding: '0.3rem 0.65rem',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  background: meetingsLayout === opt.id ? 'var(--bg-card)' : 'transparent',
-                  color: meetingsLayout === opt.id ? 'var(--text-primary)' : 'var(--text-muted)',
-                }}
+                className={`cal-segment__btn${meetingsLayout === opt.id ? ' cal-segment__btn--active' : ''}`}
               >
                 {opt.label}
               </button>

@@ -87,3 +87,7 @@ export function getBillingCycleFromPriceId(priceId: string | null | undefined): 
 }
 
 export const STARTER_MONTHLY_USD: string = BILLING.monthly.starter.usdTotal;
+
+/** Teams plan add-on: one extra seat beyond the 5 included ($5/seat/month). */
+export const EXTRA_TEAMS_SEAT_PRICE_ID = 'pri_01kzhm4mb02kxwged2bqfyqxhx';
+export const EXTRA_TEAMS_SEAT_USD_MONTHLY = 5;

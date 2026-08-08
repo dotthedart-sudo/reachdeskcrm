@@ -531,7 +531,7 @@ export default function GroupedStatusDropdown({
               gap: '4px',
               background: 'transparent',
               border: 'none',
-              color: 'var(--primary-purple, #8b5cf6)',
+              color: 'var(--text-primary)',
               fontSize: '0.78rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -539,7 +539,7 @@ export default function GroupedStatusDropdown({
               width: '100%',
               borderRadius: '4px'
             }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)'}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <Pencil size={12} />
@@ -555,7 +555,7 @@ export default function GroupedStatusDropdown({
               <button
                 type="button"
                 onClick={handleResetToDefaults}
-                style={{ background: 'none', border: 'none', color: 'var(--primary-purple, #8b5cf6)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
               >
                 Reset
               </button>
@@ -660,9 +660,9 @@ export default function GroupedStatusDropdown({
                 type="button"
                 onClick={handleAdd}
                 style={{
-                  background: 'var(--primary-purple, #8b5cf6)',
+                  background: 'var(--accent-blue)',
                   border: 'none',
-                  color: '#fff',
+                  color: 'var(--accent-on)',
                   borderRadius: '4px',
                   padding: '4px 8px',
                   cursor: 'pointer',

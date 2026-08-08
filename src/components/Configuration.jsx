@@ -11,6 +11,7 @@ import {
   hasTeamsPageAccess,
   isProTeamOwner,
   isTeamMember,
+  canPurchaseExtraSeats,
 } from '../lib/teamWorkspace';
 import { getAppUrl } from '../utils/domain';
 import { exportLeads, exportNotes } from '../utils/exportUtils';
@@ -44,6 +45,8 @@ import {
   clearSheetsScopeAck,
 } from '../lib/googleSheetsOAuth';
 import CancelSubscriptionModal from './Configuration/CancelSubscriptionModal';
+import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
+import { getExtraSeats } from '../lib/planConfig';
 import { resolveSettingsTab } from './Configuration/settingsTabs';
 import './Configuration.css';
 
@@ -158,6 +161,7 @@ export default function Configuration({
 
   // Cancellation / resume states
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [extraSeatsModalOpen, setExtraSeatsModalOpen] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState(false);
   const [cancelSuccessMsg, setCancelSuccessMsg] = useState('');
   const [cancelErrorMsg, setCancelErrorMsg] = useState('');
@@ -871,7 +875,8 @@ export default function Configuration({
   }
 
   const isProOwner = isProTeamOwner(currentUser);
-  const seatLimit = getTeamSeatLimit(currentUser?.plan);
+  const canAddTeamMembers = canPurchaseExtraSeats(currentUser);
+  const seatLimit = getTeamSeatLimit(currentUser);
   const seatsUsed = getSeatsUsed(teamMembers.length, teamInvitations.length);
   const seatsAtCap = seatsUsed >= seatLimit;
 
@@ -993,6 +998,9 @@ export default function Configuration({
             seatsUsed={seatsUsed}
             seatLimit={seatLimit}
             seatsAtCap={seatsAtCap}
+            extraSeats={getExtraSeats(currentUser)}
+            canAddTeamMembers={canAddTeamMembers}
+            onAddTeamMembers={() => setExtraSeatsModalOpen(true)}
             onManagePlan={() => navigate('/upgrade')}
             onCancelSubscription={() => setCancelModalOpen(true)}
             onResumeSubscription={handleResumeSubscription}
@@ -1057,6 +1065,16 @@ export default function Configuration({
         loading={billingActionLoading}
         onClose={() => setCancelModalOpen(false)}
         onConfirm={handleCancelSubscription}
+      />
+
+      <ExtraSeatsPurchaseModal
+        open={extraSeatsModalOpen}
+        onClose={() => setExtraSeatsModalOpen(false)}
+        profile={currentUser}
+        onSuccess={async () => {
+          if (onRefreshProfile) await onRefreshProfile();
+          setExtraSeatsModalOpen(false);
+        }}
       />
     </div>
   );

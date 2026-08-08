@@ -1,24 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { canInviteTeammates, getTeamSeatLimitFromProfile } from '../_shared/seatLimits.ts';
 
 const DEFAULT_FROM_EMAIL = 'ReachDesk CRM <invites@mail.app.reachdeskcrm.com>';
 const APP_URL = Deno.env.get('APP_URL') || 'https://app.reachdeskcrm.com';
-
-const TEAMS_SEAT_LIMIT = 5;
-const LEGACY_PRO_TEAM_SEAT_LIMIT = 3;
-const TRIAL_SEAT_LIMIT = 5;
-
-function getTeamSeatLimit(plan: string, teamId: string | null): number {
-  const normalized = (plan || 'trial').toLowerCase();
-  if (normalized === 'teams') return TEAMS_SEAT_LIMIT;
-  if (normalized === 'trial') return TRIAL_SEAT_LIMIT;
-  if (normalized === 'pro' && teamId) return LEGACY_PRO_TEAM_SEAT_LIMIT;
-  return 0;
-}
-
-function canInviteTeammates(plan: string, teamId: string | null): boolean {
-  return getTeamSeatLimit(plan, teamId) > 0;
-}
 
 function hasActiveInviteAccess(plan: string, planStatus: string | null): boolean {
   const normalized = (plan || 'trial').toLowerCase();
@@ -68,7 +53,7 @@ serve(async (req) => {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, email, full_name, plan, plan_status, team_id, team_role')
+      .select('id, email, full_name, plan, plan_status, team_id, team_role, extra_seats')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -77,7 +62,7 @@ serve(async (req) => {
     }
 
     const plan = (profile.plan || 'trial').toLowerCase();
-    const seatLimit = getTeamSeatLimit(plan, profile.team_id);
+    const seatLimit = getTeamSeatLimitFromProfile(profile);
     if (!canInviteTeammates(plan, profile.team_id)) {
       return jsonResponse({ success: false, error: 'Teams plan required to invite teammates' }, 403);
     }

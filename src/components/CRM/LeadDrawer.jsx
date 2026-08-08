@@ -27,10 +27,7 @@ import { getEffectiveUserTimeZone } from '../../lib/dateTime';
 import { mergeTemplateFields } from '../../utils/templateMerge';
 import { celebrateClosedWon } from '../../utils/celebrateWin';
 import { TEMPLATE_KINDS } from '../../lib/templateKinds';
-
-
-
-
+import './LeadDrawer.css';
 export default function LeadDrawer({
   lead,
   onClose,
@@ -556,80 +553,20 @@ export default function LeadDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div 
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.4)',
-          backdropFilter: 'blur(2px)',
-          zIndex: 998
-        }}
-      />
-      {/* Drawer */}
-      <div 
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          width: '460px',
-          maxWidth: '100%',
-          height: '100vh',
-          backgroundColor: 'var(--bg-card)',
-          borderLeft: '1px solid var(--border-color)',
-          boxShadow: '-8px 0 25px rgba(0,0,0,0.3)',
-          zIndex: 999,
-          display: 'flex',
-          flexDirection: 'column',
-          textAlign: 'left'
-        }}
-      >
-      {/* Dynamic Slide In CSS */}
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        .lead-note-card {
-          padding: 0.5rem 0.6rem;
-          border-radius: 6px;
-          border: 0.5px solid var(--border);
-          cursor: pointer;
-          transition: all 0.15s;
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-          background: var(--bg-card);
-        }
-        .lead-note-card:hover { border-color: var(--accent-blue); }
-        .lead-note-card.active {
-          border-color: var(--accent-blue);
-          background: rgba(91,143,185,0.08);
-        }
-      `}</style>
-
+      <div className="lead-drawer__backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="lead-drawer__panel">
       {/* Drawer Header */}
-      <div 
-        style={{ 
-          padding: '1.25rem 1.5rem', 
-          borderBottom: '1px solid var(--border-color)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div className="lead-drawer__header">
+        <div className="lead-drawer__header-main">
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }} data-ph-mask>
+            <h3 className="lead-drawer__title" data-ph-mask>
               {isClientView ? formData.name || 'Unnamed Client' : (formData.name !== undefined ? formData.name : `${formData.first_name || ''} ${formData.last_name || ''}`.trim()) || 'Unnamed Lead'}
             </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }} data-ph-mask>
-              {!isClientView && (formData.company || 'No Company')}
-            </span>
+            {!isClientView && (
+              <span className="lead-drawer__subtitle" data-ph-mask>
+                {formData.company || 'No Company'}
+              </span>
+            )}
           </div>
           {!isClientView && !isClientStatus(formData.status) && (
             <button
@@ -651,93 +588,56 @@ export default function LeadDrawer({
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#6B7280',
-              fontSize: '20px',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              lineHeight: 1,
-            }}
-            onMouseEnter={e => e.target.style.color = '#ffffff'}
-            onMouseLeave={e => e.target.style.color = '#6B7280'}
-          >
-            ✕
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-icon lead-drawer__close"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </button>
       </div>
 
-      <div 
-        style={{ 
-          display: 'flex', 
-          borderBottom: '0.5px solid var(--border)',
-          background: 'var(--bg-card)'
-        }}
-      >
-        <button 
+      <div className="crm-tabs lead-drawer__tabs">
+        <button
+          type="button"
           onClick={() => setActiveTab('contact')}
-          style={{
-            flex: 1, padding: '0.75rem', border: 'none', background: 'transparent',
-            color: activeTab === 'contact' ? 'var(--accent-blue)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'contact' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignContent: 'center', justifyContent: 'center', gap: '0.35rem'
-          }}
+          className={`crm-tab ${activeTab === 'contact' ? 'crm-tab--active' : ''}`}
         >
           <User size={14} /> Info
         </button>
-        <button 
+        <button
+          type="button"
           onClick={() => setActiveTab('pipeline')}
-          style={{
-            flex: 1, padding: '0.75rem', border: 'none', background: 'transparent',
-            color: activeTab === 'pipeline' ? 'var(--accent-blue)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'pipeline' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignContent: 'center', justifyContent: 'center', gap: '0.35rem'
-          }}
+          className={`crm-tab ${activeTab === 'pipeline' ? 'crm-tab--active' : ''}`}
         >
           <Calendar size={14} /> Pipeline
         </button>
-        <button 
+        <button
+          type="button"
           onClick={() => setActiveTab('notes')}
-          style={{
-            flex: 1, padding: '0.75rem', border: 'none', background: 'transparent',
-            color: activeTab === 'notes' ? 'var(--accent-blue)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'notes' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignContent: 'center', justifyContent: 'center', gap: '0.35rem'
-          }}
+          className={`crm-tab ${activeTab === 'notes' ? 'crm-tab--active' : ''}`}
         >
           <FileText size={14} /> Notes
         </button>
-        <button 
+        <button
+          type="button"
           onClick={() => setActiveTab('activity')}
-          style={{
-            flex: 1, padding: '0.75rem', border: 'none', background: 'transparent',
-            color: activeTab === 'activity' ? 'var(--accent-blue)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'activity' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignContent: 'center', justifyContent: 'center', gap: '0.35rem'
-          }}
+          className={`crm-tab ${activeTab === 'activity' ? 'crm-tab--active' : ''}`}
         >
           <ActivityIcon size={14} /> Activity
         </button>
-        <button 
+        <button
+          type="button"
           onClick={() => setActiveTab('invoices')}
-          style={{
-            flex: 1, padding: '0.75rem', border: 'none', background: 'transparent',
-            color: activeTab === 'invoices' ? 'var(--accent-blue)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'invoices' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignContent: 'center', justifyContent: 'center', gap: '0.35rem'
-          }}
+          className={`crm-tab ${activeTab === 'invoices' ? 'crm-tab--active' : ''}`}
         >
           <Receipt size={14} /> Invoices
         </button>
       </div>
 
       {/* Drawer Body Container */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+      <div className="lead-drawer__body">
         
         {/* Contact Info Tab */}
         {activeTab === 'contact' && (
@@ -749,13 +649,9 @@ export default function LeadDrawer({
                 const text = match ? match.color : '#D1D5DB';
                 const label = match ? match.label : (lead.status || 'Lead');
                 return (
-                  <span style={{
+                  <span className="lead-drawer__status-badge" style={{
                     background: bg,
                     color: text,
-                    padding: '3px 12px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 500
                   }}>
                     {label}
                   </span>
@@ -1021,7 +917,7 @@ export default function LeadDrawer({
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        style={{ borderColor: '#8b5cf6', color: '#8b5cf6', fontWeight: 600 }}
+                        style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)', fontWeight: 600 }}
                         onClick={() => handleCheckpointOutcome('Booked', { reply_type: 'positive' })}
                       >
                         Call booked
@@ -1327,7 +1223,7 @@ export default function LeadDrawer({
                         className={`lead-note-card ${selectedNoteId === n.id ? 'active' : ''}`}
                         onClick={() => handleSelectNote(n)}
                       >
-                        <FileText size={13} style={{ color: 'var(--primary-purple)', flexShrink: 0 }} />
+                        <FileText size={13} className="lead-drawer__note-icon" />
 
                         {/* Inline title edit */}
                         {editingTitleId === n.id ? (
@@ -1338,10 +1234,10 @@ export default function LeadDrawer({
                             onBlur={commitTitleEdit}
                             onKeyDown={e => { if (e.key === 'Enter') commitTitleEdit(); if (e.key === 'Escape') setEditingTitleId(null); }}
                             onClick={e => e.stopPropagation()}
-                            style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--primary-purple)', borderRadius: '4px', padding: '0.15rem 0.35rem', fontSize: '0.82rem', color: 'var(--text-primary)', outline: 'none' }}
+                            className="lead-drawer__note-title-input"
                           />
                         ) : (
-                          <span style={{ flex: 1, fontSize: '0.82rem', color: selectedNoteId === n.id ? 'var(--primary-purple)' : 'var(--text-secondary)', fontWeight: selectedNoteId === n.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} data-ph-mask>
+                          <span className="lead-drawer__note-title" data-ph-mask>
                             {n.title || 'Untitled'}
                           </span>
                         )}
@@ -1535,6 +1431,8 @@ export default function LeadDrawer({
           </div>
         )}
 
+      </div>
+
       {showConvertModal && (
         <div className="modal-backdrop" style={{ zIndex: 1100 }}>
           <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
@@ -1647,7 +1545,6 @@ export default function LeadDrawer({
         onLogged={handleMessageLogged}
       />
       </div>
-    </div>
-  </>
+    </>
   );
 }

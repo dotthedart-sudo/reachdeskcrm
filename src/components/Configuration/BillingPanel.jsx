@@ -8,6 +8,7 @@ import {
   formatPlanCancelsAt,
   hasCancellableSubscription,
 } from '../../lib/billing';
+import { TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY, getExtraSeats } from '../../lib/planConfig';
 
 export default function BillingPanel({
   currentUser,
@@ -24,6 +25,9 @@ export default function BillingPanel({
   seatsUsed,
   seatLimit,
   seatsAtCap,
+  extraSeats = 0,
+  canAddTeamMembers = false,
+  onAddTeamMembers,
   onManagePlan,
   onCancelSubscription,
   onResumeSubscription,
@@ -179,6 +183,11 @@ export default function BillingPanel({
               <span style={{ color: 'var(--text-muted)' }}>Team seats</span>
               <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                 {teamLoading ? '…' : `${seatsUsed} / ${seatLimit}`}
+                {extraSeats > 0 && (
+                  <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                    {' '}({TEAMS_INCLUDED_SEATS} included + {extraSeats} extra)
+                  </span>
+                )}
               </span>
             </div>
             <div style={{ height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -190,6 +199,31 @@ export default function BillingPanel({
               }}
               />
             </div>
+          </div>
+        )}
+
+        {canAddTeamMembers && (
+          <div style={{
+            padding: '0.75rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          }}
+          >
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              Need more teammates? Add paid seats anytime — ${EXTRA_SEAT_USD_MONTHLY}/month each beyond your {TEAMS_INCLUDED_SEATS} included members.
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onAddTeamMembers}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              Add more members
+            </button>
           </div>
         )}
       </div>

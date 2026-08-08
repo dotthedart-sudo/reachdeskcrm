@@ -25,6 +25,9 @@ serve(async (req) => {
     const action = String(body?.action || 'preview').toLowerCase();
     const targetPlan = String(body?.targetPlan || body?.plan || '').toLowerCase();
     const targetCycle = body?.billingCycle ? String(body.billingCycle).toLowerCase() : null;
+    const extraSeats = targetPlan === 'teams'
+      ? Math.min(50, Math.max(0, Math.floor(Number(body?.extraSeats ?? 0)) || 0))
+      : 0;
 
     if (!['preview', 'confirm'].includes(action)) {
       return jsonResponse({ success: false, error: 'action must be preview or confirm' }, 400);
@@ -83,6 +86,7 @@ serve(async (req) => {
       const preview = await previewProratedUpgrade({
         subscriptionId: eligibility.subscriptionId,
         targetPriceId: eligibility.targetPriceId,
+        extraSeats,
       });
       if (!preview.ok) {
         return jsonResponse({
@@ -111,6 +115,7 @@ serve(async (req) => {
       targetCycle: eligibility.targetCycle,
       source: 'user_action',
       actor: user.id,
+      extraSeats,
     });
 
     if (!result.ok) {

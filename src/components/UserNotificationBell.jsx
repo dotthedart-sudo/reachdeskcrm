@@ -26,7 +26,7 @@ export default function UserNotificationBell({ profile, onRefreshProfile }) {
 
   const openLead = (leadId) => {
     setIsOpen(false);
-    navigate(`/crm?lead=${leadId}`);
+    navigate(`/leads?lead=${leadId}`);
   };
 
   const fetchNotifications = async () => {

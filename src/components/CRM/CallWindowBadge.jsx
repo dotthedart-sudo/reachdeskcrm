@@ -64,9 +64,9 @@ export default function CallWindowBadge({
       >
         {label}
       </button>
-      {localTime && (
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          Their time: {localTime}
+      {showLocalTime && (
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+          {localTime ? `Their time: ${localTime}` : (editable ? 'Set timezone or add phone' : '—')}
         </span>
       )}
       {open && (

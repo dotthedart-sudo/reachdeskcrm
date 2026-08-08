@@ -687,7 +687,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         type="button"
                         className="btn btn-secondary btn-sm"
                         style={{ marginTop: '0.5rem', fontSize: '0.7rem', width: '100%', justifyContent: 'center' }}
-                        onClick={() => navigate('/crm')}
+                        onClick={() => navigate('/leads')}
                       >
                         {m.mismatchCount} suggestion{m.mismatchCount === 1 ? '' : 's'} · Review in CRM
                       </button>
@@ -960,7 +960,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                           {item.count} more suggestion mismatch{item.count === 1 ? '' : 'es'} on your leads
                         </p>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/crm')} style={{ fontSize: '0.75rem' }}>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/leads')} style={{ fontSize: '0.75rem' }}>
                           Review in CRM
                         </button>
                       </div>
@@ -976,7 +976,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
-                          onClick={() => navigate('/crm')}
+                          onClick={() => navigate('/leads')}
                           style={{ alignSelf: 'flex-start', fontSize: '0.72rem' }}
                         >
                           Review in CRM
@@ -1064,7 +1064,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 <Bell size={18} style={{ color: 'var(--danger-color)' }} /> Due Follow-ups
               </h3>
               {reminders.length > 0 && (
-                <button onClick={() => navigate('/crm')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                <button onClick={() => navigate('/leads')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
                   Open CRM <ArrowRight size={12} />
                 </button>
               )}
@@ -1082,7 +1082,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                     <button
                       key={lead.id}
                       type="button"
-                      onClick={() => navigate(`/crm?lead=${lead.id}`)}
+                      onClick={() => navigate(`/leads?lead=${lead.id}`)}
                       className="flex justify-between align-center"
                       style={{
                         padding: '0.6rem 0.75rem',

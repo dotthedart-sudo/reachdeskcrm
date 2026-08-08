@@ -6,7 +6,7 @@ import { APP_DOMAIN, isLocalDev } from '../utils/domain';
 import { PLANS, getPlanFeatures } from '../lib/planMarketing';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
 import { isRegionExcluded, formatPlanHeroAmount, formatPlanHeroPeriod, formatPlanHeroSub, formatPlanHeroBillingNote } from '../lib/regionalPricing';
-import { normalizePlan } from '../lib/planConfig';
+import { normalizePlan, EXTRA_TEAMS_SEAT_PRICE_ID, EXTRA_SEAT_USD_MONTHLY, TEAMS_INCLUDED_SEATS, MAX_EXTRA_SEATS_PER_ACTION } from '../lib/planConfig';
 import { isTeamMember } from '../lib/teamWorkspace';
 import MemberBillingNotice from './MemberBillingNotice';
 import AuthLogo from './AuthLogo';
@@ -327,7 +327,8 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
   const profileCycle = normalizeBillingCycle(profile?.billing_cycle) || 'monthly';
   const [billing, setBilling] = useState(profileCycle);
   const { formatLocalPrice, country } = useLocalCurrency();
-  const [upgradeModal, setUpgradeModal] = useState(null); // { planKey, charge, loading, error, confirming }
+  const [upgradeModal, setUpgradeModal] = useState(null); // { planKey, charge, loading, error, confirming, extraSeats }
+  const [teamsCheckoutModal, setTeamsCheckoutModal] = useState(null); // { priceId, extraSeats }
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
@@ -343,13 +344,19 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
     }
   }, []);
 
-  const openPaddleCheckout = async (planKey, priceId) => {
+  const openPaddleCheckout = async (planKey, priceId, extraSeats = 0) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !priceId) return;
     if (profile?.role === 'admin' || isTeamMember(profile)) return;
 
+    const items = [{ priceId, quantity: 1 }];
+    const extraQty = planKey === 'teams' ? Math.min(MAX_EXTRA_SEATS_PER_ACTION, Math.max(0, Number(extraSeats) || 0)) : 0;
+    if (extraQty > 0) {
+      items.push({ priceId: EXTRA_TEAMS_SEAT_PRICE_ID, quantity: extraQty });
+    }
+
     window.Paddle.Checkout.open({
-      items: [{ priceId, quantity: 1 }],
+      items,
       customer: { email: user.email },
       customData: { supabase_user_id: user.id },
       successUrl: isLocalDev()
@@ -367,22 +374,18 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
     return billing === currentCycle;
   };
 
-  const handleSelectPlan = async (planKey, priceId, isUpgradeClick) => {
-    setActionError('');
-    if (profile?.role === 'admin' || isTeamMember(profile)) return;
+  const runUpgradePreview = async (planKey, extraSeats = 0) => {
+    const extra = planKey === 'teams' ? Math.min(MAX_EXTRA_SEATS_PER_ACTION, Math.max(0, Number(extraSeats) || 0)) : 0;
 
-    if (!canUseProratedUpgrade(isUpgradeClick)) {
-      await openPaddleCheckout(planKey, priceId);
-      return;
-    }
-
-    setUpgradeModal({
+    setUpgradeModal((prev) => ({
+      ...(prev || {}),
       planKey,
       charge: null,
       loading: true,
       confirming: false,
       error: '',
-    });
+      extraSeats: planKey === 'teams' ? extra : undefined,
+    }));
 
     try {
       const { data, error } = await supabase.functions.invoke('upgrade-subscription', {
@@ -390,13 +393,19 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
           action: 'preview',
           targetPlan: planKey,
           billingCycle: billing,
+          extraSeats: extra,
         },
       });
 
       if (error) throw error;
       if (data?.useCheckout) {
+        const priceId = BILLING[billing]?.[planKey]?.priceId;
         setUpgradeModal(null);
-        await openPaddleCheckout(planKey, priceId);
+        if (planKey === 'teams') {
+          setTeamsCheckoutModal({ priceId, extraSeats: extra });
+        } else {
+          await openPaddleCheckout(planKey, priceId);
+        }
         return;
       }
       if (!data?.success) {
@@ -412,17 +421,36 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
         billingCycle: data.billingCycle,
         fromPlan: data.fromPlan,
         toPlan: data.toPlan,
+        extraSeats: planKey === 'teams' ? extra : undefined,
       });
     } catch (err) {
       console.error('[UpgradePage] preview failed:', err);
-      setUpgradeModal({
+      setUpgradeModal((prev) => ({
+        ...(prev || {}),
         planKey,
         charge: null,
         loading: false,
         confirming: false,
         error: err.message || 'Could not estimate upgrade charge',
-      });
+        extraSeats: planKey === 'teams' ? extra : undefined,
+      }));
     }
+  };
+
+  const handleSelectPlan = async (planKey, priceId, isUpgradeClick) => {
+    setActionError('');
+    if (profile?.role === 'admin' || isTeamMember(profile)) return;
+
+    if (!canUseProratedUpgrade(isUpgradeClick)) {
+      if (planKey === 'teams') {
+        setTeamsCheckoutModal({ priceId, extraSeats: 0 });
+        return;
+      }
+      await openPaddleCheckout(planKey, priceId);
+      return;
+    }
+
+    await runUpgradePreview(planKey, 0);
   };
 
   const confirmProratedUpgrade = async () => {
@@ -435,6 +463,7 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
           action: 'confirm',
           targetPlan: upgradeModal.planKey,
           billingCycle: upgradeModal.billingCycle || billing,
+          extraSeats: upgradeModal.planKey === 'teams' ? (upgradeModal.extraSeats ?? 0) : 0,
         },
       });
 
@@ -627,6 +656,33 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
                 )}
             </p>
 
+            {upgradeModal.planKey === 'teams' && (
+              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label htmlFor="upgrade-extra-seats" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Additional members (beyond {TEAMS_INCLUDED_SEATS} included)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <input
+                    id="upgrade-extra-seats"
+                    type="number"
+                    min={0}
+                    max={MAX_EXTRA_SEATS_PER_ACTION}
+                    value={upgradeModal.extraSeats ?? 0}
+                    onChange={(e) => {
+                      const next = Math.min(MAX_EXTRA_SEATS_PER_ACTION, Math.max(0, Number(e.target.value) || 0));
+                      runUpgradePreview('teams', next);
+                    }}
+                    className="form-input"
+                    style={{ width: 88 }}
+                    disabled={upgradeModal.confirming || upgradeModal.loading}
+                  />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    × ${EXTRA_SEAT_USD_MONTHLY}/mo each
+                  </span>
+                </div>
+              </div>
+            )}
+
             {upgradeModal.loading ? (
               <p style={{ margin: '1rem 0', color: 'var(--text-muted)' }}>Calculating prorated charge…</p>
             ) : (
@@ -681,6 +737,114 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
                 disabled={upgradeModal.loading || upgradeModal.confirming || (!upgradeModal.charge && !!upgradeModal.error)}
               >
                 {upgradeModal.confirming ? 'Charging…' : 'Confirm & pay'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {teamsCheckoutModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="teams-checkout-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100000,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setTeamsCheckoutModal(null)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: 460, width: '100%', padding: '1.25rem', background: 'var(--bg-card)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <h3 id="teams-checkout-title" style={{ margin: 0, fontSize: '1.1rem' }}>
+                Teams plan — choose team size
+              </h3>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setTeamsCheckoutModal(null)}
+                aria-label="Close"
+                style={{ padding: '0.25rem 0.4rem' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <p style={{ margin: '0.75rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              Teams includes {TEAMS_INCLUDED_SEATS} members. Add more now if you need a larger workspace — each extra seat is ${EXTRA_SEAT_USD_MONTHLY}/month with full Teams access.
+            </p>
+
+            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label htmlFor="checkout-extra-seats" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Additional members (optional)
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  id="checkout-extra-seats"
+                  type="number"
+                  min={0}
+                  max={MAX_EXTRA_SEATS_PER_ACTION}
+                  value={teamsCheckoutModal.extraSeats ?? 0}
+                  onChange={(e) => {
+                    const next = Math.min(MAX_EXTRA_SEATS_PER_ACTION, Math.max(0, Number(e.target.value) || 0));
+                    setTeamsCheckoutModal((prev) => ({ ...prev, extraSeats: next }));
+                  }}
+                  className="form-input"
+                  style={{ width: 88 }}
+                />
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  × ${EXTRA_SEAT_USD_MONTHLY}/mo each
+                </span>
+              </div>
+            </div>
+
+            <div style={{
+              marginTop: '1rem',
+              padding: '0.85rem 1rem',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-hover)',
+            }}
+            >
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+                Estimated monthly total
+              </div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '0.25rem' }}>
+                ${(
+                  Number(BILLING[billing]?.teams?.usdPerMonth || 29)
+                  + (teamsCheckoutModal.extraSeats || 0) * EXTRA_SEAT_USD_MONTHLY
+                ).toFixed(2)}/mo
+              </div>
+              <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                {TEAMS_INCLUDED_SEATS + (teamsCheckoutModal.extraSeats || 0)} total seats
+                {' '}({TEAMS_INCLUDED_SEATS} included{(teamsCheckoutModal.extraSeats || 0) > 0 ? ` + ${teamsCheckoutModal.extraSeats} paid` : ''})
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.1rem' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTeamsCheckoutModal(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  const { priceId, extraSeats } = teamsCheckoutModal;
+                  setTeamsCheckoutModal(null);
+                  await openPaddleCheckout('teams', priceId, extraSeats);
+                }}
+              >
+                Continue to checkout
               </button>
             </div>
           </div>

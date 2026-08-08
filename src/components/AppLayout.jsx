@@ -203,7 +203,7 @@ export default function AppLayout({
                 className={`sidebar-item ${pathname === '/reports' ? 'active' : ''}`}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="sidebar-item__main">
                   <BarChart2 size={18} /><span className="nav-label">Reports</span>
                 </div>
                 {!reportsUnlocked && (
@@ -225,7 +225,7 @@ export default function AppLayout({
                 className={`sidebar-item ${pathname === '/calendar' ? 'active' : ''}`}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="sidebar-item__main">
                   <Calendar size={18} /><span className="nav-label">Calendar</span>
                 </div>
                 {!calendarUnlocked && (
@@ -241,7 +241,7 @@ export default function AppLayout({
                 className={`sidebar-item ${pathname === '/teams' ? 'active' : ''}`}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="sidebar-item__main">
                   <UsersRound size={18} /><span className="nav-label">Teams</span>
                 </div>
                 {isTeamsFeatureLocked(profile) && (
@@ -257,7 +257,7 @@ export default function AppLayout({
                 className={`sidebar-item ${pathname === '/reminders' ? 'active' : ''}`}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="sidebar-item__main">
                   <Bell size={18} /><span className="nav-label">Reminders</span>
                 </div>
                 {remindersCount > 0 && (

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import {
   canInviteTeammates,
+  getExtraSeats,
   getTeamWorkspaceSeatLimit,
   normalizePlan,
 } from './planConfig';
@@ -148,16 +149,31 @@ export function teamMemberEmail(entry) {
   return entry.email || '';
 }
 
-export function getTeamSeatLimit(plan) {
-  return getTeamWorkspaceSeatLimit(plan);
-}
-
 export function getSeatsUsed(memberCount, pendingInviteCount) {
   return (memberCount ?? 0) + (pendingInviteCount ?? 0);
 }
 
-export function getSeatsRemaining(plan, memberCount, pendingInviteCount) {
-  return Math.max(0, getTeamSeatLimit(plan) - getSeatsUsed(memberCount, pendingInviteCount));
+export function getTeamSeatLimit(planOrProfile, extraSeats) {
+  if (planOrProfile && typeof planOrProfile === 'object') {
+    return getTeamWorkspaceSeatLimit(planOrProfile.plan, getExtraSeats(planOrProfile));
+  }
+  return getTeamWorkspaceSeatLimit(planOrProfile, extraSeats ?? 0);
+}
+
+export function getSeatsRemaining(planOrProfile, memberCount, pendingInviteCount) {
+  const limit = typeof planOrProfile === 'object'
+    ? getTeamSeatLimit(planOrProfile)
+    : getTeamSeatLimit(planOrProfile, 0);
+  return Math.max(0, limit - getSeatsUsed(memberCount, pendingInviteCount));
+}
+
+/** Teams owners at seat cap can self-serve purchase extra seats. */
+export function canPurchaseExtraSeats(profile) {
+  if (!profile) return false;
+  if (normalizePlan(profile.plan) !== 'teams') return false;
+  if ((profile.team_role || 'owner').toLowerCase() !== 'owner') return false;
+  if (profile.plan_status && !isPaidPlanActive(profile)) return false;
+  return true;
 }
 
 /** Creates team_id for eligible owners via DB RPC. Returns updated team_id or null. */

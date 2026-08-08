@@ -137,12 +137,12 @@ class GlobalErrorBoundary extends React.Component {
           fontFamily: 'Plus Jakarta Sans, system-ui, sans-serif'
         }}>
           <h2 style={{ fontSize: '1.4rem', marginBottom: '0.75rem' }}>
-            {dev ? 'Something went wrong loading the app' : 'App updated or a temporary load issue occurred'}
+            {dev ? 'Something went wrong loading the app' : 'Something went wrong'}
           </h2>
           <p style={{ color: '#A3A3A3', marginBottom: '1rem', fontSize: '0.9rem', maxWidth: 480 }}>
             {dev
               ? 'This often happens after hot reload during development. Try again, or restart the dev server if it persists.'
-              : 'A new version of ReachDesk CRM is active. Please refresh to load the latest release.'}
+              : 'A page failed to render. Your session is still active — try again, or reload if the problem continues.'}
           </p>
           {dev && (
             <pre style={{
@@ -163,31 +163,13 @@ class GlobalErrorBoundary extends React.Component {
           )}
           {!dev && (
             <p style={{ color: '#737373', marginBottom: '1.25rem', fontSize: '0.8rem', maxWidth: 420 }}>
-              If this keeps happening, try a hard refresh (Ctrl+Shift+R) or clear site data for this domain.
+              If this keeps happening after a deploy, use a hard refresh (Ctrl+Shift+R).
             </p>
           )}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {dev && (
-              <button
-                type="button"
-                onClick={this.handleRetry}
-                style={{
-                  padding: '8px 18px',
-                  backgroundColor: 'transparent',
-                  color: '#FFFFFF',
-                  border: '1px solid #525252',
-                  borderRadius: '6px',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Try again
-              </button>
-            )}
             <button
               type="button"
-              onClick={this.handleRefresh}
+              onClick={this.handleRetry}
               style={{
                 padding: '8px 18px',
                 backgroundColor: '#FFFFFF',
@@ -199,8 +181,42 @@ class GlobalErrorBoundary extends React.Component {
                 cursor: 'pointer'
               }}
             >
-              Refresh Now
+              Try again
             </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '8px 18px',
+                backgroundColor: 'transparent',
+                color: '#FFFFFF',
+                border: '1px solid #525252',
+                borderRadius: '6px',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                cursor: 'pointer'
+              }}
+            >
+              Reload page
+            </button>
+            {dev && (
+              <button
+                type="button"
+                onClick={this.handleRefresh}
+                style={{
+                  padding: '8px 18px',
+                  backgroundColor: 'transparent',
+                  color: '#A3A3A3',
+                  border: '1px solid #404040',
+                  borderRadius: '6px',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Hard refresh (clear caches)
+              </button>
+            )}
           </div>
         </div>
       );
@@ -1622,6 +1638,12 @@ function CalendarPage() {
   return <CalendarPageView currentUser={profile} />;
 }
 
+/** Old /crm links → /leads (preserve query, e.g. ?lead=). */
+function LegacyCrmRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/leads${location.search}${location.hash}`} replace />;
+}
+
 function ReportsPage() {
   const { profile } = useAppContext();
   return <ReportsPageView currentUser={profile} />;
@@ -1843,6 +1865,7 @@ function AppRoutes() {
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
         <Route path="/leads" element={<ProtectedPage><CRMPage /></ProtectedPage>} />
+        <Route path="/crm" element={<LegacyCrmRedirect />} />
         <Route path="/templates" element={<ProtectedPage><TemplatesPage /></ProtectedPage>} />
         <Route path="/invoices" element={<ProtectedPage><InvoicesPage /></ProtectedPage>} />
         <Route path="/revenue" element={<ProtectedPage><RevenuePage /></ProtectedPage>} />

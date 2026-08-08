@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Mail, UserMinus, Lock, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
+  canPurchaseExtraSeats,
   ensureProTeamWorkspace,
   getSeatsRemaining,
   getSeatsUsed,
@@ -14,6 +15,8 @@ import {
   isTeamsFeatureLocked,
   updateTeamSettings,
 } from '../lib/teamWorkspace';
+import { getExtraSeats, TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY } from '../lib/planConfig';
+import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
 import {
   fetchTeamCallPermissions,
   updateTeamCallSettings,
@@ -50,14 +53,18 @@ export default function Teams({ currentUser, onRefreshProfile }) {
   const [activeSection, setActiveSection] = useState('people');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [callSettingsSaving, setCallSettingsSaving] = useState(false);
+  const [extraSeatsModalOpen, setExtraSeatsModalOpen] = useState(false);
 
   const locked = isTeamsFeatureLocked(currentUser);
   const canManage = isProTeamOwner(currentUser);
   const isOwner = isTeamOwner(currentUser);
-  const seatLimit = getTeamSeatLimit(currentUser?.plan);
+  const seatLimit = getTeamSeatLimit(currentUser);
   const seatsUsed = getSeatsUsed(teamMembers.length, teamInvitations.length);
-  const seatsRemaining = getSeatsRemaining(currentUser?.plan, teamMembers.length, teamInvitations.length);
+  const seatsRemaining = getSeatsRemaining(currentUser, teamMembers.length, teamInvitations.length);
   const seatsAtCap = seatsUsed >= seatLimit;
+  const extraSeats = getExtraSeats(currentUser);
+  const canManageExtraSeats = canPurchaseExtraSeats(currentUser);
+  const canBuyExtraSeat = canManageExtraSeats && seatsAtCap;
 
   const loadTeam = async () => {
     if (!hasTeamsPageAccess(currentUser)) {
@@ -128,7 +135,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
 
   useEffect(() => {
     if (currentUser) loadTeam();
-  }, [currentUser?.id, currentUser?.team_id, currentUser?.plan, currentUser?.team_role]);
+  }, [currentUser?.id, currentUser?.team_id, currentUser?.plan, currentUser?.team_role, currentUser?.extra_seats]);
 
   useEffect(() => {
     if (!currentUser?.team_id) return undefined;
@@ -145,14 +152,18 @@ export default function Teams({ currentUser, onRefreshProfile }) {
 
   const handleSendInvite = async (e) => {
     e.preventDefault();
-    if (!canManage || seatsAtCap) return;
+    if (!canManage || (seatsAtCap && !canBuyExtraSeat)) return;
     setTeamError('');
     setTeamSuccess('');
 
     if (!inviteEmail.trim()) return;
 
     if (seatsUsed >= seatLimit) {
-      setTeamError(`All ${seatLimit} seats are in use. Remove a member or cancel a pending invite to add someone else.`);
+      if (canBuyExtraSeat) {
+        setTeamError(`All ${seatLimit} seats are in use. Add a paid seat to invite another teammate.`);
+      } else {
+        setTeamError(`All ${seatLimit} seats are in use. Remove a member or cancel a pending invite to add someone else.`);
+      }
       return;
     }
 
@@ -482,7 +493,21 @@ export default function Teams({ currentUser, onRefreshProfile }) {
           </div>
           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
             {seatsUsed} of {seatLimit} seats
+            {extraSeats > 0 && (
+              <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                {' '}({TEAMS_INCLUDED_SEATS} included + {extraSeats} extra)
+              </span>
+            )}
           </span>
+          {canManageExtraSeats && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setExtraSeatsModalOpen(true)}
+            >
+              Add more members
+            </button>
+          )}
         </div>
 
         {teamLoading ? (
@@ -586,11 +611,25 @@ export default function Teams({ currentUser, onRefreshProfile }) {
             <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Invite teammate</h3>
           </div>
 
-          {seatsAtCap && (
+          {seatsAtCap && canBuyExtraSeat ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                All {seatLimit} seats are in use. Add more members to invite another teammate.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setExtraSeatsModalOpen(true)}
+                style={{ alignSelf: 'flex-start' }}
+              >
+                Add more members — ${EXTRA_SEAT_USD_MONTHLY}/mo each
+              </button>
+            </div>
+          ) : seatsAtCap ? (
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
               All seats are in use. Remove a member or cancel a pending invite to add someone else.
             </p>
-          )}
+          ) : null}
 
           <form onSubmit={handleSendInvite} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
@@ -605,10 +644,10 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                 onChange={(e) => setInviteEmail(e.target.value)}
                 className="form-input w-full"
                 style={{ paddingLeft: '2.5rem' }}
-                disabled={seatsAtCap || inviteSending}
+                disabled={(seatsAtCap && !canBuyExtraSeat) || inviteSending}
               />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={seatsAtCap || inviteSending}>
+            <button type="submit" className="btn btn-primary" disabled={(seatsAtCap && !canBuyExtraSeat) || inviteSending}>
               {inviteSending ? 'Sending…' : 'Send invite'}
             </button>
           </form>
@@ -944,6 +983,17 @@ export default function Teams({ currentUser, onRefreshProfile }) {
           You’re a member of this workspace. Only the owner can invite people, change permissions, or remove members.
         </p>
       )}
+
+      <ExtraSeatsPurchaseModal
+        open={extraSeatsModalOpen}
+        onClose={() => setExtraSeatsModalOpen(false)}
+        profile={currentUser}
+        onSuccess={async (data) => {
+          setTeamSuccess(`Your workspace now supports ${data?.seatLimit ?? seatLimit} seats.`);
+          if (onRefreshProfile) await onRefreshProfile();
+          await loadTeam();
+        }}
+      />
     </div>
   );
 }

@@ -89,7 +89,7 @@ export default function TeamCallFeed({
           No team call activity matches this filter.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 6 }}>
+        <div className="table-container" style={{ marginBottom: 0 }}>
           <table className="data-table data-table--resizable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'var(--bg-tertiary)', textAlign: 'left' }}>
@@ -100,7 +100,7 @@ export default function TeamCallFeed({
                     width={getWidth(col.key)}
                     onResize={setWidth}
                     onReset={resetWidth}
-                    style={{ padding: '0.65rem 0.75rem', fontWeight: 600 }}
+                    style={{ fontWeight: 600 }}
                   >
                     {col.label}
                   </ResizableTh>
@@ -115,33 +115,32 @@ export default function TeamCallFeed({
                   height={getRowHeight(row.id)}
                   onResize={setRowHeight}
                   onReset={resetRowHeight}
-                  style={{ borderTop: '1px solid var(--border-color)' }}
                 >
-                  <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap', width: getWidth('when'), minWidth: getWidth('when'), maxWidth: getWidth('when') }}>
+                  <td style={{ whiteSpace: 'nowrap', width: getWidth('when'), minWidth: getWidth('when'), maxWidth: getWidth('when') }}>
                     {formatActivityDateTime(row.created_at, { showZone: true })}
                   </td>
-                  <td style={{ padding: '0.65rem 0.75rem', width: getWidth('member'), minWidth: getWidth('member'), maxWidth: getWidth('member') }}>{row.caller_name || row.caller_email || '—'}</td>
+                  <td style={{ width: getWidth('member'), minWidth: getWidth('member'), maxWidth: getWidth('member') }}>{row.caller_name || row.caller_email || '—'}</td>
                   <td
-                    style={{ padding: '0.65rem 0.75rem', cursor: 'pointer', width: getWidth('lead'), minWidth: getWidth('lead'), maxWidth: getWidth('lead') }}
+                    style={{ cursor: 'pointer', width: getWidth('lead'), minWidth: getWidth('lead'), maxWidth: getWidth('lead') }}
                     onClick={() => onOpenLead?.(row.lead, 'calls')}
                   >
                     <div style={{ fontWeight: 600 }}>{leadDisplayName(row.lead)}</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row.lead.company || row.lead.phone || '—'}</div>
                   </td>
-                  <td style={{ padding: '0.65rem 0.75rem', width: getWidth('outcome'), minWidth: getWidth('outcome'), maxWidth: getWidth('outcome') }}>
+                  <td style={{ width: getWidth('outcome'), minWidth: getWidth('outcome'), maxWidth: getWidth('outcome') }}>
                     <OutcomeBadge outcome={row.outcome} />
                   </td>
-                  <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', width: getWidth('note'), minWidth: getWidth('note'), maxWidth: getWidth('note') }}>
+                  <td style={{ color: 'var(--text-secondary)', width: getWidth('note'), minWidth: getWidth('note'), maxWidth: getWidth('note') }}>
                     {!row.note_visible && row.note == null ? (
                       <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>(private)</span>
                     ) : (
                       row.note || '—'
                     )}
                   </td>
-                  <td style={{ padding: '0.65rem 0.75rem', width: getWidth('followup'), minWidth: getWidth('followup'), maxWidth: getWidth('followup') }}>
+                  <td style={{ width: getWidth('followup'), minWidth: getWidth('followup'), maxWidth: getWidth('followup') }}>
                     {row.nextFollowUp ? row.nextFollowUp.toLocaleDateString() : '—'}
                   </td>
-                  <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: getWidth('_actions'), minWidth: getWidth('_actions'), maxWidth: getWidth('_actions') }}>
+                  <td style={{ textAlign: 'right', width: getWidth('_actions'), minWidth: getWidth('_actions'), maxWidth: getWidth('_actions') }}>
                     <button type="button" className="btn-icon" onClick={() => onOpenLead?.(row.lead, 'calls')}>
                       <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                     </button>

@@ -1,23 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart2, Lock, Mail, ArrowRight, Download, ChevronDown, Folder, Check, Calendar,
+  BarChart2, Lock, Download, ChevronDown, Folder, Check, Calendar, Users, User,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
-import { getTeamIds } from '../lib/utils';
+import { getTeamIds, getEffectivePlan } from '../lib/utils';
 import { isTeamOwner } from '../lib/teamWorkspace';
 import { fetchSharesForUser } from '../lib/folderShares';
 import { BRAND_NAME } from '../config/brand';
-import HelpPopover from './HelpPopover';
-import { softBadgeStyle } from '../lib/softBadgeStyle';
 import { exportElementToPdf } from '../utils/exportReportsPdf';
 import {
   MESSAGE_PIPELINE_STAGES,
-  MESSAGE_STAGE_COLORS,
   countCumulativeMessagePipeline,
   computeStageConversionRates,
 } from '../lib/dashboardMetrics';
+import ReportsFunnel from './Reports/ReportsFunnel';
+import './Reports/Reports.css';
 
 const UNFILED_ID = 'unfiled';
 const DATE_PRESETS = [
@@ -192,6 +191,9 @@ export default function Reports({ currentUser }) {
   const allowed = !!reportsUnlocked;
   const exportRef = useRef(null);
 
+  const plan = getEffectivePlan(currentUser);
+  const canUseTeamScope = plan === 'teams' && isTeamOwner(currentUser);
+
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [allLeads, setAllLeads] = useState([]);
@@ -200,6 +202,14 @@ export default function Reports({ currentUser }) {
   const [datePreset, setDatePreset] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [reportScope, setReportScope] = useState('team');
+
+  useEffect(() => {
+    if (canUseTeamScope && reportScope === 'team') return;
+    setSelectedListIds((ids) =>
+      ids.filter((id) => id === UNFILED_ID || folders.some((f) => f.id === id && f.user_id === currentUser?.id)),
+    );
+  }, [reportScope, canUseTeamScope, folders, currentUser?.id]);
 
   useEffect(() => {
     if (!currentUser?.id || !allowed) {
@@ -238,12 +248,12 @@ export default function Reports({ currentUser }) {
         const leadsPromise = leadsOrClause
           ? supabase
             .from('leads')
-            .select('id, status, reply_type, folder_id, created_at')
+            .select('id, user_id, status, reply_type, folder_id, created_at')
             .or(leadsOrClause)
             .order('created_at', { ascending: false })
           : supabase
             .from('leads')
-            .select('id, status, reply_type, folder_id, created_at')
+            .select('id, user_id, status, reply_type, folder_id, created_at')
             .in('user_id', teamIds)
             .order('created_at', { ascending: false });
 
@@ -268,6 +278,16 @@ export default function Reports({ currentUser }) {
     };
   }, [currentUser?.id, currentUser?.team_id, currentUser?.team_role, allowed]);
 
+  const scopedLeads = useMemo(() => {
+    if (canUseTeamScope && reportScope === 'team') return allLeads;
+    return allLeads.filter((lead) => lead.user_id === currentUser?.id);
+  }, [allLeads, canUseTeamScope, reportScope, currentUser?.id]);
+
+  const visibleFolders = useMemo(() => {
+    if (canUseTeamScope && reportScope === 'team') return folders;
+    return folders.filter((f) => f.user_id === currentUser?.id);
+  }, [folders, canUseTeamScope, reportScope, currentUser?.id]);
+
   const dateBounds = useMemo(() => {
     const now = new Date();
     if (datePreset === '7d') {
@@ -289,7 +309,7 @@ export default function Reports({ currentUser }) {
   }, [datePreset, customFrom, customTo]);
 
   const filteredLeads = useMemo(() => {
-    return allLeads.filter((lead) => {
+    return scopedLeads.filter((lead) => {
       if (!isActiveLead(lead)) return false;
 
       if (selectedListIds.length > 0) {
@@ -304,7 +324,7 @@ export default function Reports({ currentUser }) {
 
       return true;
     });
-  }, [allLeads, selectedListIds, dateBounds]);
+  }, [scopedLeads, selectedListIds, dateBounds]);
 
   const cumulativeCounts = useMemo(
     () => countCumulativeMessagePipeline(filteredLeads),
@@ -315,14 +335,19 @@ export default function Reports({ currentUser }) {
     [cumulativeCounts],
   );
 
+  const scopeSummary = useMemo(() => {
+    if (canUseTeamScope && reportScope === 'team') return 'Whole team';
+    return 'My leads';
+  }, [canUseTeamScope, reportScope]);
+
   const listFilterSummary = useMemo(() => {
     if (selectedListIds.length === 0) return 'All leads';
     const names = selectedListIds.map((id) => {
       if (id === UNFILED_ID) return 'Unfiled';
-      return folders.find((f) => f.id === id)?.name || 'List';
+      return visibleFolders.find((f) => f.id === id)?.name || 'List';
     });
     return names.join(', ');
-  }, [selectedListIds, folders]);
+  }, [selectedListIds, visibleFolders]);
 
   const dateFilterSummary = useMemo(() => {
     if (datePreset === 'all') return 'All time';
@@ -395,14 +420,14 @@ export default function Reports({ currentUser }) {
   });
 
   return (
-    <div className="flex-col gap-4" style={{ maxWidth: 960, textAlign: 'left' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+    <div className="reports-page flex-col gap-4">
+      <div className="reports-page__header">
         <div>
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BarChart2 size={22} style={{ color: 'var(--accent-blue)' }} />
+          <h2 className="reports-page__title">
+            <BarChart2 size={22} style={{ color: 'var(--text-secondary)' }} />
             Reports
           </h2>
-          <p style={{ margin: '0.35rem 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          <p className="reports-page__subtitle">
             Cumulative pipeline reach — each stage counts leads that reached it or moved beyond it.
           </p>
         </div>
@@ -411,39 +436,47 @@ export default function Reports({ currentUser }) {
           className="btn btn-primary btn-sm"
           onClick={handleExportPdf}
           disabled={exporting || totalLeads === 0}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <Download size={14} />
           {exporting ? 'Exporting…' : 'Export PDF'}
         </button>
       </div>
 
-      {/* Filters — excluded from PDF capture */}
-      <div
-        className="card"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.85rem',
-          alignItems: 'flex-end',
-          padding: '0.9rem 1rem',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Lists
-          </label>
+      {canUseTeamScope && (
+        <div className="reports-scope" role="group" aria-label="Report scope">
+          <button
+            type="button"
+            className={`reports-scope__btn ${reportScope === 'team' ? 'reports-scope__btn--active' : ''}`}
+            onClick={() => setReportScope('team')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Users size={14} />
+            Whole team
+          </button>
+          <button
+            type="button"
+            className={`reports-scope__btn ${reportScope === 'mine' ? 'reports-scope__btn--active' : ''}`}
+            onClick={() => setReportScope('mine')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <User size={14} />
+            My leads
+          </button>
+        </div>
+      )}
+
+      <div className="card reports-filters">
+        <div className="reports-filters__group">
+          <span className="reports-filters__label">Lists</span>
           <ListFilterDropdown
-            folders={folders}
+            folders={visibleFolders}
             selectedIds={selectedListIds}
             onChange={setSelectedListIds}
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Entered pipeline
-          </label>
+        <div className="reports-filters__group">
+          <span className="reports-filters__label">Entered pipeline</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
             {DATE_PRESETS.map((p) => (
               <button
@@ -461,8 +494,8 @@ export default function Reports({ currentUser }) {
 
         {datePreset === 'custom' && (
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label htmlFor="reports-from" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>From</label>
+            <div className="reports-filters__group">
+              <label htmlFor="reports-from" className="reports-filters__label">From</label>
               <input
                 id="reports-from"
                 type="date"
@@ -472,8 +505,8 @@ export default function Reports({ currentUser }) {
                 style={{ minWidth: 140 }}
               />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label htmlFor="reports-to" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>To</label>
+            <div className="reports-filters__group">
+              <label htmlFor="reports-to" className="reports-filters__label">To</label>
               <input
                 id="reports-to"
                 type="date"
@@ -487,182 +520,63 @@ export default function Reports({ currentUser }) {
         )}
       </div>
 
-      {/* Branded report body — captured for PDF */}
       <div
         ref={exportRef}
-        className="card reports-export-root"
-        style={{
-          background: '#ffffff',
-          color: '#0a0a0a',
-          border: '1px solid #e5e5e5',
-          padding: '1.25rem',
-        }}
+        className="card reports-export-root reports-export-root--pdf"
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: '1rem',
-            borderBottom: '2px solid #0a0a0a',
-            paddingBottom: '1rem',
-            marginBottom: '1.1rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="reports-export-header">
+          <div className="reports-export-brand">
             <img src="/logo.png" alt="" width={36} height={36} style={{ borderRadius: 8 }} />
             <div>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.02em', color: '#0a0a0a' }}>
-                {BRAND_NAME}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#525252' }}>Pipeline Report</div>
+              <div className="reports-export-brand__name">{BRAND_NAME}</div>
+              <div className="reports-export-brand__type">Pipeline Report</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right', fontSize: '0.72rem', color: '#525252', lineHeight: 1.45 }}>
+          <div className="reports-export-meta">
             <div>Generated {generatedLabel}</div>
+            <div>Scope: {scopeSummary}</div>
             <div>Lists: {listFilterSummary}</div>
             <div>Entered: {dateFilterSummary}</div>
           </div>
         </div>
 
-        <h3
-          style={{
-            fontSize: '0.9rem',
-            margin: '0 0 0.35rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            color: '#404040',
-          }}
-        >
-          <Mail size={16} />
-          Messages pipeline
-          <span className="no-export-help">
-            <HelpPopover title="Cumulative stage counts">
-              Unlike the Dashboard funnel (which shows where leads sit right now), these numbers count every lead that reached each stage or progressed further — even if they have since moved on. Date filter uses lead created date (when they entered the pipeline).
-            </HelpPopover>
-          </span>
-        </h3>
-        <p style={{ fontSize: '0.75rem', color: '#737373', margin: '0 0 1rem' }}>
-          {totalLeads} lead{totalLeads === 1 ? '' : 's'} matching filters
-          {allLeads.length !== totalLeads ? ` (${allLeads.length} total in workspace)` : ''}.
-        </p>
-
         {totalLeads === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#737373' }}>
-            <p style={{ margin: '0 0 1rem' }}>
-              {allLeads.length === 0
+          <div className="reports-empty">
+            <p>
+              {scopedLeads.length === 0
                 ? 'Add leads in the CRM to see pipeline reports here.'
-                : 'No leads match the selected lists and date range.'}
+                : 'No leads match the selected scope, lists, and date range.'}
             </p>
-            {allLeads.length === 0 && (
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/leads')}>
-                Go to CRM Leads
-              </button>
-            )}
           </div>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: '0.75rem',
-            }}
-          >
-            {MESSAGE_PIPELINE_STAGES.map((stage, idx) => {
-              const count = cumulativeCounts[stage] ?? 0;
-              const color = MESSAGE_STAGE_COLORS[stage] || '#737373';
-              const prevStage = idx > 0 ? MESSAGE_PIPELINE_STAGES[idx - 1] : null;
-              const rate = prevStage ? conversionRates[stage] : null;
-              const pctOfTotal = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
+          <>
+            <div className="reports-metrics">
+              {MESSAGE_PIPELINE_STAGES.map((stage) => {
+                const count = cumulativeCounts[stage] ?? 0;
+                const pctOfTotal = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
 
-              return (
-                <div
-                  key={stage}
-                  style={{
-                    padding: '0.85rem',
-                    margin: 0,
-                    border: `1px solid ${count > 0 ? color : '#e5e5e5'}`,
-                    borderRadius: 10,
-                    background: '#fafafa',
-                    opacity: count > 0 ? 1 : 0.75,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '0.62rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      color: '#737373',
-                      fontWeight: 600,
-                      marginBottom: '0.35rem',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {stage}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '1.5rem',
-                      fontWeight: 800,
-                      color: count > 0 ? color : '#a3a3a3',
-                      lineHeight: 1,
-                    }}
-                  >
-                    {count}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#737373', marginTop: '0.35rem' }}>
-                    {pctOfTotal}% of filtered leads
-                  </div>
-                  {prevStage && rate != null && (
-                    <div
-                      style={{
-                        marginTop: '0.5rem',
-                        fontSize: '0.65rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        color: '#525252',
-                      }}
-                    >
-                      <ArrowRight size={10} />
-                      {rate}% from {prevStage}
+                return (
+                  <div key={stage} className="reports-metric">
+                    <div className="reports-metric__label">{stage}</div>
+                    <div className="reports-metric__value">{count}</div>
+                    <div className="reports-metric__context">
+                      {pctOfTotal}% of filtered leads
                     </div>
-                  )}
-                  {count > 0 && (
-                    <div
-                      style={{
-                        marginTop: '0.5rem',
-                        display: 'inline-flex',
-                        ...softBadgeStyle(color),
-                        fontSize: '0.6rem',
-                        fontWeight: 700,
-                        padding: '0.15rem 0.4rem',
-                        borderRadius: '999px',
-                      }}
-                    >
-                      Reached
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <ReportsFunnel
+              stages={MESSAGE_PIPELINE_STAGES}
+              cumulativeCounts={cumulativeCounts}
+              conversionRates={conversionRates}
+              totalLeads={totalLeads}
+            />
+          </>
         )}
 
-        <div
-          style={{
-            marginTop: '1.25rem',
-            paddingTop: '0.85rem',
-            borderTop: '1px solid #e5e5e5',
-            fontSize: '0.68rem',
-            color: '#a3a3a3',
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="reports-export-footer">
           <span>Cumulative reach · Active leads only</span>
           <span>{BRAND_NAME}</span>
         </div>

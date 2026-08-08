@@ -161,7 +161,7 @@ export default function MyCallFeed({
         </label>
       </div>
 
-      <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 6 }}>
+      <div className="table-container" style={{ marginBottom: 0 }}>
         <table className="data-table data-table--resizable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
           <thead>
             <tr style={{ background: 'var(--bg-tertiary)', textAlign: 'left' }}>
@@ -172,7 +172,7 @@ export default function MyCallFeed({
                   width={getWidth(col.key)}
                   onResize={setWidth}
                   onReset={resetWidth}
-                  style={{ padding: '0.65rem 0.75rem', fontWeight: 600 }}
+                  style={{ fontWeight: 600 }}
                 >
                   {col.label}
                 </ResizableTh>
@@ -187,10 +187,9 @@ export default function MyCallFeed({
                 height={getRowHeight(row.lead.id)}
                 onResize={setRowHeight}
                 onReset={resetRowHeight}
-                style={{ borderTop: '1px solid var(--border-color)' }}
               >
                 <td
-                  style={{ padding: '0.65rem 0.75rem', cursor: 'pointer', width: getWidth('lead'), minWidth: getWidth('lead'), maxWidth: getWidth('lead') }}
+                  style={{ cursor: 'pointer', width: getWidth('lead'), minWidth: getWidth('lead'), maxWidth: getWidth('lead') }}
                   onClick={() => onOpenLead?.(row.lead, 'calls')}
                 >
                   <div style={{ fontWeight: 600 }}>{leadDisplayName(row.lead)}</div>
@@ -198,13 +197,13 @@ export default function MyCallFeed({
                     {row.lead.phone || row.lead.email || '—'}
                   </div>
                 </td>
-                <td style={{ padding: '0.65rem 0.75rem', width: getWidth('local_time'), minWidth: getWidth('local_time'), maxWidth: getWidth('local_time') }}>
+                <td style={{ width: getWidth('local_time'), minWidth: getWidth('local_time'), maxWidth: getWidth('local_time') }}>
                   <CallWindowBadge lead={row.lead} defaultCountryCode={defaultCountryCode} showLocalTime />
                 </td>
-                <td style={{ padding: '0.65rem 0.75rem', width: getWidth('outcome'), minWidth: getWidth('outcome'), maxWidth: getWidth('outcome') }}>
+                <td style={{ width: getWidth('outcome'), minWidth: getWidth('outcome'), maxWidth: getWidth('outcome') }}>
                   <OutcomeBadge outcome={row.lastOutcome} />
                 </td>
-                <td style={{ padding: '0.65rem 0.75rem', width: getWidth('attempts'), minWidth: getWidth('attempts'), maxWidth: getWidth('attempts') }}>
+                <td style={{ width: getWidth('attempts'), minWidth: getWidth('attempts'), maxWidth: getWidth('attempts') }}>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -215,13 +214,13 @@ export default function MyCallFeed({
                     {row.attemptCount}
                   </button>
                 </td>
-                <td style={{ padding: '0.65rem 0.75rem', color: row.needsFollowUpToday ? 'var(--status-hot)' : 'var(--text-secondary)', width: getWidth('followup'), minWidth: getWidth('followup'), maxWidth: getWidth('followup') }}>
+                <td style={{ color: row.needsFollowUpToday ? 'var(--status-hot)' : 'var(--text-secondary)', width: getWidth('followup'), minWidth: getWidth('followup'), maxWidth: getWidth('followup') }}>
                   {row.nextFollowUp ? row.nextFollowUp.toLocaleDateString() : '—'}
                   {row.needsFollowUpToday && (
                     <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600 }}>Due today</span>
                   )}
                 </td>
-                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: getWidth('_actions'), minWidth: getWidth('_actions'), maxWidth: getWidth('_actions') }}>
+                <td style={{ textAlign: 'right', width: getWidth('_actions'), minWidth: getWidth('_actions'), maxWidth: getWidth('_actions') }}>
                   <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
                     <button
                       type="button"

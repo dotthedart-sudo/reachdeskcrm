@@ -1,5 +1,5 @@
 /**
- * Shared soft badge styling — tinted background, colored text, subtle border.
+ * Shared soft badge styling — muted tint background, darker text, no heavy border.
  */
 
 function hexToRgb(hex) {
@@ -12,19 +12,18 @@ function hexToRgb(hex) {
 export function softBadgeStyle(color, opts = {}) {
   const c = color || '#64748b';
   const rgb = hexToRgb(c);
-  const bgAlpha = opts.bgAlpha ?? 0.12;
-  const borderAlpha = opts.borderAlpha ?? 0.28;
+  const bgAlpha = opts.bgAlpha ?? 0.1;
   if (!rgb) {
     return {
-      backgroundColor: 'rgba(100,116,139,0.12)',
+      backgroundColor: 'rgba(100,116,139,0.1)',
       color: c,
-      border: '1px solid rgba(100,116,139,0.28)',
+      border: 'none',
     };
   }
   return {
     backgroundColor: `rgba(${rgb.r},${rgb.g},${rgb.b},${bgAlpha})`,
     color: c,
-    border: `1px solid rgba(${rgb.r},${rgb.g},${rgb.b},${borderAlpha})`,
+    border: 'none',
   };
 }
 

@@ -11,7 +11,7 @@ import {
   type BillingProfile,
 } from './billing.ts';
 import { getPaddleSubscription, paddleFetch } from './paddle.ts';
-import { BILLING, getBillingCycleFromPriceId, getPlanFromPriceId, type PlanId } from './prices.ts';
+import { getBillingCycleFromPriceId, getPlanFromPriceId, type PlanId, BILLING, EXTRA_TEAMS_SEAT_PRICE_ID } from './prices.ts';
 
 export const PRORATION_BILLING_MODE = 'prorated_immediately' as const;
 
@@ -104,9 +104,20 @@ export function evaluateProratedUpgrade(params: {
   };
 }
 
-function buildUpdateBody(targetPriceId: string) {
+function buildUpgradeItems(targetPriceId: string, extraSeats = 0) {
+  const items: Array<{ price_id: string; quantity: number }> = [
+    { price_id: targetPriceId, quantity: 1 },
+  ];
+  const extraQty = Math.max(0, Math.floor(Number(extraSeats) || 0));
+  if (extraQty > 0) {
+    items.push({ price_id: EXTRA_TEAMS_SEAT_PRICE_ID, quantity: Math.min(extraQty, 50) });
+  }
+  return items;
+}
+
+function buildUpdateBody(targetPriceId: string, extraSeats = 0) {
   return {
-    items: [{ price_id: targetPriceId, quantity: 1 }],
+    items: buildUpgradeItems(targetPriceId, extraSeats),
     proration_billing_mode: PRORATION_BILLING_MODE,
     on_payment_failure: 'prevent_change',
   };
@@ -155,12 +166,13 @@ export function extractImmediateCharge(previewData: Record<string, unknown> | nu
 export async function previewProratedUpgrade(params: {
   subscriptionId: string;
   targetPriceId: string;
+  extraSeats?: number;
 }): Promise<{ ok: true; data: Record<string, unknown>; charge: ReturnType<typeof extractImmediateCharge> } | { ok: false; status: number; error: string; raw: unknown }> {
   const { ok, status, data, text } = await paddleFetch(
     `/subscriptions/${encodeURIComponent(params.subscriptionId)}/preview`,
     {
       method: 'PATCH',
-      body: buildUpdateBody(params.targetPriceId),
+      body: buildUpdateBody(params.targetPriceId, params.extraSeats ?? 0),
     },
   );
 
@@ -184,12 +196,13 @@ export async function previewProratedUpgrade(params: {
 export async function commitProratedUpgrade(params: {
   subscriptionId: string;
   targetPriceId: string;
+  extraSeats?: number;
 }): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; status: number; error: string; raw: unknown }> {
   const { ok, status, data, text } = await paddleFetch(
     `/subscriptions/${encodeURIComponent(params.subscriptionId)}`,
     {
       method: 'PATCH',
-      body: buildUpdateBody(params.targetPriceId),
+      body: buildUpdateBody(params.targetPriceId, params.extraSeats ?? 0),
     },
   );
 
@@ -227,6 +240,7 @@ export async function applyProratedUpgradeToProfile(
     targetCycle?: BillingCycleKey;
     previewCharge?: ReturnType<typeof extractImmediateCharge> | null;
     actor?: string;
+    extraSeats?: number;
   },
 ): Promise<Record<string, unknown>> {
   const items = subscriptionData.items as Array<Record<string, unknown>> | undefined;
@@ -282,6 +296,7 @@ export async function runProratedUpgrade(params: {
   targetCycle?: string | null;
   source: 'user_action' | 'paddle_sync';
   actor?: string;
+  extraSeats?: number;
 }): Promise<
   | { ok: true; plan: string; billingCycle: string; charge: ReturnType<typeof extractImmediateCharge>; subscription: Record<string, unknown> }
   | { ok: false; status: number; error: string; code?: string }
@@ -312,9 +327,14 @@ export async function runProratedUpgrade(params: {
     }
   }
 
+  const extraSeats = eligibility.targetPlan === 'teams'
+    ? Math.min(50, Math.max(0, Math.floor(Number(params.extraSeats) || 0)))
+    : 0;
+
   const preview = await previewProratedUpgrade({
     subscriptionId: eligibility.subscriptionId,
     targetPriceId: eligibility.targetPriceId,
+    extraSeats,
   });
   if (!preview.ok) {
     return { ok: false, status: preview.status || 502, error: preview.error, code: 'preview_failed' };
@@ -323,6 +343,7 @@ export async function runProratedUpgrade(params: {
   const commit = await commitProratedUpgrade({
     subscriptionId: eligibility.subscriptionId,
     targetPriceId: eligibility.targetPriceId,
+    extraSeats,
   });
   if (!commit.ok) {
     return { ok: false, status: commit.status || 402, error: commit.error, code: 'charge_failed' };
@@ -334,6 +355,7 @@ export async function runProratedUpgrade(params: {
     targetCycle: eligibility.targetCycle,
     previewCharge: preview.charge,
     actor: params.actor,
+    extraSeats,
   });
 
   return {

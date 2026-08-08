@@ -1,6 +1,7 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { DEFAULT_FROM_EMAIL } from './email.ts';
 import { getBillingCycleFromPriceId, getPlanFromPriceId, type PlanId } from './prices.ts';
+import { countExtraSeatsInSubscription } from './subscriptionExtraSeats.ts';
 import {
   extractCustomerEmail,
   extractCustomerId,
@@ -332,6 +333,11 @@ export async function applyActiveSubscriptionToProfile(
 
   if (params.resolvedPlan === 'teams') {
     await ensureTeamsWorkspaceForProfile(supabase, profile, updateData);
+    if (params.eventData) {
+      updateData.extra_seats = countExtraSeatsInSubscription(params.eventData);
+    }
+  } else {
+    updateData.extra_seats = 0;
   }
 
   const { error } = await supabase
