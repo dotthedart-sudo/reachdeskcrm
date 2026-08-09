@@ -123,7 +123,7 @@ export default function SidebarNav({
           active={pathname === '/reminders'}
           tip={tip('Notifications')}
           badge={remindersCount > 0 ? (
-            <span className="badge badge-pending sidebar-item__badge nav-label">{remindersCount}</span>
+            <span className="sidebar-item__badge sidebar-item__badge--count">{remindersCount > 99 ? '99+' : remindersCount}</span>
           ) : null}
         />
       </SidebarSection>
@@ -143,7 +143,7 @@ export default function SidebarNav({
               active={pathname === '/admin'}
               tip={tip('Admin Panel')}
               badge={adminNotifCount > 0 ? (
-                <span className="sidebar-item__badge sidebar-item__badge--hot nav-label">{adminNotifCount}</span>
+                <span className="sidebar-item__badge sidebar-item__badge--hot">{adminNotifCount > 99 ? '99+' : adminNotifCount}</span>
               ) : null}
             />
           )}

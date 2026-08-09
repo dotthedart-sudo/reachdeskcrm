@@ -144,6 +144,14 @@ export default function AppLayout({
           <div className={`sidebar${isCollapsed ? ' collapsed' : ''}${isSidebarOpen ? ' mobile-open' : ''}`}>
             <div className="sidebar__scroll">
               <div className="sidebar-logo">
+                <img
+                  src="/logo.png"
+                  alt=""
+                  className="sidebar-logo-mark"
+                  width={22}
+                  height={22}
+                  decoding="async"
+                />
                 <span className="logo-text nav-label">{BRAND_LOGO_TEXT}</span>
                 <button
                   type="button"

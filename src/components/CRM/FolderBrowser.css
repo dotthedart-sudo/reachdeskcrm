@@ -277,11 +277,11 @@
   color: var(--text-muted);
 }
 
-/* Lists table — CSS grid, columns hug content (no full-bleed stretch) */
+/* Lists table — full-width card; Name flexes, other cols hug content */
 .crm-lists-table-wrap {
-  display: inline-grid;
-  grid-template-columns: max-content max-content max-content max-content max-content;
-  width: max-content;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) max-content max-content max-content max-content;
+  width: 100%;
   max-width: 100%;
   border: var(--hairline);
   border-radius: var(--radius-md);
@@ -356,6 +356,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
 }
 
 .crm-lists-table-icon {
@@ -373,18 +375,23 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
 .crm-lists-table-name-text {
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .crm-lists-table-name-sub {
   font-size: 0.68rem;
   color: var(--text-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .crm-lists-table-type,

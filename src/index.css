@@ -593,6 +593,43 @@ h3 { font-size: var(--text-md); }
   padding: 0 0.35rem;
 }
 
+.sidebar-logo-mark {
+  display: none;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+.sidebar-item__badge {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  padding: 0 4px;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+
+.sidebar-item__badge--count {
+  background: color-mix(in srgb, var(--status-warm) 14%, transparent);
+  color: var(--status-warm);
+}
+
+.sidebar-item__badge--hot {
+  background: var(--status-hot);
+  color: #fff;
+}
+
 .sidebar__scroll {
   flex: 1;
   display: flex;
@@ -646,25 +683,6 @@ h3 { font-size: var(--text-md); }
 .sidebar-item__lock {
   opacity: 0.65;
   flex-shrink: 0;
-}
-
-.sidebar-item__badge {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 999px;
-  margin-left: auto;
-}
-
-.sidebar-item__badge--hot {
-  background: var(--status-hot);
-  color: #fff;
-  min-width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-weight: 600;
 }
 
 .page-intro {
@@ -868,16 +886,24 @@ h3 { font-size: var(--text-md); }
 }
 
 .logo-text {
-  font-family: var(--font-heading);
-  font-size: var(--text-xs);
-  font-weight: 400;
-  letter-spacing: var(--tracking-label);
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-primary);
   background: none;
   -webkit-background-clip: unset;
   background-clip: unset;
   -webkit-text-fill-color: unset;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.sidebar-logo .logo-text {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  min-width: 0;
 }
 
 .sidebar-menu {
@@ -901,6 +927,7 @@ h3 { font-size: var(--text-md); }
   cursor: pointer;
   transition: var(--transition-fast);
   line-height: 1.35;
+  position: relative;
 }
 
 .sidebar-item svg {
@@ -4957,17 +4984,75 @@ select option {
     transition: gap 0.25s ease, justify-content 0.25s ease;
   }
   .sidebar.collapsed:not(:hover) .sidebar-logo {
-    justify-content: flex-start !important;
-    padding: 0 0.25rem;
+    justify-content: center !important;
+    padding: 0;
     gap: 0;
+    margin-bottom: var(--space-3);
+    position: relative;
   }
-  .sidebar.collapsed:not(:hover) .sidebar-logo .hp-logo {
+  .sidebar.collapsed:not(:hover) .sidebar-logo-mark {
+    display: block;
+  }
+  .sidebar.collapsed:hover .sidebar-logo-mark {
+    display: none;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-logo .logo-text.nav-label,
+  .sidebar.collapsed:not(:hover) .sidebar-logo .nav-label {
     opacity: 0;
     max-width: 0;
     overflow: hidden;
     white-space: nowrap;
-    transition: opacity 0.2s ease, max-width 0.25s ease;
-    display: inline-block;
+    pointer-events: none;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-collapse-btn {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+    border-radius: 5px;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-logo:hover .sidebar-collapse-btn {
+    opacity: 1;
+    background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-logo:hover .sidebar-logo-mark {
+    opacity: 0.25;
+  }
+
+  /* Pack nav tight when collapsed — no giant section gaps */
+  .sidebar.collapsed:not(:hover) .sidebar-nav-groups {
+    flex: 0 1 auto;
+    gap: 2px;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-section__label {
+    display: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 0 !important;
+    max-width: none;
+    opacity: 0;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-section__list {
+    margin-bottom: 0;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-section + .sidebar-section {
+    margin-top: 2px;
+    padding-top: 2px;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-bottom {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    max-width: none;
+    opacity: 1;
+    display: block;
+    overflow: visible;
+    white-space: normal;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-bottom .nav-label {
+    opacity: 0;
+    max-width: 0;
   }
 
   /* ── Nav items ── */
@@ -4976,9 +5061,29 @@ select option {
                 padding 0.25s ease, background-color 0.15s ease, color 0.15s ease;
   }
   .sidebar.collapsed:not(:hover) .sidebar-item {
-    justify-content: flex-start !important;
+    justify-content: center !important;
     gap: 0;
-    padding: 7px 10px;
+    padding: 8px 0;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-item__main {
+    justify-content: center;
+  }
+  .sidebar.collapsed:not(:hover) .sidebar-item__lock {
+    display: none;
+  }
+
+  /* Compact unread badge on icon (not squashed) */
+  .sidebar.collapsed:not(:hover) .sidebar-item__badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin: 0;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    font-size: 0.5625rem;
+    line-height: 14px;
+    z-index: 1;
   }
 
   /* ── Nav labels (text) — hide when collapsed and not hovered ── */
@@ -5004,7 +5109,7 @@ select option {
     justify-content: center;
     padding: 4px;
     border-radius: 4px;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
     flex-shrink: 0;
   }
   .sidebar-collapse-btn:hover {
@@ -5012,16 +5117,6 @@ select option {
     background: var(--bg-card-hover);
   }
 
-  /* ── WORKSPACE label + theme button — hide when collapsed and not hovered ── */
-  .sidebar.collapsed:not(:hover) .sidebar-section__label,
-  .sidebar.collapsed:not(:hover) .sidebar-bottom {
-    overflow: hidden;
-    white-space: nowrap;
-    max-width: 0;
-    opacity: 0;
-    display: inline-block;
-    transition: max-width 0.2s ease, opacity 0.2s ease;
-  }
   /* Theme toggle button — hide when collapsed and not hovered */
   .sidebar.collapsed:not(:hover) .sidebar-footer > div > button.theme-toggle {
     overflow: hidden;
@@ -5036,9 +5131,9 @@ select option {
     transition: gap 0.25s ease, justify-content 0.25s ease;
   }
   .sidebar.collapsed:not(:hover) .sidebar-footer .sidebar-item {
-    justify-content: flex-start !important;
+    justify-content: center !important;
     gap: 0;
-    padding: 7px 10px;
+    padding: 8px 0;
   }
 
   /* ── User info card ── */
@@ -5046,7 +5141,7 @@ select option {
     transition: justify-content 0.25s ease;
   }
   .sidebar.collapsed:not(:hover) .user-info-card {
-    justify-content: flex-start;
+    justify-content: center;
     padding: 0.35rem 0.25rem;
   }
   .user-info-card .user-details {
