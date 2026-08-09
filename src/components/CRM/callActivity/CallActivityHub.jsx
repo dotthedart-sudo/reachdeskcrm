@@ -220,14 +220,14 @@ export default function CallActivityHub({
   }
 
   return (
-    <div className="flex-col gap-3">
+    <div className="flex-col gap-4 page-stack">
       {!embedded && (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <Phone size={16} style={{ color: 'var(--primary-magenta)' }} /> Call Activity
           </h3>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <p style={{ margin: 'var(--space-1) 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             {showTeamTab
               ? 'Team Activity shows calls across your workspace when sharing is enabled. My Activity is your personal log.'
               : 'Log calls on any lead in your workspace and track follow-ups.'}

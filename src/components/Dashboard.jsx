@@ -34,6 +34,7 @@ import {
   ChevronRight, Calendar, AlertCircle, Check, X, BarChart2, Phone
 } from 'lucide-react';
 
+import { usePageHeader } from '../context/PageHeaderContext';
 import HelpPopover from './HelpPopover';
 import { celebrateClosedWon } from '../utils/celebrateWin';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
@@ -114,6 +115,14 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const [ignoredMismatches, setIgnoredMismatches] = useState({});
   const [weekActivity, setWeekActivity] = useState({ messaged: 0, called: 0, followUpsDue: 0, days: 7 });
   const { reveal, rootClass, blockClass, blockProp } = useFirstVisitReveal();
+
+  // Rules of Hooks: must run before any conditional return (including loading guards).
+  const headerFirstName = currentUser?.full_name
+    ? currentUser.full_name.trim().split(' ')[0]
+    : currentUser?.email?.split('@')[0];
+  usePageHeader({
+    title: headerFirstName ? `Welcome back, ${headerFirstName}` : 'Dashboard',
+  });
 
   const plan = getEffectivePlan(currentUser);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
@@ -406,11 +415,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revealBlock = blockClass;
 
   return (
-    <div className={`flex-col gap-4${rootClass}`} style={{ textAlign: 'left' }}>
-      <div className={blockProp} style={{ marginBottom: '1.5rem' }}>
-        <h2>Welcome back, <span>{currentUser.full_name ? currentUser.full_name.trim().split(' ')[0] : currentUser.email.split('@')[0]}</span>!</h2>
-        <p className="color-muted">Outreach engine tracking, conversions, and follow-ups status.</p>
-      </div>
+    <div className={`flex-col gap-4 page-stack${rootClass}`} style={{ textAlign: 'left' }}>
+      <p className="color-muted page-intro">Outreach engine tracking, conversions, and follow-ups status.</p>
 
       {metrics.total === 0 && !loading ? (
         <div className={`card empty-state${revealBlock}`} style={{ marginTop: 'var(--space-5)' }}>
@@ -508,7 +514,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           <div>
             <span className="card-title">Outreach Velocity</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-              <span style={{ textTransform: 'uppercase', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-body)', fontWeight: 600, letterSpacing: 'var(--tracking-label)', color: velocityColor }}>
+              <span style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-body)', fontWeight: 600, letterSpacing: 0, color: velocityColor, textTransform: 'capitalize' }}>
                 {velocityLevel}
               </span>
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>({weeklyPitchCount} pitches)</span>
@@ -534,26 +540,26 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
               />
             </svg>
-            <span style={{ fontSize: 'var(--text-3xs)', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 'var(--space-1)', fontWeight: 600, letterSpacing: 'var(--tracking-label)' }}>Last 7 Days</span>
+            <span className="rd-section-label" style={{ marginTop: 'var(--space-1)' }}>Last 7 days</span>
           </div>
         </div>
 
       </div>
 
       {/* This week — clear activity (not pipeline confusion) */}
-      <div className={`card${revealBlock}`} style={{ marginTop: '0.5rem' }}>
-        <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
+      <div className={`card${revealBlock}`}>
+        <h3 style={{ fontSize: '0.9rem', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--text-secondary)' }}>
           <Activity size={16} /> This week
           <HelpPopover title="This week">
             How much outreach you logged in the last 7 days — not the same as pipeline stage. Messaged = leads with a contact stamp; Called = leads with a call log; Due = message follow-up checkpoints that are overdue.
           </HelpPopover>
         </h3>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => navigate('/leads?mode=messages')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
           >
             <Mail size={14} /> Messaged <strong>{weekActivity.messaged}</strong>
           </button>
@@ -697,7 +703,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               </div>
               {teamActivity.length > 0 && (
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <div className="rd-section-label" style={{ marginBottom: 'var(--space-2)' }}>
                     Recent team activity
                   </div>
                   <div className="flex-col gap-2">
@@ -835,12 +841,12 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           <span
                             style={{
-                              fontSize: '0.65rem',
-                              fontWeight: 700,
-                              letterSpacing: '0.04em',
-                              textTransform: 'uppercase',
+                              fontSize: '0.68rem',
+                              fontWeight: 500,
+                              letterSpacing: 0,
+                              textTransform: 'none',
                               padding: '2px 7px',
-                              borderRadius: 999,
+                              borderRadius: 'var(--radius-sm)',
                               background: channel === 'call' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
                               color: channel === 'call' ? '#10b981' : '#3b82f6',
                             }}

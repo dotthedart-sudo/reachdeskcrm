@@ -1,0 +1,49 @@
+---
+description: React Rules of Hooks — never call hooks after conditional returns
+globs: **/*.{jsx,tsx,js,ts}
+alwaysApply: true
+---
+
+# React Rules of Hooks (ReachDesk)
+
+When editing React components, **all hooks must run on every render** in the same order.
+
+## Required pattern
+
+- Call `useState`, `useEffect`, `useMemo`, `useCallback`, `usePageHeader`, and custom hooks **at the top of the component**.
+- **Never** place hooks after:
+  - `if (...) return ...`
+  - early loading / auth guards
+  - plan-gating returns (`if (!allowed) return ...`) unless every hook is already above them
+
+## Bad (causes "Rendered more hooks than during the previous render")
+
+```jsx
+export default function Page() {
+  const [loading, setLoading] = useState(true);
+
+  if (loading) return <Spinner />; // early return
+
+  usePageHeader({ title: 'Dashboard' }); // hook skipped on first render — CRASH
+  return <Content />;
+}
+```
+
+## Good
+
+```jsx
+export default function Page() {
+  const [loading, setLoading] = useState(true);
+
+  usePageHeader({ title: 'Dashboard' }); // always runs
+
+  if (loading) return <Spinner />;
+  return <Content />;
+}
+```
+
+## ReachDesk-specific
+
+- `usePageHeader()` from `src/context/PageHeaderContext.jsx` is a hook — register it before any conditional return.
+- Use optional chaining for title values when `currentUser` may be null during loading.
+- After adding hooks to a page, verify: loading state → loaded state navigation without error boundary.

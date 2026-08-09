@@ -231,30 +231,15 @@ export default function UserNotificationBell({ profile, onRefreshProfile }) {
     dueCheckpoints.length + notifications.length + (isAdmin ? adminNotifs.length : 0);
 
   return (
-    <div ref={dropdownRef} style={{ position: 'fixed', top: '1.25rem', right: '1.5rem', zIndex: 995 }}>
+    <div ref={dropdownRef} className="app-header-bell">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '42px',
-          height: '42px',
-          borderRadius: '50%',
-          border: '1px solid var(--border-color)',
-          background: 'var(--bg-card)',
-          color: 'var(--text-primary)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: 'var(--glow-shadow)',
-          position: 'relative',
-          transition: 'all 0.2s',
-          outline: 'none',
-        }}
-        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+        className={`app-header-icon-btn${isOpen ? ' app-header-icon-btn--active' : ''}`}
         aria-label="Notifications"
+        aria-expanded={isOpen}
       >
-        <Bell size={20} />
+        <Bell size={18} />
         {totalCount > 0 && (
           <span
             style={{
@@ -280,25 +265,7 @@ export default function UserNotificationBell({ profile, onRefreshProfile }) {
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50px',
-            right: 0,
-            width: '350px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '12px',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-            padding: '1rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            maxHeight: '450px',
-            overflowY: 'auto',
-            color: 'var(--text-primary)',
-          }}
-        >
+        <div className="app-header-bell__dropdown">
           <div
             style={{
               borderBottom: '1px solid var(--border-color)',

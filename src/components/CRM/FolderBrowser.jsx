@@ -130,7 +130,7 @@ export default function FolderBrowser({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
         <button
           type="button"
           className={listFilter === 'mine' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}

@@ -1,16 +1,23 @@
 import React from 'react';
 
 /** Cumulative pipeline funnel — conversion % labels sit on connectors between stages. */
-export default function ReportsFunnel({ stages, cumulativeCounts, conversionRates, totalLeads }) {
+export default function ReportsFunnel({
+  stages,
+  counts,
+  conversionRates,
+  totalLeads,
+  getStageLabel,
+}) {
   if (!stages?.length || totalLeads === 0) return null;
 
-  const anchorCount = cumulativeCounts[stages[0]] ?? totalLeads ?? 1;
+  const labelFor = (stage) => (getStageLabel ? getStageLabel(stage) : stage);
+  const anchorCount = counts[stages[0]] ?? totalLeads ?? 1;
   const maxCount = Math.max(anchorCount, 1);
 
   return (
     <div className="reports-funnel" role="img" aria-label="Pipeline conversion funnel">
       {stages.map((stage, idx) => {
-        const count = cumulativeCounts[stage] ?? 0;
+        const count = counts[stage] ?? 0;
         const widthPct = Math.max(4, Math.round((count / maxCount) * 100));
         const prevStage = idx > 0 ? stages[idx - 1] : null;
         const rate = prevStage ? conversionRates[stage] : null;
@@ -28,7 +35,7 @@ export default function ReportsFunnel({ stages, cumulativeCounts, conversionRate
             )}
             <div className="reports-funnel__step">
               <div className="reports-funnel__step-meta">
-                <span className="reports-funnel__step-label">{stage}</span>
+                <span className="reports-funnel__step-label">{labelFor(stage)}</span>
                 <span className="reports-funnel__step-count">{count}</span>
               </div>
               <div className="reports-funnel__bar-track">

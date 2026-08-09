@@ -104,8 +104,7 @@ export default function ChatWidget({ profile }) {
   const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  if (!isAllowedPlan) return null;
+  const rootRef = useRef(null);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -120,6 +119,19 @@ export default function ChatWidget({ profile }) {
       setTimeout(() => inputRef.current?.focus(), 80);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  if (!isAllowedPlan) return null;
 
   const sendMessage = async (content) => {
     const text = (content ?? inputValue).trim();
@@ -171,7 +183,7 @@ export default function ChatWidget({ profile }) {
   const isEmpty = messages.length === 0;
 
   return (
-    <>
+    <div ref={rootRef} className="chat-widget-root">
       {/* Keyframe styles */}
       <style>{`
         @keyframes chat-bounce {
@@ -179,10 +191,21 @@ export default function ChatWidget({ profile }) {
           40% { transform: translateY(-5px); opacity: 1; }
         }
         @keyframes chat-fade-in {
-          from { opacity: 0; transform: scale(0.95) translateY(8px); }
+          from { opacity: 0; transform: scale(0.98) translateY(-4px); }
           to   { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
+
+      <button
+        type="button"
+        onClick={() => setIsOpen((p) => !p)}
+        className={`app-header-icon-btn${isOpen ? ' app-header-icon-btn--active' : ''}`}
+        aria-label={isOpen ? 'Close ReachDesk CRM Assistant' : 'Open ReachDesk CRM Assistant'}
+        aria-expanded={isOpen}
+        title="ReachDesk CRM Assistant"
+      >
+        {isOpen ? <X size={18} /> : <MessageCircle size={18} />}
+      </button>
 
       {/* ── Chat Panel ── */}
       {isOpen && (
@@ -190,23 +213,6 @@ export default function ChatWidget({ profile }) {
           role="dialog"
           aria-label="ReachDesk CRM Assistant"
           className="chat-widget-panel"
-          style={{
-            position: 'fixed',
-            bottom: '88px',
-            right: '1.5rem',
-            width: '370px',
-            maxWidth: 'calc(100vw - 2rem)',
-            height: '520px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: '14px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 9990,
-            animation: 'chat-fade-in 0.2s ease-out',
-            overflow: 'hidden',
-          }}
         >
           {/* Header */}
           <div
@@ -477,46 +483,6 @@ export default function ChatWidget({ profile }) {
           </div>
         </div>
       )}
-
-      {/* ── Floating Toggle Button ── */}
-      <button
-        onClick={() => setIsOpen((p) => !p)}
-        className="chat-widget-fab"
-        aria-label={isOpen ? 'Close ReachDesk CRM Assistant' : 'Open ReachDesk CRM Assistant'}
-        title="ReachDesk CRM Assistant"
-        style={{
-          position: 'fixed',
-          bottom: '1.5rem',
-          right: '1.5rem',
-          width: '52px',
-          height: '52px',
-          borderRadius: '50%',
-          border: '1px solid var(--border-strong)',
-          background: 'var(--bg-card)',
-          color: 'var(--text-primary)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-          zIndex: 9991,
-          transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.15s ease, border-color 0.15s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.06)';
-          e.currentTarget.style.background = 'var(--bg-card-hover)';
-          e.currentTarget.style.borderColor = 'var(--text-muted)';
-          e.currentTarget.style.boxShadow = '0 6px 22px rgba(0,0,0,0.45)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.background = 'var(--bg-card)';
-          e.currentTarget.style.borderColor = 'var(--border-strong)';
-          e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.35)';
-        }}
-      >
-        {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
-      </button>
-    </>
+    </div>
   );
 }

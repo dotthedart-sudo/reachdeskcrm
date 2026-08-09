@@ -277,6 +277,11 @@ export default function CRM({
     ? 'contact_details'
     : (searchParams.get('view') || 'contact_details');
   const folderParam = searchParams.get('folder');
+  const searchParam = searchParams.get('search');
+
+  useEffect(() => {
+    if (searchParam) setSearchQuery(searchParam);
+  }, [searchParam]);
   const isBrowseMode = !folderParam;
   const activeFolderId = folderParam;
   const activeManualFolderId = folders.find((f) => f.id === activeFolderId)?.id || '';
@@ -2535,10 +2540,10 @@ export default function CRM({
   return (
     <div
       className={`crm-workspace flex w-full${isBrowseMode ? '' : ' crm-workspace--list'}${rootClass}`}
-      style={{ minHeight: 'calc(100vh - 120px)' }}
+      style={isBrowseMode ? undefined : { minHeight: 'calc(100vh - 120px)' }}
     >
       {/* Leads Table Content Section — no Lists sidebar; switch lists via breadcrumb */}
-      <div className={`flex-col gap-4${blockClass}`} style={{ flex: 1, textAlign: 'left', minWidth: 0, width: '100%' }}>
+      <div className={`flex-col gap-4 page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%' }}>
         {canUseIntegrations && sheetsNeedsReconnect && (
           <div style={{
             padding: '0.75rem 1rem',
@@ -4792,7 +4797,7 @@ export default function CRM({
               
               {/* Priorities filter */}
               <div>
-                <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Priority</span>
+                  <span className="rd-section-label" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Priority</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {['Hot', 'Warm', 'Cold'].map(pr => (
                     <label key={pr} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -4812,7 +4817,7 @@ export default function CRM({
 
               {/* Statuses filter */}
               <div>
-                <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Lead Status</span>
+                <span className="rd-section-label" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Lead status</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px' }}>
                   {statuses.map(st => (
                     <label key={st.id || st.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -4832,7 +4837,7 @@ export default function CRM({
 
               {/* Actions to Take filter */}
               <div>
-                <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Action to Take</span>
+                <span className="rd-section-label" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Action to take</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px' }}>
                   {[
                     'Send first pitch', 'Wait for reply', 'Send a follow up',
@@ -4857,7 +4862,7 @@ export default function CRM({
               {/* Projects filter (gated) */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>Project</span>
+                  <span className="rd-section-label">Project</span>
                   {!(!['trial', 'starter'].includes(plan)) && (
                     <Lock size={11} style={{ color: 'var(--text-muted)' }} />
                   )}
@@ -4892,7 +4897,7 @@ export default function CRM({
 
               {/* Date Filters */}
               <div>
-                <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Date range</span>
+                <span className="rd-section-label" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Date range</span>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

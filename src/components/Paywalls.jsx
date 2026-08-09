@@ -572,7 +572,7 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
           </p>
         )}
 
-        <div className="rd-pricing-grid">
+        <div className="rd-pricing-grid" data-cols="3">
           {PLANS.map((plan) => (
             <PlanCard
               key={plan.id}

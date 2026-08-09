@@ -39,7 +39,7 @@ export async function exportLeads(userId, leadsData = null, filename = 'reachdes
     throw new Error('No leads found.');
   }
 
-  const { headers, rows } = prepareLeadExportRows(leads, options);
+  const { headers, rows } = await prepareLeadExportRows(leads, options);
 
   const csv = [toCSVRow(headers), ...rows.map((row) => toCSVRow(row))].join('\r\n');
   triggerDownload(csv, filename, 'text/csv;charset=utf-8;');

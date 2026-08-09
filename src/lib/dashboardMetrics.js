@@ -77,15 +77,7 @@ export function computeLeadsOverviewMetrics(leads = []) {
 
 /** Stage-to-stage conversion rates from cumulative counts (0–100, rounded). */
 export function computeStageConversionRates(cumulativeCounts = {}) {
-  const rates = {};
-  for (let i = 1; i < MESSAGE_PIPELINE_STAGES.length; i += 1) {
-    const prev = MESSAGE_PIPELINE_STAGES[i - 1];
-    const curr = MESSAGE_PIPELINE_STAGES[i];
-    const prevCount = cumulativeCounts[prev] ?? 0;
-    const currCount = cumulativeCounts[curr] ?? 0;
-    rates[curr] = prevCount > 0 ? Math.round((currCount / prevCount) * 100) : null;
-  }
-  return rates;
+  return computeStageConversionRatesForStages(MESSAGE_PIPELINE_STAGES, cumulativeCounts);
 }
 
 export function countCallPipeline(leads = []) {
@@ -95,6 +87,41 @@ export function countCallPipeline(leads = []) {
     counts[bucket] = (counts[bucket] || 0) + 1;
   }
   return counts;
+}
+
+const CALL_BUCKET_ORDER = CALL_PIPELINE_STAGES.map((s) => s.id);
+
+function getCallBucketIndex(callStatus) {
+  const bucket = callBucket(callStatus);
+  return CALL_BUCKET_ORDER.indexOf(bucket);
+}
+
+/** Cumulative call reach — leads at this bucket or any later bucket in the call funnel. */
+export function countCumulativeCallPipeline(leads = []) {
+  const counts = Object.fromEntries(CALL_BUCKET_ORDER.map((id) => [id, 0]));
+  CALL_BUCKET_ORDER.forEach((id, stageIdx) => {
+    counts[id] = leads.filter((l) => getCallBucketIndex(l.call_status) >= stageIdx).length;
+  });
+  return counts;
+}
+
+/** Display label for message pipeline stages in Reports UI. */
+export function getMessageStageDisplayLabel(stage) {
+  if (stage === 'Lead') return 'Contacts';
+  return stage;
+}
+
+/** Stage-to-stage conversion rates for an ordered stage list (0–100, rounded). */
+export function computeStageConversionRatesForStages(stages, counts = {}) {
+  const rates = {};
+  for (let i = 1; i < stages.length; i += 1) {
+    const prev = stages[i - 1];
+    const curr = stages[i];
+    const prevCount = counts[prev] ?? 0;
+    const currCount = counts[curr] ?? 0;
+    rates[curr] = prevCount > 0 ? Math.round((currCount / prevCount) * 100) : null;
+  }
+  return rates;
 }
 
 /**

@@ -1,6 +1,7 @@
 .reports-page {
   max-width: 960px;
   text-align: left;
+  gap: var(--space-4);
 }
 
 .reports-page__header {
@@ -72,6 +73,83 @@
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-3);
   border-bottom: var(--hairline);
+  overflow: visible;
+}
+
+.card.reports-filters {
+  overflow: visible;
+}
+
+.reports-list-filter {
+  position: relative;
+  z-index: 1;
+}
+
+.reports-list-filter__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  min-width: 240px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: var(--hairline);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 0.35rem;
+}
+
+.reports-count-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.reports-pipelines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.reports-pipeline-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.reports-pipeline-section__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: var(--text-md);
+  font-weight: 450;
+  color: var(--text-primary);
+}
+
+.reports-pipeline-section__desc {
+  margin: calc(var(--space-1) * -1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.reports-pipeline-section .reports-metrics {
+  margin-bottom: 0;
+}
+
+.reports-pipeline-section .reports-funnel {
+  border-top: var(--hairline);
+  padding-top: var(--space-3);
 }
 
 .reports-filters__group {
@@ -81,15 +159,16 @@
 }
 
 .reports-filters__label {
-  font-size: var(--text-2xs);
+  font-size: 0.75rem;
   color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-label);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .reports-export-root {
   padding: var(--space-5);
+  overflow: visible;
 }
 
 .reports-export-header {
@@ -142,11 +221,11 @@
 }
 
 .reports-metric__label {
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-label);
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: var(--space-2);
   line-height: 1.2;
 }

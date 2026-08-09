@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart2, Lock, Download, ChevronDown, Folder, Check, Calendar, Users, User,
+  BarChart2, Lock, Download, ChevronDown, Folder, Check, Calendar, Users, User, Mail, Phone,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
@@ -12,9 +12,16 @@ import { BRAND_NAME } from '../config/brand';
 import { exportElementToPdf } from '../utils/exportReportsPdf';
 import {
   MESSAGE_PIPELINE_STAGES,
+  CALL_PIPELINE_STAGES,
   countCumulativeMessagePipeline,
-  computeStageConversionRates,
+  countMessagePipeline,
+  countCumulativeCallPipeline,
+  countCallPipeline,
+  computeStageConversionRatesForStages,
+  getMessageStageDisplayLabel,
 } from '../lib/dashboardMetrics';
+import { usePageHeader } from '../context/PageHeaderContext';
+import SegmentedControl from './ui/SegmentedControl';
 import ReportsFunnel from './Reports/ReportsFunnel';
 import './Reports/Reports.css';
 
@@ -93,7 +100,7 @@ function ListFilterDropdown({ folders, selectedIds, onChange }) {
   };
 
   return (
-    <div ref={rootRef} style={{ position: 'relative', minWidth: 180 }}>
+    <div ref={rootRef} className="reports-list-filter" style={{ position: 'relative', minWidth: 180 }}>
       <button
         type="button"
         className="btn btn-secondary btn-sm"
@@ -110,20 +117,8 @@ function ListFilterDropdown({ folders, selectedIds, onChange }) {
       {open && (
         <div
           role="listbox"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            zIndex: 40,
-            minWidth: 240,
-            maxHeight: 280,
-            overflowY: 'auto',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-            padding: '0.35rem',
-          }}
+          className="reports-list-filter__menu"
+          onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
@@ -203,6 +198,7 @@ export default function Reports({ currentUser }) {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [reportScope, setReportScope] = useState('team');
+  const [countMode, setCountMode] = useState('cumulative'); // 'cumulative' | 'current'
 
   useEffect(() => {
     if (canUseTeamScope && reportScope === 'team') return;
@@ -248,12 +244,12 @@ export default function Reports({ currentUser }) {
         const leadsPromise = leadsOrClause
           ? supabase
             .from('leads')
-            .select('id, user_id, status, reply_type, folder_id, created_at')
+            .select('id, user_id, status, reply_type, folder_id, created_at, call_status')
             .or(leadsOrClause)
             .order('created_at', { ascending: false })
           : supabase
             .from('leads')
-            .select('id, user_id, status, reply_type, folder_id, created_at')
+            .select('id, user_id, status, reply_type, folder_id, created_at, call_status')
             .in('user_id', teamIds)
             .order('created_at', { ascending: false });
 
@@ -326,14 +322,29 @@ export default function Reports({ currentUser }) {
     });
   }, [scopedLeads, selectedListIds, dateBounds]);
 
-  const cumulativeCounts = useMemo(
-    () => countCumulativeMessagePipeline(filteredLeads),
-    [filteredLeads],
+  const messageCounts = useMemo(() => {
+    if (countMode === 'current') return countMessagePipeline(filteredLeads);
+    return countCumulativeMessagePipeline(filteredLeads);
+  }, [filteredLeads, countMode]);
+
+  const callStageIds = useMemo(() => CALL_PIPELINE_STAGES.map((s) => s.id), []);
+
+  const callCounts = useMemo(() => {
+    if (countMode === 'current') return countCallPipeline(filteredLeads);
+    return countCumulativeCallPipeline(filteredLeads);
+  }, [filteredLeads, countMode]);
+
+  const messageConversionRates = useMemo(
+    () => computeStageConversionRatesForStages(MESSAGE_PIPELINE_STAGES, messageCounts),
+    [messageCounts],
   );
-  const conversionRates = useMemo(
-    () => computeStageConversionRates(cumulativeCounts),
-    [cumulativeCounts],
+
+  const callConversionRates = useMemo(
+    () => computeStageConversionRatesForStages(callStageIds, callCounts),
+    [callStageIds, callCounts],
   );
+
+  const getCallStageLabel = (id) => CALL_PIPELINE_STAGES.find((s) => s.id === id)?.label || id;
 
   const scopeSummary = useMemo(() => {
     if (canUseTeamScope && reportScope === 'team') return 'Whole team';
@@ -379,6 +390,22 @@ export default function Reports({ currentUser }) {
     }
   };
 
+  const headerActions = useMemo(() => (
+    allowed ? (
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={handleExportPdf}
+        disabled={exporting || loading || filteredLeads.length === 0}
+      >
+        <Download size={14} />
+        {exporting ? 'Exporting…' : 'Export PDF'}
+      </button>
+    ) : null
+  ), [allowed, exporting, loading, filteredLeads.length]);
+
+  usePageHeader({ title: 'Reports', actions: headerActions });
+
   if (!allowed) {
     return (
       <div
@@ -421,51 +448,19 @@ export default function Reports({ currentUser }) {
 
   return (
     <div className="reports-page flex-col gap-4">
-      <div className="reports-page__header">
-        <div>
-          <h2 className="reports-page__title">
-            <BarChart2 size={22} style={{ color: 'var(--text-secondary)' }} />
-            Reports
-          </h2>
-          <p className="reports-page__subtitle">
-            Cumulative pipeline reach — each stage counts leads that reached it or moved beyond it.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={handleExportPdf}
-          disabled={exporting || totalLeads === 0}
-        >
-          <Download size={14} />
-          {exporting ? 'Exporting…' : 'Export PDF'}
-        </button>
-      </div>
-
       {canUseTeamScope && (
-        <div className="reports-scope" role="group" aria-label="Report scope">
-          <button
-            type="button"
-            className={`reports-scope__btn ${reportScope === 'team' ? 'reports-scope__btn--active' : ''}`}
-            onClick={() => setReportScope('team')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            <Users size={14} />
-            Whole team
-          </button>
-          <button
-            type="button"
-            className={`reports-scope__btn ${reportScope === 'mine' ? 'reports-scope__btn--active' : ''}`}
-            onClick={() => setReportScope('mine')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            <User size={14} />
-            My leads
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Report scope"
+          value={reportScope}
+          onChange={setReportScope}
+          options={[
+            { value: 'team', label: 'Whole team', icon: <Users size={14} /> },
+            { value: 'mine', label: 'My leads', icon: <User size={14} /> },
+          ]}
+        />
       )}
 
-      <div className="card reports-filters">
+      <div className="reports-filters">
         <div className="reports-filters__group">
           <span className="reports-filters__label">Lists</span>
           <ListFilterDropdown
@@ -537,6 +532,7 @@ export default function Reports({ currentUser }) {
             <div>Scope: {scopeSummary}</div>
             <div>Lists: {listFilterSummary}</div>
             <div>Entered: {dateFilterSummary}</div>
+            <div>Counting: {countMode === 'cumulative' ? 'Cumulative reach' : 'Current status'}</div>
           </div>
         </div>
 
@@ -550,34 +546,106 @@ export default function Reports({ currentUser }) {
           </div>
         ) : (
           <>
-            <div className="reports-metrics">
-              {MESSAGE_PIPELINE_STAGES.map((stage) => {
-                const count = cumulativeCounts[stage] ?? 0;
-                const pctOfTotal = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
-
-                return (
-                  <div key={stage} className="reports-metric">
-                    <div className="reports-metric__label">{stage}</div>
-                    <div className="reports-metric__value">{count}</div>
-                    <div className="reports-metric__context">
-                      {pctOfTotal}% of filtered leads
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="reports-count-mode" role="group" aria-label="Pipeline count mode">
+              <button
+                type="button"
+                className={`reports-scope__btn ${countMode === 'cumulative' ? 'reports-scope__btn--active' : ''}`}
+                onClick={() => setCountMode('cumulative')}
+              >
+                Cumulative
+              </button>
+              <button
+                type="button"
+                className={`reports-scope__btn ${countMode === 'current' ? 'reports-scope__btn--active' : ''}`}
+                onClick={() => setCountMode('current')}
+              >
+                Current status
+              </button>
             </div>
 
-            <ReportsFunnel
-              stages={MESSAGE_PIPELINE_STAGES}
-              cumulativeCounts={cumulativeCounts}
-              conversionRates={conversionRates}
-              totalLeads={totalLeads}
-            />
+            <div className="reports-pipelines">
+              <section className="reports-pipeline-section">
+                <h3 className="reports-pipeline-section__title">
+                  <Mail size={16} />
+                  Messages pipeline
+                </h3>
+                <p className="reports-pipeline-section__desc">
+                  Email / LinkedIn stages by message status.
+                </p>
+                <div className="reports-metrics">
+                  {MESSAGE_PIPELINE_STAGES.map((stage) => {
+                    const count = messageCounts[stage] ?? 0;
+                    const isContacts = stage === 'Lead';
+                    const pctOfTotal = !isContacts && totalLeads > 0
+                      ? Math.round((count / totalLeads) * 100)
+                      : null;
+
+                    return (
+                      <div key={stage} className="reports-metric">
+                        <div className="reports-metric__label">{getMessageStageDisplayLabel(stage)}</div>
+                        <div className="reports-metric__value">{count}</div>
+                        {pctOfTotal != null && (
+                          <div className="reports-metric__context">
+                            {pctOfTotal}% of filtered leads
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <ReportsFunnel
+                  stages={MESSAGE_PIPELINE_STAGES}
+                  counts={messageCounts}
+                  conversionRates={messageConversionRates}
+                  totalLeads={totalLeads}
+                  getStageLabel={getMessageStageDisplayLabel}
+                />
+              </section>
+
+              <section className="reports-pipeline-section">
+                <h3 className="reports-pipeline-section__title">
+                  <Phone size={16} />
+                  Calls pipeline
+                </h3>
+                <p className="reports-pipeline-section__desc">
+                  Call queue stages by call status — Not called → Attempted → Connected → Callback → Closed.
+                </p>
+                <div className="reports-metrics">
+                  {callStageIds.map((stageId) => {
+                    const count = callCounts[stageId] ?? 0;
+                    const pctOfTotal = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : null;
+
+                    return (
+                      <div key={stageId} className="reports-metric">
+                        <div className="reports-metric__label">{getCallStageLabel(stageId)}</div>
+                        <div className="reports-metric__value">{count}</div>
+                        {stageId !== 'not_called' && pctOfTotal != null && (
+                          <div className="reports-metric__context">
+                            {pctOfTotal}% of filtered leads
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <ReportsFunnel
+                  stages={callStageIds}
+                  counts={callCounts}
+                  conversionRates={callConversionRates}
+                  totalLeads={totalLeads}
+                  getStageLabel={getCallStageLabel}
+                />
+              </section>
+            </div>
           </>
         )}
 
         <div className="reports-export-footer">
-          <span>Cumulative reach · Active leads only</span>
+          <span>
+            {countMode === 'cumulative' ? 'Cumulative reach' : 'Current status'}
+            {' · '}
+            Active leads only
+          </span>
           <span>{BRAND_NAME}</span>
         </div>
       </div>

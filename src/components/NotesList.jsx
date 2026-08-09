@@ -226,7 +226,7 @@ export default function NotesList({ currentUser }) {
   const otherNotes = sortedNotes.filter(n => !n.pinned);
 
   return (
-    <div className="notes-container" style={{ display: 'flex', gap: '2rem', textAlign: 'left', minHeight: 'calc(100vh - 150px)', flexWrap: 'wrap' }}>
+    <div className="notes-container page-stack" style={{ display: 'flex', gap: 'var(--space-5)', textAlign: 'left', flexWrap: 'wrap' }}>
       
       {/* ── Left Column: Folders Sidebar ── */}
       <div 
@@ -311,7 +311,7 @@ export default function NotesList({ currentUser }) {
           {/* Custom Folders */}
           {folders.length > 0 && (
             <div style={{ margin: '0.5rem 0', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', paddingLeft: '0.75rem' }}>My Folders</span>
+              <span className="rd-section-label" style={{ paddingLeft: 'var(--space-3)' }}>My folders</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
                 {folders.map(f => (
                   <div
@@ -508,7 +508,7 @@ export default function NotesList({ currentUser }) {
           <div className="flex-col gap-4">
             {pinnedNotes.length > 0 && (
               <div>
-                <h4 className="flex align-center gap-1 color-muted" style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+                <h4 className="rd-section-label flex align-center gap-1" style={{ marginBottom: 'var(--space-3)' }}>
                   <Pin size={12} /> Pinned Notes
                 </h4>
                 <div className="grid-3">
@@ -529,8 +529,8 @@ export default function NotesList({ currentUser }) {
             {otherNotes.length > 0 && (
               <div>
                 {pinnedNotes.length > 0 && (
-                  <h4 className="color-muted" style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', marginTop: '1.5rem', marginBottom: '0.75rem' }}>
-                    Other Notes
+                  <h4 className="rd-section-label" style={{ marginTop: 'var(--space-5)', marginBottom: 'var(--space-3)' }}>
+                    Other notes
                   </h4>
                 )}
                 <div className="grid-3">

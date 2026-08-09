@@ -426,7 +426,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
   ];
 
   return (
-    <div className="flex-col gap-4" style={{ maxWidth: '760px' }}>
+    <div className="flex-col gap-4 page-stack" style={{ maxWidth: '760px' }}>
       <div>
         <h2 style={{ margin: 0, fontSize: '1.4rem' }}>Teams</h2>
         <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>

@@ -50,10 +50,11 @@ function StickyNav({ accentColor, activeSection, onScrollTo }) {
               borderRadius: '4px',
               backgroundColor: isActive ? 'var(--gs-active-bg)' : 'transparent',
               transition: 'all 0.15s ease',
-              fontSize: '0.72rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
+              fontSize: '0.8125rem',
+              textTransform: 'none',
+              letterSpacing: 0,
               lineHeight: 1.4,
+              fontWeight: isActive ? 600 : 500,
             }}
           >
             {item.label}
@@ -314,13 +315,14 @@ function GetStartedContent({ isAppView, theme, navigate }) {
   const card = isAppView ? 'var(--bg-card)' : 'var(--hp-card)';
 
   const sectionTitle = (label) => ({
-    fontSize: '1.45rem',
-    color: accent,
+    fontSize: isAppView ? '1.15rem' : '1.45rem',
+    color: isAppView ? text : accent,
     marginTop: 0,
-    marginBottom: '1rem',
+    marginBottom: isAppView ? 'var(--space-4)' : '1rem',
     fontFamily: isAppView ? 'var(--font-heading)' : 'Mattone, sans-serif',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    textTransform: isAppView ? 'none' : 'uppercase',
+    letterSpacing: isAppView ? 0 : '0.05em',
+    fontWeight: isAppView ? 600 : undefined,
   });
 
   return (
@@ -521,7 +523,7 @@ function GetStartedContent({ isAppView, theme, navigate }) {
 
           {/* Bottom Help Section */}
           <section style={{ padding: '2.5rem 2rem', backgroundColor: card, border: `1px solid ${border}`, borderRadius: '3px', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '1.35rem', color: text, marginTop: 0, marginBottom: '0.5rem', fontFamily: isAppView ? 'var(--font-heading)' : 'Mattone, sans-serif', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <h3 style={{ fontSize: isAppView ? '1.15rem' : '1.35rem', color: text, marginTop: 0, marginBottom: '0.5rem', fontFamily: isAppView ? 'var(--font-heading)' : 'Mattone, sans-serif', textTransform: isAppView ? 'none' : 'uppercase', letterSpacing: isAppView ? 0 : '0.05em', fontWeight: isAppView ? 600 : undefined }}>
               Still have questions?
             </h3>
             <p style={{ color: muted, marginBottom: '1.5rem', fontSize: '0.95rem' }}>
@@ -576,8 +578,8 @@ export default function GetStarted() {
       }}>
         {/* Header */}
         <div style={{ marginBottom: '2.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
-          <h1 style={{ fontSize: '2.2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem', fontFamily: 'var(--font-heading)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Get Started with ReachDesk CRM
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 'var(--space-3)', fontFamily: 'var(--font-heading)', textTransform: 'none', letterSpacing: 0 }}>
+            Get started with ReachDesk CRM
           </h1>
           <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0 }}>
             Your quick-start guide to mastering lead tracking, outreach templates, and automated follow-ups.

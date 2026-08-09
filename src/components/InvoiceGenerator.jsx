@@ -323,7 +323,7 @@ export default function InvoiceGenerator({
   });
 
   return (
-    <div className={`flex-col gap-4${rootClass}`}>
+    <div className={`flex-col gap-4 page-stack${rootClass}`}>
       <style>{`
         .dropdown-item-hover:hover {
           background-color: rgba(255, 255, 255, 0.05) !important;
@@ -858,8 +858,8 @@ export function PublicInvoiceView({ invoiceId, invoices }) {
         {/* Invoice Grid Details */}
         <div className="invoice-details-grid">
           <div className="invoice-bill-to">
-            <h3 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', marginBottom: '0.5rem' }}>
-              Bill To
+            <h3 className="rd-section-label" style={{ marginBottom: 'var(--space-2)' }}>
+              Bill to
             </h3>
             <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }} data-ph-mask>
               {invoice.clientName}
@@ -938,8 +938,8 @@ export function PublicInvoiceView({ invoiceId, invoices }) {
           <div className="invoice-terms">
             {invoice.paymentDetails && (
               <div style={{ marginBottom: '1.25rem' }}>
-                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', marginBottom: '0.5rem' }}>
-                  Payment Instructions
+                <h4 className="rd-section-label" style={{ marginBottom: 'var(--space-2)' }}>
+                  Payment instructions
                 </h4>
                 <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, color: '#334155' }} data-ph-mask>
                   {invoice.paymentDetails}
@@ -949,8 +949,8 @@ export function PublicInvoiceView({ invoiceId, invoices }) {
             
             {invoice.notes && (
               <div>
-                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', marginBottom: '0.25rem' }}>
-                  Notes & Terms
+                <h4 className="rd-section-label" style={{ marginBottom: 'var(--space-1)' }}>
+                  Notes & terms
                 </h4>
                 <p style={{ color: '#475569' }} data-ph-mask>{invoice.notes}</p>
               </div>

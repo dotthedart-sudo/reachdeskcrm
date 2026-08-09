@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { isTeamOwner } from './teamWorkspace';
+import { hasTeamsPageAccess, isTeamOwner } from './teamWorkspace';
 
 /** Shares where the current user is a recipient. */
 export async function fetchSharesForUser(userId) {
@@ -85,5 +85,6 @@ export function shareCountForFolder(folderId, allShares = []) {
 
 export function canShareFolder(folder, currentUser) {
   if (!folder || !currentUser?.id) return false;
+  if (!currentUser.team_id || !hasTeamsPageAccess(currentUser)) return false;
   return folder.user_id === currentUser.id || isTeamOwner(currentUser);
 }

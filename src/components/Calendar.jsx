@@ -786,7 +786,7 @@ export default function CalendarPage({ currentUser }) {
   const defaultCountryCode = currentUser?.default_country_code || '+92';
 
   return (
-    <div className="flex-col gap-4" style={{ maxWidth: 1100 }}>
+    <div className="flex-col gap-4 page-stack" style={{ maxWidth: 1100 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

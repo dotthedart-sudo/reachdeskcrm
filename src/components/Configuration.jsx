@@ -1040,7 +1040,7 @@ export default function Configuration({
   };
 
   return (
-    <div className="config-page flex-col gap-4">
+    <div className="config-page flex-col gap-4 page-stack">
       <div className="config-page-header">
         <h2>Configuration</h2>
         <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>

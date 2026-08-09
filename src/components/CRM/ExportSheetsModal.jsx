@@ -17,9 +17,9 @@ export default function ExportSheetsModal({ onClose, leads, currentUser, include
   const [selectedTab, setSelectedTab] = useState('');
   const [writeMode, setWriteMode] = useState('overwrite'); // 'overwrite' | 'append'
 
-  const prepareExportData = () => {
+  const prepareExportData = async () => {
     const defaultCountryCode = currentUser?.default_country_code || '+92';
-    const { headers, rows } = prepareLeadExportRows(leads, {
+    const { headers, rows } = await prepareLeadExportRows(leads, {
       includeLocalTime,
       defaultCountryCode,
     });
@@ -32,7 +32,7 @@ export default function ExportSheetsModal({ onClose, leads, currentUser, include
     setStep(3);
 
     try {
-      const exportValues = prepareExportData();
+      const exportValues = await prepareExportData();
 
       const { data, error } = await supabase.functions.invoke('export-leads-to-sheets-new', {
         body: { values: exportValues },
@@ -102,7 +102,7 @@ export default function ExportSheetsModal({ onClose, leads, currentUser, include
     setStep(3);
 
     try {
-      const exportValues = prepareExportData();
+      const exportValues = await prepareExportData();
 
       const { data, error } = await supabase.functions.invoke('export-leads-to-sheets-existing', {
         body: {

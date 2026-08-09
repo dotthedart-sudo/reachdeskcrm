@@ -77,7 +77,7 @@ export default function RevenueTracker({
   };
 
   return (
-    <div className="flex-col gap-4">
+    <div className="flex-col gap-4 page-stack">
       <div className="flex justify-between align-center mb-4">
         <div>
           <h2>Revenue Tracker</h2>

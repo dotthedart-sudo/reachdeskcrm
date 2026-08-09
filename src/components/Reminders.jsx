@@ -108,7 +108,7 @@ export default function Reminders({ currentUser, onSelectLead }) {
   }
 
   return (
-    <div className="flex-col gap-4" style={{ textAlign: 'left' }}>
+    <div className="flex-col gap-4 page-stack" style={{ textAlign: 'left' }}>
       <div className="mb-4">
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-heading)', margin: 0 }}>
           <Bell size={22} style={{ color: 'var(--status-cold)' }} /> Follow-up Reminders

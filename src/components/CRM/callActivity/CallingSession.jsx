@@ -140,7 +140,7 @@ export default function CallingSession({
       </div>
 
       <div>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="rd-section-label" style={{ marginBottom: 'var(--space-1)' }}>
           Log outcome
         </div>
         <QuickLogChips onLog={handleQuickLog} onMore={() => setLogOpen(true)} />

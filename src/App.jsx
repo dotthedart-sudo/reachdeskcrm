@@ -256,9 +256,7 @@ const GoogleCalendarCallback = lazyWithRetry(() => import('./components/GoogleCa
 const GoogleSheetsCallback = lazyWithRetry(() => import('./components/GoogleSheetsCallback'));
 const CalendarPageView = lazyWithRetry(() => import('./components/Calendar'));
 const ReportsPageView = lazyWithRetry(() => import('./components/Reports'));
-import UserNotificationBell from './components/UserNotificationBell';
 import SetupModal from './components/SetupModal';
-import ChatWidget from './components/ChatWidget';
 import { HelmetProvider } from 'react-helmet-async';
 import GlobalHelmet from './components/GlobalHelmet';
 
@@ -1821,17 +1819,9 @@ function AppRoutes() {
   if (loading) return <LoadingSpinner />;
 
   const appMode = import.meta.env.VITE_APP_MODE;
-  const showAppChrome =
-    session && profile?.has_completed_setup && !isMarketingRoute(location.pathname);
 
   return (
     <Suspense fallback={<LoadingSpinner />}>
-      {showAppChrome && (
-        <UserNotificationBell profile={profile} onRefreshProfile={fetchProfile} />
-      )}
-      {showAppChrome && (
-        <ChatWidget profile={profile} />
-      )}
       <Routes>
         {/* Public routes */}
         <Route

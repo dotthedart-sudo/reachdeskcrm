@@ -28,6 +28,7 @@ import {
   sectionsForKind,
   myLibrarySectionName,
   filterTemplatesByKind,
+  formatSectionLabel,
 } from '../lib/templateKinds';
 
 export default function Templates({ 
@@ -486,15 +487,8 @@ export default function Templates({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
             {isExpanded ? <ChevronDown size={18} style={{ color: 'var(--accent-blue)' }} /> : <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />}
-            <span 
-              style={{ 
-                fontFamily: 'var(--font-heading)', 
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)' 
-              }}
-            >
-              {sectionName}
+            <span className="rd-section-label">
+              {formatSectionLabel(sectionName)}
             </span>
             <span 
               style={{ 
@@ -718,15 +712,8 @@ export default function Templates({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
             {isExpanded ? <ChevronDown size={18} style={{ color: 'var(--accent-blue)' }} /> : <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />}
-            <span 
-              style={{ 
-                fontFamily: 'var(--font-heading)', 
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)' 
-              }}
-            >
-              {sectionName}
+            <span className="rd-section-label">
+              {formatSectionLabel(sectionName)}
             </span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
               {myTemplates.length}
@@ -944,14 +931,14 @@ export default function Templates({
   };
 
   return (
-    <div className="flex-col gap-4 w-full" style={{ minHeight: 'calc(100vh - 120px)', textAlign: 'left' }}>
+    <div className="flex-col gap-4 w-full page-stack" style={{ textAlign: 'left' }}>
       {/* Header section */}
-      <div className="flex justify-between align-center mb-4" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+      <div className="flex justify-between align-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 'var(--space-4)' }}>
         <div>
           <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--text-xl, 1.5rem)', fontWeight: 700, color: 'var(--text-primary)' }}>
             Template Library
           </h2>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
             {isScriptsTab
               ? 'Save call scripts for openers, voicemails, objections, and more'
               : 'Build highly personal outreach messages using automated smart tags'}
@@ -970,7 +957,7 @@ export default function Templates({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
         <button
           type="button"
           className={libraryTab === 'messages' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
