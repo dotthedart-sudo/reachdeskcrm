@@ -14,6 +14,7 @@ import {
   isTeamOwner,
   isTeamsFeatureLocked,
   updateTeamSettings,
+  defaultTeamSettings,
 } from '../lib/teamWorkspace';
 import { getExtraSeats, TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY } from '../lib/planConfig';
 import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
@@ -37,17 +38,14 @@ export default function Teams({ currentUser, onRefreshProfile }) {
   const [inviteSending, setInviteSending] = useState(false);
   const [teamError, setTeamError] = useState('');
   const [teamSuccess, setTeamSuccess] = useState('');
-  const [settings, setSettings] = useState({
-    members_can_view_revenue: false,
-    members_see_own_leads_only: true,
-  });
+  const [settings, setSettings] = useState(() => defaultTeamSettings());
   const [callSettings, setCallSettings] = useState({
-    call_activity_sharing: 'off',
-    call_notes_visible_to_team: false,
+    call_activity_sharing: 'all_members',
+    call_notes_visible_to_team: true,
     memberPermissions: {},
   });
   const [calendarSettings, setCalendarSettings] = useState({
-    calendar_activity_sharing: 'off',
+    calendar_activity_sharing: 'all_members',
     memberPermissions: {},
   });
   const [activeSection, setActiveSection] = useState('people');
@@ -84,17 +82,14 @@ export default function Teams({ currentUser, onRefreshProfile }) {
       if (!teamId) {
         setTeamMembers([]);
         setTeamInvitations([]);
-        setSettings({
-          members_can_view_revenue: false,
-          members_see_own_leads_only: true,
-        });
+        setSettings(defaultTeamSettings());
         setCallSettings({
-          call_activity_sharing: 'off',
-          call_notes_visible_to_team: false,
+          call_activity_sharing: 'all_members',
+          call_notes_visible_to_team: true,
           memberPermissions: {},
         });
         setCalendarSettings({
-          calendar_activity_sharing: 'off',
+          calendar_activity_sharing: 'all_members',
           memberPermissions: {},
         });
         return;
@@ -244,6 +239,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
       const saved = await updateTeamSettings(currentUser.team_id, next);
       setSettings({
         members_can_view_revenue: !!saved.members_can_view_revenue,
+        members_can_view_invoices: !!saved.members_can_view_invoices,
         members_see_own_leads_only: !!saved.members_see_own_leads_only,
       });
       setTeamSuccess('Permissions updated.');
@@ -267,6 +263,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
       const saved = await updateTeamSettings(currentUser.team_id, next);
       setSettings({
         members_can_view_revenue: !!saved.members_can_view_revenue,
+        members_can_view_invoices: !!saved.members_can_view_invoices,
         members_see_own_leads_only: !!saved.members_see_own_leads_only,
       });
       setTeamSuccess('Permissions updated.');
@@ -426,10 +423,9 @@ export default function Teams({ currentUser, onRefreshProfile }) {
   ];
 
   return (
-    <div className="flex-col gap-4 page-stack" style={{ maxWidth: '760px' }}>
+    <div className="flex-col gap-4 page-stack">
       <div>
-        <h2 style={{ margin: 0, fontSize: '1.4rem' }}>Teams</h2>
-        <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
           Manage your workspace members, invites, and sharing permissions.
         </p>
       </div>
@@ -660,7 +656,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
         <div className="card rd-page-form flex-col gap-3">
           <div className="rd-page-form-header">
             <h3>Data access</h3>
-            <p className="rd-modal-sub">Lead visibility, revenue sharing, and what members can see in the CRM.</p>
+            <p className="rd-modal-sub">Lead visibility, revenue/invoice sharing, and what members can see in the CRM.</p>
           </div>
 
           {!currentUser?.team_id ? (
@@ -725,6 +721,34 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                   style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
                 />
               </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  padding: '0.75rem',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  cursor: settingsSaving ? 'wait' : 'pointer',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Members can view Invoices</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    When on, teammates can see invoices across the workspace. When off, each person only sees invoices they created.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={!!settings.members_can_view_invoices}
+                  onChange={() => handleToggleSetting('members_can_view_invoices')}
+                  disabled={settingsSaving}
+                  style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
+                />
+              </label>
             </div>
           ) : (
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
@@ -734,6 +758,8 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                 : 'You see the full team pipeline.'}
               {' '}
               Revenue tracker is {settings.members_can_view_revenue ? 'shared with the team' : 'private to each person'}.
+              {' '}
+              Invoices are {settings.members_can_view_invoices ? 'shared with the team' : 'private to each creator'}.
             </div>
           )}
         </div>

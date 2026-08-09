@@ -6,7 +6,7 @@ import {
   Users, CheckCircle, ShieldAlert, Award, Zap, Bell, Clock, Eye, Trash2, RotateCcw, X, CreditCard, Check,
   ChevronDown, ChevronUp, Calendar, Search
 } from 'lucide-react';
-import { BRAND_NAME, BRAND_LOGO_TEXT } from '../config/brand';
+import { BRAND_NAME } from '../config/brand';
 import {
   BILLING_PLAN_TABS,
   formatBillingCycle,
@@ -468,11 +468,7 @@ function AdminPanelContent({ currentUser }) {
     <div className="flex-col gap-4" style={{ textAlign: 'left' }}>
       <div className="flex justify-between align-center mb-4">
         <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{fontFamily:'Mattone, sans-serif', textTransform:'uppercase', letterSpacing:'0.08em', fontSize:'18px', color:'var(--text-primary)', fontWeight:'400'}}>{BRAND_LOGO_TEXT}</span>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '0.25rem' }}>| System Admin Panel</span>
-          </h2>
-          <p className="color-muted" style={{ fontSize: '0.9rem' }}>
+          <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
             Monitor users, manage subscriptions, and view system activity.
           </p>
         </div>

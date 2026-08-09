@@ -19,7 +19,15 @@ export {
   getEffectiveUserTimeZone,
 };
 
-export const getTeamIds = async (userId) => {
+/**
+ * Resolve user IDs to scope CRM queries.
+ * @param {string} userId
+ * @param {{ respectLeadIsolation?: boolean }} [opts]
+ *   When respectLeadIsolation is true (default), hybrid members only get their own id.
+ *   Pass false for always-shared workspace surfaces (templates, notes, snippets).
+ */
+export const getTeamIds = async (userId, opts = {}) => {
+  const respectLeadIsolation = opts.respectLeadIsolation !== false;
   if (!userId) return [];
   try {
     const { data: p } = await supabase.from('user_profiles')
@@ -27,7 +35,7 @@ export const getTeamIds = async (userId) => {
     if (!p || !p.team_id) return [userId];
 
     const role = (p.team_role || 'owner').toLowerCase();
-    if (role === 'member') {
+    if (respectLeadIsolation && role === 'member') {
       const { data: team } = await supabase
         .from('teams')
         .select('members_see_own_leads_only')

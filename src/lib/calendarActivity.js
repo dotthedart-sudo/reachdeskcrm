@@ -18,7 +18,7 @@ export function canViewTeamCalendarFeed(currentUser, perms) {
 export async function fetchTeamCalendarPermissions(teamId) {
   if (!teamId) {
     return {
-      calendar_activity_sharing: 'off',
+      calendar_activity_sharing: 'all_members',
       memberPermissions: {},
     };
   }
@@ -42,7 +42,7 @@ export async function fetchTeamCalendarPermissions(teamId) {
   }
 
   return {
-    calendar_activity_sharing: team?.calendar_activity_sharing || 'off',
+    calendar_activity_sharing: team?.calendar_activity_sharing || 'all_members',
     memberPermissions,
   };
 }

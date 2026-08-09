@@ -17,13 +17,6 @@
   margin-bottom: var(--space-4);
 }
 
-.crm-folder-browser-title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
 .crm-folder-browser-desc {
   margin: 0;
   max-width: 520px;
@@ -291,6 +284,10 @@
   align-content: start;
 }
 
+.crm-lists-table-wrap--with-assignee {
+  grid-template-columns: minmax(10rem, 1fr) max-content max-content max-content max-content max-content;
+}
+
 .crm-lists-table-head,
 .crm-lists-table-row {
   display: grid;
@@ -396,8 +393,19 @@
 
 .crm-lists-table-type,
 .crm-lists-table-created-by,
+.crm-lists-table-assignee,
 .crm-lists-table-actions {
   white-space: nowrap;
+}
+
+.crm-lists-assignee-select {
+  max-width: 9rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .crm-lists-table-type-pill {

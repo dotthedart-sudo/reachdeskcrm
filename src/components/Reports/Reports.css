@@ -1,5 +1,6 @@
 .reports-page {
-  max-width: 960px;
+  max-width: none;
+  width: 100%;
   text-align: left;
   gap: var(--space-4);
 }

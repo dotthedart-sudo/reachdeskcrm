@@ -1848,6 +1848,7 @@ export default function CRM({
       const { data, error } = await supabase.from('folders')
         .insert({
           user_id: currentUser.id,
+          assignee_id: currentUser.id,
           name: folderForm.name,
           color: folderForm.color,
           sort_order: folders.length
@@ -2055,6 +2056,28 @@ export default function CRM({
     const newName = prompt('Enter new folder name:', currentName);
     if (newName && newName.trim()) {
       handleRenameFolder(folderId, newName.trim());
+    }
+  };
+
+  const handleAssignFolder = async (folderId, assigneeId, table = 'folders') => {
+    if (!folderId || !assigneeId) return;
+    try {
+      const { error } = await supabase.from(table)
+        .update({ assignee_id: assigneeId })
+        .eq('id', folderId);
+      if (error) throw error;
+      if (table === 'user_folders') {
+        setUserFolders((prev) => prev.map((uf) => (
+          uf.id === folderId ? { ...uf, assignee_id: assigneeId } : uf
+        )));
+      } else {
+        setFolders((prev) => prev.map((f) => (
+          f.id === folderId ? { ...f, assignee_id: assigneeId } : f
+        )));
+      }
+    } catch (err) {
+      console.error('Error assigning folder:', err);
+      alert(err.message || 'Could not update assignee');
     }
   };
 
@@ -2611,6 +2634,7 @@ export default function CRM({
             folderShares={folderShares}
             shareCountForFolder={(folderId) => countSharesForFolder(folderId, folderShares)}
             canShareFolder={(folder) => userCanShareFolder(folder, currentUser)}
+            onAssignFolder={handleAssignFolder}
           />
         ) : (
         <>
@@ -4536,6 +4560,7 @@ export default function CRM({
               try {
                 const newFolder = {
                   user_id: currentUser.id,
+                  assignee_id: currentUser.id,
                   name: smartFolderForm.name,
                   filter_config: {
                     rules: smartFolderForm.rules

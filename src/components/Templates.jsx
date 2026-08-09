@@ -119,7 +119,11 @@ export default function Templates({
   const defaultSection = activeSections[0];
 
   const allowedTemplates = filterTemplatesByKind(
-    templates.filter((t) => t.is_starter || t.user_id === currentUser.id),
+    templates.filter((t) => {
+      if (t.is_starter || !t.user_id) return true;
+      if (currentUser?.team_id) return true;
+      return t.user_id === currentUser.id;
+    }),
     activeKind,
   );
 
@@ -935,10 +939,7 @@ export default function Templates({
       {/* Header section */}
       <div className="flex justify-between align-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 'var(--space-4)' }}>
         <div>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: 'var(--text-xl, 1.5rem)', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Template Library
-          </h2>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0 }}>
             {isScriptsTab
               ? 'Save call scripts for openers, voicemails, objections, and more'
               : 'Build highly personal outreach messages using automated smart tags'}

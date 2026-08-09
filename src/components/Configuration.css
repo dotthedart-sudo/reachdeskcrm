@@ -1,21 +1,14 @@
 .config-page {
   text-align: left;
-  max-width: 960px;
   width: 100%;
-}
-
-.config-page-header {
-  margin-bottom: var(--space-4);
-}
-
-.config-page-header h2 {
-  margin: 0 0 var(--space-2);
+  max-width: none;
 }
 
 .config-layout {
   display: flex;
   gap: var(--space-5);
   align-items: flex-start;
+  width: 100%;
 }
 
 .config-nav {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getTeamIds } from '../lib/utils';
 import { 
   Plus, Search, Pin, Trash2, Paintbrush,
   Folder, FolderPlus, Lock, ArrowUpDown, X, PenLine,
@@ -45,18 +46,20 @@ export default function NotesList({ currentUser }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Notes
+      const scopeIds = await getTeamIds(currentUser.id, { respectLeadIsolation: false });
+
+      // Fetch Notes (workspace-scoped on Teams)
       const { data: notesData, error: notesError } = await supabase.from('notes')
         .select('*')
-        .eq('user_id', currentUser.id);
+        .in('user_id', scopeIds);
 
       if (notesError) throw notesError;
       setNotes(notesData || []);
 
-      // Fetch Folders
+      // Fetch Folders used by notes (same table as CRM lists; scoped to workspace)
       const { data: foldersData, error: foldersError } = await supabase.from('folders')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .in('user_id', scopeIds)
         .order('created_at', { ascending: true });
 
       if (foldersError) throw foldersError;
@@ -368,16 +371,13 @@ export default function NotesList({ currentUser }) {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <FileText size={22} /> Notes & Drawings 
-              {selectedFolderId !== 'all' && selectedFolderId !== 'pinned' && (
-                <span style={{ fontSize: '1rem', fontWeight: 500, background: 'var(--bg-tertiary)', padding: '0.2rem 0.6rem', borderRadius: '20px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: folders.find(f => f.id === selectedFolderId)?.color }}></span>
-                  {folders.find(f => f.id === selectedFolderId)?.name}
-                </span>
-              )}
-            </h2>
-            <p className="color-muted" style={{ fontSize: '0.9rem', marginTop: '0.25rem' }}>
+            {selectedFolderId !== 'all' && selectedFolderId !== 'pinned' && (
+              <div style={{ fontSize: '0.9rem', fontWeight: 500, background: 'var(--bg-tertiary)', padding: '0.2rem 0.6rem', borderRadius: '20px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.35rem' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: folders.find(f => f.id === selectedFolderId)?.color }}></span>
+                {folders.find(f => f.id === selectedFolderId)?.name}
+              </div>
+            )}
+            <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
               Store templates, outreach scripts, canvas layouts, and drawings.
             </p>
           </div>

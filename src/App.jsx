@@ -911,28 +911,44 @@ function AppProvider({ children }) {
   const fetchAllData = async (ids, userId, isAdmin, profileObj = null) => {
     try {
       const p = profileObj || profile;
-      let revenueQuery = supabase.from('revenue_entries').select('*').eq('user_id', userId).order('paid_at', { ascending: false });
-
-      // Members may view owner/team revenue when the owner enables the permission
       const role = (p?.team_role || 'owner').toLowerCase();
-      if (role === 'member' && p?.team_id) {
-        const { data: teamSettings } = await supabase
-          .from('teams')
-          .select('members_can_view_revenue')
-          .eq('id', p.team_id)
-          .maybeSingle();
-        if (teamSettings?.members_can_view_revenue && ids?.length) {
-          revenueQuery = supabase.from('revenue_entries').select('*').in('user_id', ids).order('paid_at', { ascending: false });
+      const workspaceIds = (p?.team_id && ids?.length)
+        ? await getTeamIds(userId, { respectLeadIsolation: false })
+        : [userId];
+
+      let revenueQuery = supabase.from('revenue_entries').select('*').eq('user_id', userId).order('paid_at', { ascending: false });
+      let invoiceQuery = supabase.from('invoices').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      let snippetsQuery = supabase.from('user_snippets').select('*').eq('user_id', userId).order('created_at', { ascending: true });
+
+      // Members may view owner/team revenue/invoices when the owner enables the permission.
+      // Workspace owners always see team invoices (shared workspace). Snippets are always team-scoped.
+      if (p?.team_id && workspaceIds?.length) {
+        snippetsQuery = supabase.from('user_snippets').select('*').in('user_id', workspaceIds).order('created_at', { ascending: true });
+
+        if (role === 'owner') {
+          invoiceQuery = supabase.from('invoices').select('*').in('user_id', workspaceIds).order('created_at', { ascending: false });
+        } else if (role === 'member') {
+          const { data: teamSettings } = await supabase
+            .from('teams')
+            .select('members_can_view_revenue, members_can_view_invoices')
+            .eq('id', p.team_id)
+            .maybeSingle();
+          if (teamSettings?.members_can_view_revenue && ids?.length) {
+            revenueQuery = supabase.from('revenue_entries').select('*').in('user_id', ids).order('paid_at', { ascending: false });
+          }
+          if (teamSettings?.members_can_view_invoices && workspaceIds?.length) {
+            invoiceQuery = supabase.from('invoices').select('*').in('user_id', workspaceIds).order('created_at', { ascending: false });
+          }
         }
       }
 
       const [inv, rev, l, t, snip, revProfilesRes] = await Promise.all([
-        supabase.from('invoices').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        invoiceQuery,
         revenueQuery,
         supabase.from('leads').select('*').in('user_id', ids).order('created_at', { ascending: false }).order('id', { ascending: true }),
-        supabase.from('templates').select('*').or(`user_id.in.(${ids.join(',')}),user_id.is.null`),
-        supabase.from('user_snippets').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
-        supabase.from('user_profiles').select('id, email, full_name').in('id', ids),
+        supabase.from('templates').select('*').or(`user_id.in.(${workspaceIds.join(',')}),user_id.is.null`),
+        snippetsQuery,
+        supabase.from('user_profiles').select('id, email, full_name').in('id', workspaceIds),
       ]);
 
       let email = session?.user?.email || profile?.email || '';
@@ -940,9 +956,14 @@ function AppProvider({ children }) {
         const { data: { session: activeSession } } = await supabase.auth.getSession();
         email = activeSession?.user?.email || '';
       }
+      const emailByUserId = {};
+      (revProfilesRes.data || []).forEach((prof) => {
+        emailByUserId[prof.id] = prof.email;
+      });
       const mappedInvoices = (inv.data || []).map(item => ({
         id: item.id,
         user_id: item.user_id,
+        assignee_id: item.assignee_id || item.user_id,
         invoiceNumber: item.invoice_number,
         clientName: item.client_name,
         clientEmail: item.client_email,
@@ -956,13 +977,9 @@ function AppProvider({ children }) {
         tax: item.tax || 0,
         total: item.total || 0,
         paymentDetails: item.payment_instructions,
-        userEmail: email
+        userEmail: emailByUserId[item.user_id] || email,
       }));
       setInvoices(mappedInvoices);
-      const emailByUserId = {};
-      (revProfilesRes.data || []).forEach((p) => {
-        emailByUserId[p.id] = p.email;
-      });
       // Map DB columns → frontend shape
       const mappedRevenue = (rev.data || []).map(r => ({
         id: r.id,
@@ -1127,13 +1144,15 @@ function AppProvider({ children }) {
       tax: invoice.tax || 0,
       total: invoice.total,
       payment_instructions: invoice.paymentDetails,
-      user_id: session.user.id
+      user_id: session.user.id,
+      assignee_id: invoice.assignee_id || session.user.id,
     };
     const { data, error } = await supabase.from('invoices').insert(dbInvoice).select().single();
     if (!error && data) {
       const mapped = {
         id: data.id,
         user_id: data.user_id,
+        assignee_id: data.assignee_id || data.user_id,
         invoiceNumber: data.invoice_number,
         clientName: data.client_name,
         clientEmail: data.client_email,
@@ -1162,6 +1181,7 @@ function AppProvider({ children }) {
       const mapped = {
         id: data.id,
         user_id: data.user_id,
+        assignee_id: data.assignee_id || data.user_id,
         invoiceNumber: data.invoice_number,
         clientName: data.client_name,
         clientEmail: data.client_email,
@@ -1177,7 +1197,7 @@ function AppProvider({ children }) {
         paymentDetails: data.payment_instructions,
         userEmail: session?.user?.email || profile?.email || ''
       };
-      setInvoices(prev => prev.map(i => i.id === id ? mapped : i));
+      setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...mapped } : i));
     }
   };
   const handleUpdateInvoice = async (id, updatedFields) => {
@@ -1200,12 +1220,16 @@ function AppProvider({ children }) {
       total,
       payment_instructions: updatedFields.paymentDetails
     };
+    if (updatedFields.assignee_id) {
+      dbFields.assignee_id = updatedFields.assignee_id;
+    }
 
     const { data, error } = await supabase.from('invoices').update(dbFields).eq('id', id).select().single();
     if (!error && data) {
       const mapped = {
         id: data.id,
         user_id: data.user_id,
+        assignee_id: data.assignee_id || data.user_id,
         invoiceNumber: data.invoice_number,
         clientName: data.client_name,
         clientEmail: data.client_email,
@@ -1221,7 +1245,7 @@ function AppProvider({ children }) {
         paymentDetails: data.payment_instructions,
         userEmail: session?.user?.email || profile?.email || ''
       };
-      setInvoices(prev => prev.map(i => i.id === id ? mapped : i));
+      setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...mapped } : i));
       return { data: mapped, error: null };
     }
     return { data: null, error };
@@ -1535,7 +1559,7 @@ function TemplatesPage() {
 }
 
 function InvoicesPage() {
-  const { profile, invoices, leads, currencySymbol, bankAccount, bankIban, handleAddInvoice, handleDeleteInvoice, handleUpdateInvoiceStatus, handleUpdateInvoice } = useAppContext();
+  const { profile, invoices, leads, currencySymbol, bankAccount, bankIban, handleAddInvoice, handleDeleteInvoice, handleUpdateInvoiceStatus, handleUpdateInvoice, teamProfilesMap, teamIds } = useAppContext();
   return (
     <InvoiceGenerator
       currentUser={profile}
@@ -1548,6 +1572,8 @@ function InvoicesPage() {
       currencySymbol={currencySymbol}
       bankAccount=""
       bankIban=""
+      teamProfilesMap={teamProfilesMap}
+      teamIds={teamIds}
     />
   );
 }

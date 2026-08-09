@@ -382,21 +382,28 @@ export async function getTeamOwnerProfile(teamId) {
   return data;
 }
 
+export function defaultTeamSettings() {
+  return {
+    members_can_view_revenue: false,
+    members_can_view_invoices: false,
+    members_see_own_leads_only: false,
+  };
+}
+
 export async function getTeamSettings(teamId) {
-  if (!teamId) {
-    return { members_can_view_revenue: false, members_see_own_leads_only: true };
-  }
+  if (!teamId) return defaultTeamSettings();
   const { data, error } = await supabase
     .from('teams')
-    .select('members_can_view_revenue, members_see_own_leads_only')
+    .select('members_can_view_revenue, members_can_view_invoices, members_see_own_leads_only')
     .eq('id', teamId)
     .maybeSingle();
   if (error) {
     console.error('[teamWorkspace] getTeamSettings failed:', error);
-    return { members_can_view_revenue: false, members_see_own_leads_only: true };
+    return defaultTeamSettings();
   }
   return {
     members_can_view_revenue: !!data?.members_can_view_revenue,
+    members_can_view_invoices: !!data?.members_can_view_invoices,
     members_see_own_leads_only: !!data?.members_see_own_leads_only,
   };
 }
@@ -407,10 +414,11 @@ export async function updateTeamSettings(teamId, settings) {
     .from('teams')
     .update({
       members_can_view_revenue: !!settings.members_can_view_revenue,
+      members_can_view_invoices: !!settings.members_can_view_invoices,
       members_see_own_leads_only: !!settings.members_see_own_leads_only,
     })
     .eq('id', teamId)
-    .select('members_can_view_revenue, members_see_own_leads_only')
+    .select('members_can_view_revenue, members_can_view_invoices, members_see_own_leads_only')
     .single();
   if (error) throw error;
   return data;
@@ -421,22 +429,47 @@ export { canInviteTeammates };
 /** Attach workspace owner plan for limits/features when user is a team member. */
 export async function enrichProfileWithEffectivePlan(profile) {
   if (!profile?.id) return profile;
-  if ((profile.team_role || 'owner').toLowerCase() !== 'member' || !profile.team_id) {
-    return profile;
+  let next = profile;
+
+  if ((profile.team_role || 'owner').toLowerCase() === 'member' && profile.team_id) {
+    try {
+      const { data, error } = await supabase.rpc('get_my_plan_context');
+      if (!error && data) {
+        next = {
+          ...next,
+          effective_plan: data.plan ?? next.plan,
+          effective_billing_cycle: data.billing_cycle ?? next.billing_cycle,
+          inherits_team_plan: !!data.inherits_workspace,
+        };
+      }
+    } catch (err) {
+      console.warn('[teamWorkspace] get_my_plan_context failed:', err);
+    }
   }
 
-  try {
-    const { data, error } = await supabase.rpc('get_my_plan_context');
-    if (error || !data) return profile;
-
-    return {
-      ...profile,
-      effective_plan: data.plan ?? profile.plan,
-      effective_billing_cycle: data.billing_cycle ?? profile.billing_cycle,
-      inherits_team_plan: !!data.inherits_workspace,
-    };
-  } catch (err) {
-    console.warn('[teamWorkspace] get_my_plan_context failed:', err);
-    return profile;
+  // Teams: overlay workspace automation rules so CRM suggestions use team settings
+  if (next.team_id) {
+    try {
+      const { data: team, error } = await supabase
+        .from('teams')
+        .select('messaging_action_rules, call_status_rules, call_outcome_rules, call_suggestions_auto_apply')
+        .eq('id', next.team_id)
+        .maybeSingle();
+      if (!error && team) {
+        next = {
+          ...next,
+          messaging_action_rules: team.messaging_action_rules ?? next.messaging_action_rules,
+          call_status_rules: team.call_status_rules ?? next.call_status_rules,
+          call_outcome_rules: team.call_outcome_rules ?? next.call_outcome_rules,
+          call_suggestions_auto_apply:
+            team.call_suggestions_auto_apply ?? next.call_suggestions_auto_apply,
+          automation_scope: 'team',
+        };
+      }
+    } catch (err) {
+      console.warn('[teamWorkspace] team automation rules load failed:', err);
+    }
   }
+
+  return next;
 }

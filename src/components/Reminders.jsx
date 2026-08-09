@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getTeamIds } from '../lib/utils';
-import { Bell, CheckCircle, Clock, Check, X } from 'lucide-react';
+import { CheckCircle, Clock, Check, X } from 'lucide-react';
 import { updateLeadStatusAndCheckpoint, REPLY_CHECK_STATUSES, FOLLOW_UP_CHECK_STATUSES } from '../lib/reminders';
 import { celebrateClosedWon } from '../utils/celebrateWin';
 
@@ -110,10 +110,7 @@ export default function Reminders({ currentUser, onSelectLead }) {
   return (
     <div className="flex-col gap-4 page-stack" style={{ textAlign: 'left' }}>
       <div className="mb-4">
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-heading)', margin: 0 }}>
-          <Bell size={22} style={{ color: 'var(--status-cold)' }} /> Follow-up Reminders
-        </h2>
-        <p className="color-muted" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-2)', lineHeight: 'var(--leading-body)' }}>
+        <p className="color-muted" style={{ fontSize: 'var(--text-sm)', margin: 0, lineHeight: 'var(--leading-body)' }}>
           Automated outreach follow-up schedule (+12h, +24h, +72h, +5d, +7d, +14d, +21d).
         </p>
       </div>

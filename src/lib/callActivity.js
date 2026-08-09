@@ -336,8 +336,8 @@ export async function fetchTeamMembersForCalls(teamId) {
 export async function fetchTeamCallPermissions(teamId) {
   if (!teamId) {
     return {
-      call_activity_sharing: 'off',
-      call_notes_visible_to_team: false,
+      call_activity_sharing: 'all_members',
+      call_notes_visible_to_team: true,
       memberPermissions: {},
     };
   }
@@ -362,8 +362,8 @@ export async function fetchTeamCallPermissions(teamId) {
   }
 
   return {
-    call_activity_sharing: team?.call_activity_sharing || 'off',
-    call_notes_visible_to_team: !!team?.call_notes_visible_to_team,
+    call_activity_sharing: team?.call_activity_sharing || 'all_members',
+    call_notes_visible_to_team: team?.call_notes_visible_to_team !== false,
     memberPermissions,
   };
 }

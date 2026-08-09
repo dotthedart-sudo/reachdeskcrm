@@ -30,6 +30,49 @@ function creatorLabel(userId, teamProfilesMap, currentUserId) {
   return teamMemberDisplayName(teamProfilesMap?.[userId]);
 }
 
+function teamMemberOptions(teamProfilesMap = {}) {
+  return Object.entries(teamProfilesMap).map(([id, entry]) => ({
+    id,
+    label: teamMemberDisplayName(entry),
+  }));
+}
+
+function AssigneeCell({
+  assigneeId,
+  teamProfilesMap,
+  currentUserId,
+  canEdit,
+  onChange,
+  showAssignee,
+}) {
+  if (!showAssignee) return null;
+  const value = assigneeId || '';
+  if (!canEdit) {
+    return (
+      <div className="crm-lists-table-assignee" role="cell" onClick={(e) => e.stopPropagation()}>
+        {creatorLabel(value, teamProfilesMap, currentUserId)}
+      </div>
+    );
+  }
+  const options = teamMemberOptions(teamProfilesMap);
+  return (
+    <div className="crm-lists-table-assignee" role="cell" onClick={(e) => e.stopPropagation()}>
+      <select
+        className="crm-lists-assignee-select"
+        value={value}
+        aria-label="Assigned to"
+        onChange={(e) => onChange?.(e.target.value)}
+      >
+        {options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.id === currentUserId ? 'You' : opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function ListRow({
   icon: Icon,
   iconColor,
@@ -40,6 +83,12 @@ function ListRow({
   countHint,
   createdAt,
   createdBy,
+  assigneeId,
+  teamProfilesMap,
+  currentUserId,
+  showAssignee,
+  canEditAssignee,
+  onAssign,
   shareBadge,
   onClick,
   onRename,
@@ -90,6 +139,14 @@ function ListRow({
         </div>
       </div>
       <div className="crm-lists-table-created-by" role="cell">{createdBy}</div>
+      <AssigneeCell
+        assigneeId={assigneeId}
+        teamProfilesMap={teamProfilesMap}
+        currentUserId={currentUserId}
+        canEdit={canEditAssignee}
+        onChange={onAssign}
+        showAssignee={showAssignee}
+      />
       <div className="crm-lists-table-actions" role="cell">
         <div className="crm-lists-table-actions-inner">
           <ListRowMenu
@@ -128,6 +185,8 @@ function renderFolderRows({
   getFolderSettings,
   onToggleFolderLocalTime,
   canShareFolder,
+  showAssignee,
+  onAssignFolder,
 }) {
   return list.map((f) => {
     const shares = shareCountForFolder?.(f.id) || 0;
@@ -135,6 +194,7 @@ function renderFolderRows({
     const shareBadge = isOwn && shares > 0
       ? `Shared · ${shares} member${shares === 1 ? '' : 's'}`
       : (!isOwn ? 'Shared with you' : null);
+    const canEditAssignee = showAssignee && (isOwn || !!onAssignFolder);
 
     return (
       <ListRow
@@ -148,6 +208,12 @@ function renderFolderRows({
         countHint={(getLeadCount?.(f.id) ?? 0) === 0 ? 'No leads assigned yet' : null}
         createdAt={f.created_at}
         createdBy={creatorLabel(f.user_id, teamProfilesMap, currentUserId)}
+        assigneeId={f.assignee_id || f.user_id}
+        teamProfilesMap={teamProfilesMap}
+        currentUserId={currentUserId}
+        showAssignee={showAssignee}
+        canEditAssignee={canEditAssignee}
+        onAssign={(assigneeId) => onAssignFolder?.(f.id, assigneeId, 'folders')}
         shareBadge={shareBadge}
         onClick={() => onSelectFolder(f.id)}
         onRename={isOwn ? () => onRenameFolder?.(f.id, f.name) : undefined}
@@ -184,6 +250,7 @@ export default function ListsTableView({
   currentUserId,
   shareCountForFolder,
   canShareFolder,
+  onAssignFolder,
 }) {
   const sections = listSections || {
     mine: folders.filter((f) => f.user_id === currentUserId),
@@ -191,6 +258,8 @@ export default function ListsTableView({
     team: [],
     auto: userFolders,
   };
+
+  const showAssignee = Object.keys(teamProfilesMap || {}).length > 1;
 
   const hasLists = (sections.mine?.length || 0)
     + (sections.sharedWithMe?.length || 0)
@@ -220,15 +289,24 @@ export default function ListsTableView({
     getFolderSettings,
     onToggleFolderLocalTime,
     canShareFolder,
+    showAssignee,
+    onAssignFolder,
   };
 
   return (
-    <div className="crm-lists-table-wrap" role="table" aria-label="Lists">
+    <div
+      className={`crm-lists-table-wrap${showAssignee ? ' crm-lists-table-wrap--with-assignee' : ''}`}
+      role="table"
+      aria-label="Lists"
+    >
       <div className="crm-lists-table-head" role="row">
         <div className="crm-lists-table-col-name" role="columnheader">Name</div>
         <div className="crm-lists-table-col-type" role="columnheader">Type</div>
         <div className="crm-lists-table-col-count" role="columnheader">Leads</div>
         <div className="crm-lists-table-col-by" role="columnheader">Created by</div>
+        {showAssignee && (
+          <div className="crm-lists-table-col-assignee" role="columnheader">Assigned to</div>
+        )}
         <div className="crm-lists-table-col-actions" role="columnheader" aria-label="Actions" />
       </div>
       {sections.mine?.length > 0 && (
@@ -263,6 +341,12 @@ export default function ListsTableView({
               count={getLeadCount?.(uf.id) ?? 0}
               createdAt={uf.created_at}
               createdBy={creatorLabel(uf.user_id, teamProfilesMap, currentUserId)}
+              assigneeId={uf.assignee_id || uf.user_id}
+              teamProfilesMap={teamProfilesMap}
+              currentUserId={currentUserId}
+              showAssignee={showAssignee}
+              canEditAssignee={showAssignee && (uf.user_id === currentUserId || !!onAssignFolder)}
+              onAssign={(assigneeId) => onAssignFolder?.(uf.id, assigneeId, 'user_folders')}
               onClick={() => onSelectFolder(uf.id)}
               onRename={uf.user_id === currentUserId ? () => onRenameFolder?.(uf.id, uf.name) : undefined}
               onDelete={uf.user_id === currentUserId ? () => onDeleteSmartFolder?.(uf.id) : undefined}

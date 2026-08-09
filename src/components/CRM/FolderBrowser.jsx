@@ -48,6 +48,7 @@ export default function FolderBrowser({
   shareCountForFolder,
   canShareFolder,
   teamIds = [],
+  onAssignFolder,
 }) {
   const [listFilter, setListFilter] = useState('mine');
   const isOwner = isTeamOwner(currentUser);
@@ -105,8 +106,7 @@ export default function FolderBrowser({
     <div className="crm-folder-browser crm-folder-browser--full">
       <div className="crm-folder-browser-header">
         <div>
-          <h2 className="crm-folder-browser-title">Lists</h2>
-          <p className="crm-folder-browser-desc">
+          <p className="crm-folder-browser-desc" style={{ margin: 0 }}>
             Your lists hold assigned leads. Share a list with teammates from the row menu.
           </p>
         </div>
@@ -211,6 +211,7 @@ export default function FolderBrowser({
         currentUserId={currentUserId}
         shareCountForFolder={shareCountForFolder}
         canShareFolder={canShareFolder}
+        onAssignFolder={onAssignFolder}
       />
     </div>
   );

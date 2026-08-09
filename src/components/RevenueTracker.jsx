@@ -80,8 +80,7 @@ export default function RevenueTracker({
     <div className="flex-col gap-4 page-stack">
       <div className="flex justify-between align-center mb-4">
         <div>
-          <h2>Revenue Tracker</h2>
-          <p className="color-muted" style={{ fontSize: '0.9rem' }}>
+          <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
             Log and monitor your freelance earnings across multiple currencies
           </p>
         </div>

@@ -17,6 +17,7 @@ import { getAppUrl } from '../utils/domain';
 import { exportLeads, exportNotes } from '../utils/exportUtils';
 import { BRAND_NAME } from '../config/brand';
 import { getDialerPrefs, setDialerPrefs } from '../lib/callDialer';
+import { getTeamIds } from '../lib/utils';
 import {
   DEFAULT_CALL_OUTCOME_RULES,
   DEFAULT_CALL_STATUS_RULES,
@@ -305,20 +306,41 @@ export default function Configuration({
       const { data: globalRules } = await supabase.from('action_suggestion_rules').select('*');
       if (cancelled) return;
 
-      setMessagingActionRules(getMessagingRulesForEditor(currentUser, globalRules || []));
-      setCallOutcomeRules(getCallOutcomeRulesForEditor(currentUser, currentUser.id));
-      setCallStatusRules(getCallStatusRulesForEditor(currentUser, currentUser.id));
-      setCallSuggestionsAutoApply(currentUser.call_suggestions_auto_apply !== false);
+      let rulesSource = currentUser;
+      if (currentUser.team_id) {
+        const { data: team } = await supabase
+          .from('teams')
+          .select('messaging_action_rules, call_status_rules, call_outcome_rules, call_suggestions_auto_apply')
+          .eq('id', currentUser.team_id)
+          .maybeSingle();
+        if (team) {
+          rulesSource = {
+            ...currentUser,
+            messaging_action_rules: team.messaging_action_rules,
+            call_status_rules: team.call_status_rules,
+            call_outcome_rules: team.call_outcome_rules,
+            call_suggestions_auto_apply: team.call_suggestions_auto_apply,
+          };
+        }
+      }
 
-      const patch = buildCallRulesMigrationPatch(currentUser, currentUser.id);
-      if (patch) {
-        const { error } = await supabase
-          .from('user_profiles')
-          .update(patch)
-          .eq('id', currentUser.id);
-        if (!error) {
-          clearMigratedCallRulesLocalStorage(currentUser.id);
-          if (onRefreshProfile) await onRefreshProfile();
+      setMessagingActionRules(getMessagingRulesForEditor(rulesSource, globalRules || []));
+      setCallOutcomeRules(getCallOutcomeRulesForEditor(rulesSource, currentUser.id));
+      setCallStatusRules(getCallStatusRulesForEditor(rulesSource, currentUser.id));
+      setCallSuggestionsAutoApply(rulesSource.call_suggestions_auto_apply !== false);
+
+      // LocalStorage → profile migration only for personal (non-team) accounts
+      if (!currentUser.team_id) {
+        const patch = buildCallRulesMigrationPatch(currentUser, currentUser.id);
+        if (patch) {
+          const { error } = await supabase
+            .from('user_profiles')
+            .update(patch)
+            .eq('id', currentUser.id);
+          if (!error) {
+            clearMigratedCallRulesLocalStorage(currentUser.id);
+            if (onRefreshProfile) await onRefreshProfile();
+          }
         }
       }
     }
@@ -328,8 +350,9 @@ export default function Configuration({
     return () => {
       cancelled = true;
     };
-  }, [
+    }, [
     currentUser?.id,
+    currentUser?.team_id,
     currentUser?.messaging_action_rules,
     currentUser?.call_status_rules,
     currentUser?.call_outcome_rules,
@@ -701,28 +724,50 @@ export default function Configuration({
     setAutomationSaving(true);
 
     try {
-      const { error: updateErr } = await supabase
-        .from('user_profiles')
-        .update({
-          reminders_enabled: remindersEnabled,
-          reminder_notification_mode: reminderNotificationMode === 'instant' ? 'instant' : 'digest',
-          reminder_digest_hour: Math.min(23, Math.max(0, Number(reminderDigestHour) || 9)),
-          suggestions_enabled: suggestionsEnabled,
-          suggestions_auto_apply: suggestionsAutoApply,
-          call_suggestions_auto_apply: callSuggestionsAutoApply,
-          messaging_action_rules: messagingActionRules.filter(
-            (r) => (r.status || '').trim() && (r.suggested_action || '').trim(),
-          ),
-          call_status_rules: callStatusRules.filter(
-            (r) => (r.status || '').trim() && (r.suggested_call_action || '').trim(),
-          ),
-          call_outcome_rules: callOutcomeRules.filter((r) => (r.outcome || '').trim()),
-          always_draft_before_sending: alwaysDraft,
-          default_country_code: defaultCountryCode.trim() || '+92',
-        })
-        .eq('id', currentUser.id);
+      const rulesPayload = {
+        messaging_action_rules: messagingActionRules.filter(
+          (r) => (r.status || '').trim() && (r.suggested_action || '').trim(),
+        ),
+        call_status_rules: callStatusRules.filter(
+          (r) => (r.status || '').trim() && (r.suggested_call_action || '').trim(),
+        ),
+        call_outcome_rules: callOutcomeRules.filter((r) => (r.outcome || '').trim()),
+        call_suggestions_auto_apply: callSuggestionsAutoApply,
+      };
 
-      if (updateErr) throw updateErr;
+      // Reminders + dialer prefs remain personal; automation rules are team-owned on Teams
+      const profilePayload = {
+        reminders_enabled: remindersEnabled,
+        reminder_notification_mode: reminderNotificationMode === 'instant' ? 'instant' : 'digest',
+        reminder_digest_hour: Math.min(23, Math.max(0, Number(reminderDigestHour) || 9)),
+        suggestions_enabled: suggestionsEnabled,
+        suggestions_auto_apply: suggestionsAutoApply,
+        always_draft_before_sending: alwaysDraft,
+        default_country_code: defaultCountryCode.trim() || '+92',
+      };
+
+      if (currentUser.team_id) {
+        const { error: teamErr } = await supabase
+          .from('teams')
+          .update(rulesPayload)
+          .eq('id', currentUser.team_id);
+        if (teamErr) throw teamErr;
+
+        const { error: updateErr } = await supabase
+          .from('user_profiles')
+          .update(profilePayload)
+          .eq('id', currentUser.id);
+        if (updateErr) throw updateErr;
+      } else {
+        const { error: updateErr } = await supabase
+          .from('user_profiles')
+          .update({
+            ...profilePayload,
+            ...rulesPayload,
+          })
+          .eq('id', currentUser.id);
+        if (updateErr) throw updateErr;
+      }
 
       setDialerPrefs(currentUser.id, {
         dialer: defaultDialer,
@@ -732,10 +777,13 @@ export default function Configuration({
 
       if (suggestionsEnabled && suggestionsAutoApply) {
         try {
+          const scopeIds = currentUser.team_id
+            ? await getTeamIds(currentUser.id, { respectLeadIsolation: false })
+            : [currentUser.id];
           const { data: leadsData } = await supabase
             .from('leads')
             .select('id, status, action_to_take')
-            .eq('user_id', currentUser.id);
+            .in('user_id', scopeIds);
 
           if (leadsData?.length > 0) {
             const updates = [];
@@ -947,6 +995,7 @@ export default function Configuration({
             automationSuccess={automationSuccess}
             automationSaving={automationSaving}
             onSubmit={handleSaveAutomations}
+            isTeamWorkspace={!!currentUser?.team_id}
           />
         );
       case 'snippets':
@@ -1041,13 +1090,6 @@ export default function Configuration({
 
   return (
     <div className="config-page flex-col gap-4 page-stack">
-      <div className="config-page-header">
-        <h2>Configuration</h2>
-        <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
-          Choose a section to update profile, automations, billing, and more.
-        </p>
-      </div>
-
       <div className="config-layout">
         <SettingsNav
           activeTab={activeTab}

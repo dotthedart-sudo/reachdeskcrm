@@ -786,13 +786,10 @@ export default function CalendarPage({ currentUser }) {
   const defaultCountryCode = currentUser?.default_country_code || '+92';
 
   return (
-    <div className="flex-col gap-4 page-stack" style={{ maxWidth: 1100 }}>
+    <div className="flex-col gap-4 page-stack">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CalendarIcon size={22} style={{ color: 'var(--accent-blue)' }} /> Calendar
-          </h2>
-          <p style={{ margin: '0.35rem 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             {viewSubtitle}
           </p>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

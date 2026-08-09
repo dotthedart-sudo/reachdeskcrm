@@ -18,6 +18,8 @@ import {
 import { supabase } from '../lib/supabase';
 import CurrencySelector from './CurrencySelector';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
+import { getTeamIds } from '../lib/utils';
+import { teamMemberDisplayName } from '../lib/teamWorkspace';
 
 // Main Dashboard view for managing and creating invoices
 export default function InvoiceGenerator({ 
@@ -30,7 +32,9 @@ export default function InvoiceGenerator({
   onUpdateInvoice,
   currencySymbol = 'PKR',
   bankAccount = '',
-  bankIban = ''
+  bankIban = '',
+  teamProfilesMap = {},
+  teamIds = [],
 }) {
   const { rootClass, blockClass } = useFirstVisitReveal();
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -76,15 +80,18 @@ export default function InvoiceGenerator({
     }
   }, [resolvedBankAccount, resolvedBankIban]);
 
-  // Fetch leads and folders for dropdown search where user_id = current user
+  // Fetch leads and folders for client autocomplete (workspace-scoped when on a team)
   useEffect(() => {
     if (!currentUser?.id) return;
 
     async function fetchLeadsAndFolders() {
       try {
+        const scopeIds = teamIds?.length > 1
+          ? teamIds
+          : await getTeamIds(currentUser.id, { respectLeadIsolation: false });
         const [leadsRes, foldersRes] = await Promise.all([
-          supabase.from('leads').select('id, first_name, last_name, email, status, folder_id').eq('user_id', currentUser.id),
-          supabase.from('folders').select('id, name').eq('user_id', currentUser.id)
+          supabase.from('leads').select('id, first_name, last_name, email, status, folder_id').in('user_id', scopeIds),
+          supabase.from('folders').select('id, name').in('user_id', scopeIds)
         ]);
 
         if (leadsRes.data) setDbLeads(leadsRes.data);
@@ -95,7 +102,7 @@ export default function InvoiceGenerator({
     }
 
     fetchLeadsAndFolders();
-  }, [currentUser]);
+  }, [currentUser, teamIds]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -314,7 +321,32 @@ export default function InvoiceGenerator({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const userInvoices = invoices.filter(inv => inv.userEmail === currentUser.email);
+  const userInvoices = invoices || [];
+  const showTeamColumns = Object.keys(teamProfilesMap || {}).length > 1;
+
+  const personLabel = (userId) => {
+    if (!userId) return '—';
+    if (userId === currentUser?.id) return 'You';
+    return teamMemberDisplayName(teamProfilesMap?.[userId]);
+  };
+
+  const handleAssigneeChange = async (invoice, assigneeId) => {
+    if (!invoice?.id || !assigneeId || !onUpdateInvoice) return;
+    await onUpdateInvoice(invoice.id, {
+      invoiceNumber: invoice.invoiceNumber,
+      clientName: invoice.clientName,
+      clientEmail: invoice.clientEmail,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      currency: invoice.currency,
+      items: invoice.items || [],
+      status: invoice.status,
+      notes: invoice.notes,
+      taxPercent: invoice.subtotal ? ((invoice.tax || 0) / invoice.subtotal) * 100 : 0,
+      paymentDetails: invoice.paymentDetails,
+      assignee_id: assigneeId,
+    });
+  };
   const activeCount = userInvoices.filter(inv => inv.status?.toLowerCase() !== 'draft').length;
   const draftsCount = userInvoices.filter(inv => inv.status?.toLowerCase() === 'draft').length;
   const displayedInvoices = userInvoices.filter(inv => {
@@ -334,8 +366,7 @@ export default function InvoiceGenerator({
       `}</style>
       <div className={`flex justify-between align-center mb-4${blockClass}`}>
         <div>
-          <h2>Client Invoices</h2>
-          <p className="color-muted" style={{ fontSize: '0.9rem' }}>
+          <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
             Generate professional business invoices and get paid directly by your clients
           </p>
         </div>
@@ -700,6 +731,8 @@ export default function InvoiceGenerator({
                   <tr>
                     <th>Invoice No.</th>
                     <th>Client</th>
+                    {showTeamColumns && <th>Created by</th>}
+                    {showTeamColumns && <th>Assigned to</th>}
                     <th>Date</th>
                     <th>Due Date</th>
                     <th>Amount</th>
@@ -719,6 +752,26 @@ export default function InvoiceGenerator({
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{invoice.clientEmail}</span>
                         </div>
                       </td>
+                      {showTeamColumns && (
+                        <td style={{ fontSize: '0.85rem' }}>{personLabel(invoice.user_id)}</td>
+                      )}
+                      {showTeamColumns && (
+                        <td>
+                          <select
+                            className="form-select"
+                            style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem', maxWidth: '140px' }}
+                            value={invoice.assignee_id || invoice.user_id || ''}
+                            onChange={(e) => handleAssigneeChange(invoice, e.target.value)}
+                            aria-label="Assigned to"
+                          >
+                            {Object.keys(teamProfilesMap).map((uid) => (
+                              <option key={uid} value={uid}>
+                                {uid === currentUser?.id ? 'You' : teamMemberDisplayName(teamProfilesMap[uid])}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td>{invoice.issueDate}</td>
                       <td>{invoice.dueDate}</td>
                       <td style={{ fontWeight: 600 }} data-ph-mask>

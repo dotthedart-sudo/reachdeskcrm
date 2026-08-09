@@ -132,6 +132,7 @@ export default function AutomationsPanel({
   automationSuccess,
   automationSaving,
   onSubmit,
+  isTeamWorkspace = false,
 }) {
   const [section, setSection] = useState('reminders');
 
@@ -157,7 +158,10 @@ export default function AutomationsPanel({
         <div className="rd-page-form-header">
           <h3>Automations</h3>
           <p className="rd-modal-sub">
-            Personal rules for your account only — teammates keep their own settings.
+            {isTeamWorkspace
+              ? 'Workspace rules shared with everyone on your team. Reminder preferences below stay personal to your account.'
+              : 'Personal rules for your account only — teammates keep their own settings.'}
+            {' '}
             These map existing statuses to next steps; they do not rename CRM dropdowns.
           </p>
         </div>
