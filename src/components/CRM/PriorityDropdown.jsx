@@ -247,6 +247,15 @@ export default function PriorityDropdown({ value, onChange, onUpdate }) {
     if (onUpdate) onUpdate();
   };
 
+  const handleResetToDefaults = async () => {
+    if (!confirm('Reset priorities to Hot / Warm / Cold defaults?')) return;
+    const updated = DEFAULT_PRIORITIES.map((p) => ({ ...p }));
+    setPriorities(updated);
+    setEditingIndex(null);
+    await savePrioritiesToDb(updated);
+    if (onUpdate) onUpdate();
+  };
+
   // Find priority match
   const normalizedVal = value ? stripEmojis(value.trim()) : 'Cold';
   const currentPriority = priorities.find(p => p.label.toLowerCase() === normalizedVal.toLowerCase()) || { label: normalizedVal, color: '#6b7280' };
@@ -268,6 +277,7 @@ export default function PriorityDropdown({ value, onChange, onUpdate }) {
   const dropdownPanel = isOpen && createPortal(
     <div
       ref={dropdownRef}
+      className="rd-menu"
       onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed',
@@ -276,77 +286,39 @@ export default function PriorityDropdown({ value, onChange, onUpdate }) {
         left: dropdownPos.left,
         zIndex: 99999,
         width: `${dropdownPos.width}px`,
-        backgroundColor: 'var(--bg-card, #161B22)',
-        border: '1px solid var(--border-strong, #30363D)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-        padding: '8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px'
       }}
     >
       {!isEditing ? (
         <>
-          {/* Normal Selection List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '180px', overflowY: 'auto' }}>
+          <div className="rd-menu__list">
             {priorities.map(opt => {
               const isSelected = normalizedVal.toLowerCase() === opt.label.toLowerCase();
               return (
                 <button
                   key={opt.label}
                   type="button"
+                  className={`rd-menu__item${isSelected ? ' rd-menu__item--active' : ''}`}
                   onClick={() => {
                     onChange(opt.label);
                     setIsOpen(false);
                   }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.45rem 0.65rem',
-                    border: 'none',
-                    background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-                    color: opt.color,
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    borderRadius: '6px',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    width: '100%'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                  onMouseLeave={e => e.currentTarget.style.background = isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent'}
+                  style={{ color: opt.color, fontWeight: 600 }}
                 >
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
-                  <span>{stripEmojis(opt.label)}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, flexShrink: 0 }} />
+                    <span className="rd-menu__item-label">{stripEmojis(opt.label)}</span>
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border-color, #30363D)', margin: '4px 0' }} />
-          
+          <hr className="rd-menu__sep" />
+
           <button
             type="button"
+            className="rd-menu__footer-btn"
             onClick={() => setIsEditing(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-primary)',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '6px',
-              width: '100%',
-              borderRadius: '4px'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <Pencil size={12} />
             Edit Priorities

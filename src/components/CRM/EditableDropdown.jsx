@@ -207,6 +207,7 @@ const ACTION_COLORS = {
   const dropdownMenu = isOpen && createPortal(
     <div
       ref={dropdownRef}
+      className="rd-menu"
       onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed',
@@ -215,68 +216,34 @@ const ACTION_COLORS = {
         left: dropdownPos.left,
         zIndex: 99999,
         minWidth: `${dropdownPos.width}px`,
-        backgroundColor: 'var(--bg-card, #161B22)',
-        border: '1px solid var(--border-strong, #30363D)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-        padding: '4px',
-        maxHeight: '220px',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column'
       }}
     >
-      {rawOptions.map(opt => (
-        <button
-          key={opt.label}
-          type="button"
-          className="dropdown-item"
-          onClick={() => {
-            onChange(opt.label);
-            setIsOpen(false);
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0.75rem',
-            border: 'none',
-            background: value === opt.label ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-            color: 'var(--text-primary)',
-            textAlign: 'left',
-            cursor: 'pointer',
-            borderRadius: '6px',
-            fontSize: '0.85rem'
-          }}
-        >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: opt.color }} />
-          {opt.label}
-        </button>
-      ))}
-      {rawOptions.length === 0 && (
-        <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          No options configured.
-        </div>
-      )}
-      <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+      <div className="rd-menu__list">
+        {rawOptions.map(opt => (
+          <button
+            key={opt.label}
+            type="button"
+            className={`rd-menu__item${value === opt.label ? ' rd-menu__item--active' : ''}`}
+            onClick={() => {
+              onChange(opt.label);
+              setIsOpen(false);
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: opt.color, flexShrink: 0 }} />
+              <span className="rd-menu__item-label">{opt.label}</span>
+            </span>
+          </button>
+        ))}
+        {rawOptions.length === 0 && (
+          <div className="rd-menu__empty">No options configured.</div>
+        )}
+      </div>
+      <hr className="rd-menu__sep" />
       <button
         type="button"
-        className="dropdown-item text-primary"
+        className="rd-menu__footer-btn"
         onClick={handleOpenEditOptions}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.35rem',
-          padding: '0.4rem 0.75rem',
-          border: 'none',
-          background: 'transparent',
-          color: 'var(--primary-purple, #8b5cf6)',
-          cursor: 'pointer',
-          borderRadius: '6px',
-          fontSize: '0.8rem',
-          fontWeight: 600
-        }}
       >
         <Pencil size={12} /> Edit Options
       </button>

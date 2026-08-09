@@ -67,6 +67,7 @@ import ShareListModal from './CRM/ShareListModal';
 import { mergeTemplateFields, normalizePhoneNumber, generatePrefilledUrl } from '../utils/templateMerge';
 import { celebrateClosedWon } from '../utils/celebrateWin';
 import { generateAIDraft } from '../utils/aiDraft';
+import RdSelect from './ui/RdSelect';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
 
 const PRESET_COLORS = [
@@ -3158,27 +3159,35 @@ export default function CRM({
                   Change Status ▾
                 </button>
                  {showBulkStatusMenu && (
-                  <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', marginTop: '0.25rem', right: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', zIndex: 9999, display: 'flex', flexDirection: 'column', padding: '0.25rem', maxHeight: '300px', overflowY: 'auto', minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                    {(statuses.length > 0 ? statuses : DEFAULT_STATUSES).map(s => (
-                      <button key={s.label} onClick={() => { handleBulkStatusChange(s.label); setShowBulkStatusMenu(false); }} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.4rem 0.8rem', textAlign: 'left', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '6px', fontSize: '0.85rem' }}>
-                        {s.label}
-                      </button>
-                    ))}
+                  <div className="rd-menu rd-menu--anchored" style={{ right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
+                    <div className="rd-menu__list">
+                      {(statuses.length > 0 ? statuses : DEFAULT_STATUSES).map(s => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          className="rd-menu__item"
+                          onClick={() => { handleBulkStatusChange(s.label); setShowBulkStatusMenu(false); }}
+                        >
+                          <span className="rd-menu__item-label">{s.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
               {folders.length > 0 && (
-                <select
-                  onChange={(e) => handleBulkMoveToFolder(e.target.value)}
-                  className="form-select btn-sm"
-                  defaultValue=""
-                  style={{ width: '130px', padding: '0.2rem 0.5rem', height: 'auto' }}
-                >
-                  <option value="" disabled>Move to list</option>
-                  <option value="">(Unfiled)</option>
-                  {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
+                <RdSelect
+                  size="sm"
+                  ariaLabel="Move to list"
+                  placeholder="Move to list"
+                  value=""
+                  options={[
+                    { value: '__unfiled__', label: '(Unfiled)' },
+                    ...folders.map((f) => ({ value: f.id, label: f.name })),
+                  ]}
+                  onChange={(val) => handleBulkMoveToFolder(val === '__unfiled__' ? '' : val)}
+                />
               )}
 
               <button
@@ -3292,7 +3301,7 @@ export default function CRM({
             </p>
           </div>
         ) : (
-          <div className="card" style={{ padding: 0, overflowX: 'auto', overflowY: 'visible', height: 'auto' }}>
+          <div className="card crm-leads-table-scroll">
             <table className="data-table data-table--resizable" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--bg-tertiary)' }}>

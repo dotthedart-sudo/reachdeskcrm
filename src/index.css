@@ -793,6 +793,7 @@ h3 { font-size: var(--text-md); }
   border-color: var(--accent-blue);
 }
 
+/* ── Shared dropdown / select menus (RdSelect + portal menus) ───────────── */
 .rd-select {
   position: relative;
   display: inline-block;
@@ -812,7 +813,7 @@ h3 { font-size: var(--text-md); }
   height: 34px;
   padding: 0 0.55rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   color: var(--text-primary);
   font-size: 0.82rem;
@@ -835,58 +836,204 @@ h3 { font-size: var(--text-md); }
   color: var(--text-muted);
 }
 
-.rd-select__menu {
+/* Floating menu panel — use on RdSelect menus and portal dropdowns */
+.rd-menu {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm), 0 10px 28px rgba(0, 0, 0, 0.22);
+  z-index: 1000;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rd-menu--anchored {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
   right: 0;
   min-width: 100%;
-  max-height: 260px;
-  overflow-y: auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  z-index: 1000;
-  padding: 0.25rem;
 }
 
-.rd-select__group-label {
-  font-size: 0.8125rem;
+.rd-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem 0.55rem;
+  margin-bottom: 0.15rem;
+  border-bottom: var(--hairline);
+  flex-shrink: 0;
+}
+
+.rd-menu__search-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  padding: 0.15rem 0;
+}
+
+.rd-menu__search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* List region — max-height leaves breathing room below in modals */
+.rd-menu__list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(220px, 42vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.rd-menu__list--tall {
+  max-height: min(260px, 46vh);
+}
+
+.rd-menu__group-label {
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-muted);
-  padding: var(--space-1) var(--space-2);
+  padding: 0.45rem 0.65rem 0.3rem;
 }
 
-.rd-select__option {
+.rd-menu__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.4rem 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.55rem 0.7rem;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   font-size: 0.82rem;
   font-family: var(--font-body);
+  font-weight: 500;
   text-align: left;
+  cursor: pointer;
+  line-height: 1.35;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.rd-menu__item + .rd-menu__item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0;
+}
+
+.rd-menu__item:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.rd-menu__item:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.rd-menu__item:only-child {
+  border-radius: 6px;
+}
+
+.rd-menu__item:hover,
+.rd-menu__item:focus-visible {
+  background: var(--bg-hover, var(--bg-card-hover));
+  outline: none;
+}
+
+.rd-menu__item--active {
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.rd-menu__item--active:hover,
+.rd-menu__item--active:focus-visible {
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+}
+
+.rd-menu__item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-menu__item-meta {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.rd-menu__empty {
+  padding: 0.75rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.rd-menu__sep {
+  height: 1px;
+  margin: 0.35rem 0.25rem;
+  background: var(--border);
+  border: none;
+  flex-shrink: 0;
+}
+
+.rd-menu__footer-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font-body);
   cursor: pointer;
 }
 
-.rd-select__option:hover {
-  background: var(--bg-card-hover);
+.rd-menu__footer-btn:hover {
+  background: var(--bg-hover, var(--bg-card-hover));
+  color: var(--text-primary);
 }
 
-.rd-select__option--active {
-  background: var(--bg-card-hover);
+/* RdSelect menus share the same panel + item look */
+.rd-select .rd-menu,
+.rd-select__menu.rd-menu {
+  z-index: 1000;
 }
 
 .rd-select__check {
   color: var(--accent-blue);
   flex-shrink: 0;
+}
+
+/* Country / dial picker embedded in forms */
+.rd-country-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rd-country-picker__menu {
+  margin-top: 0;
 }
 
 .logo-text {
@@ -4913,17 +5060,21 @@ select option {
   .mobile-only-menu {
     display: flex !important;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.35rem;
     list-style: none;
-    padding: 1.5rem 0.5rem;
+    padding: 1rem 0.5rem;
+    font-family: var(--font-body);
   }
   
   .mobile-menu-item {
+    font-family: var(--font-body);
     color: var(--text-secondary);
     text-decoration: none;
-    font-weight: 600;
-    font-size: 1.1rem;
-    padding: 0.75rem 1rem;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    letter-spacing: 0;
+    line-height: 1.35;
+    padding: 0.7rem 1rem;
     display: block;
     border-radius: 8px;
     transition: var(--transition-fast);

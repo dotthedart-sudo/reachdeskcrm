@@ -441,6 +441,7 @@ export default function GroupedStatusDropdown({
   const dropdownPanel = isOpen && createPortal(
     <div
       ref={panelRef}
+      className="rd-menu"
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
       style={{
@@ -450,97 +451,52 @@ export default function GroupedStatusDropdown({
         left: dropdownPos.left,
         zIndex: 99999,
         width: `${dropdownPos.width}px`,
-        backgroundColor: 'var(--bg-card)',
-        border: '1px solid var(--border-strong)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-        padding: '8px'
       }}
     >
       {!isEditing ? (
         <>
-          {/* Search Header */}
-          <div style={{ padding: '0 8px 8px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div className="rd-menu__search">
             <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <input
               type="text"
+              className="rd-menu__search-input"
               placeholder="Search status..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
-              style={{
-                width: '100%',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                fontSize: '0.8rem',
-                outline: 'none'
-              }}
             />
           </div>
 
-          {/* Options List */}
-          <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div className="rd-menu__list">
             {filteredOptions.length === 0 ? (
-              <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                No matching statuses
-              </div>
+              <div className="rd-menu__empty">No matching statuses</div>
             ) : (
               filteredOptions.map(opt => {
                 const isSelected = opt.label.toLowerCase() === displayValue.toLowerCase();
                 return (
-                  <div
+                  <button
                     key={opt.label}
+                    type="button"
+                    className={`rd-menu__item${isSelected ? ' rd-menu__item--active' : ''}`}
                     onClick={() => handleSelect(opt.label)}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '0.82rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      cursor: 'pointer',
-                      backgroundColor: isSelected ? 'rgba(88, 166, 255, 0.15)' : 'transparent',
-                      color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                      transition: 'background 0.15s ease',
-                      borderRadius: '4px'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
                   >
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, display: 'inline-block', flexShrink: 0 }} />
-                    <span>{opt.label}</span>
-                  </div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, display: 'inline-block', flexShrink: 0 }} />
+                      <span className="rd-menu__item-label">{opt.label}</span>
+                    </span>
+                    {isSelected && <Check size={14} className="rd-select__check" />}
+                  </button>
                 );
               })
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border-color, #30363D)', margin: '4px 0' }} />
-          
+          <hr className="rd-menu__sep" />
+
           <button
             type="button"
+            className="rd-menu__footer-btn"
             onClick={() => setIsEditing(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-primary)',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '6px',
-              width: '100%',
-              borderRadius: '4px'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <Pencil size={12} />
             Edit Statuses

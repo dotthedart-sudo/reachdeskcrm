@@ -106,6 +106,10 @@ export default function GroupedTemplateDropdown({
 
   const selectedTemplate = kindTemplates.find((t) => t.id === value);
   const triggerLabel = selectedTemplate ? selectedTemplate.title : placeholder;
+  const noResults = search.trim()
+    && myTemplates.length === 0
+    && otherTemplates.length === 0
+    && SECTIONS.every((sec) => sectionTemplates[sec].length === 0);
 
   const renderGroup = (groupName, items) => {
     if (items.length === 0 && !search.trim()) return null;
@@ -114,60 +118,40 @@ export default function GroupedTemplateDropdown({
     const isExpanded = expandedGroups[groupName];
 
     return (
-      <div key={groupName} style={{ display: 'flex', flexDirection: 'column' }}>
-        <div
+      <div key={groupName}>
+        <button
+          type="button"
+          className="rd-menu__group-label"
           onClick={(e) => toggleGroup(groupName, e)}
           style={{
             display: 'flex',
+            width: '100%',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '6px 12px',
-            fontSize: '0.68rem',
-            fontWeight: 700,
-            letterSpacing: '0.05em',
-            color: 'var(--text-muted)',
-            backgroundColor: 'rgba(255,255,255,0.02)',
-            borderBottom: '1px solid rgba(255,255,255,0.03)',
             cursor: 'pointer',
-            userSelect: 'none',
-            textTransform: 'uppercase',
+            border: 'none',
+            background: 'transparent',
+            textAlign: 'left',
           }}
         >
           <span>{groupName} ({items.length})</span>
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </div>
+        </button>
 
-        {isExpanded && (
-          <div style={{ padding: '2px 0' }}>
-            {items.map((item) => {
-              const isSelected = item.id === value;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleSelect(item.id)}
-                  style={{
-                    padding: '8px 24px',
-                    fontSize: '0.8rem',
-                    color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                    backgroundColor: isSelected ? 'rgba(91,143,185,0.1)' : 'transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transition: 'background-color 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? 'rgba(91,143,185,0.1)' : 'transparent'; }}
-                >
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.title}
-                  </span>
-                  {isSelected && <Check size={14} style={{ color: 'var(--accent-blue)' }} />}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {isExpanded && items.map((item) => {
+          const isSelected = item.id === value;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`rd-menu__item${isSelected ? ' rd-menu__item--active' : ''}`}
+              onClick={() => handleSelect(item.id)}
+            >
+              <span className="rd-menu__item-label">{item.title}</span>
+              {isSelected && <Check size={14} className="rd-select__check" />}
+            </button>
+          );
+        })}
       </div>
     );
   };
@@ -175,6 +159,7 @@ export default function GroupedTemplateDropdown({
   const dropdownPanel = isOpen && createPortal(
     <div
       ref={dropdownRef}
+      className="rd-menu"
       style={{
         position: 'fixed',
         top: dropdownPos.openUp ? undefined : dropdownPos.top,
@@ -182,63 +167,34 @@ export default function GroupedTemplateDropdown({
         left: dropdownPos.left,
         zIndex: 99999,
         width: `${dropdownPos.width}px`,
-        backgroundColor: 'var(--bg-card)',
-        border: '1px solid var(--border-strong)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        padding: '6px 0',
-        maxHeight: '320px',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
-      <div style={{ padding: '4px 12px 10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent' }}>
+      <div className="rd-menu__search">
         <input
           type="text"
-          placeholder={kind === TEMPLATE_KINDS.CALLS ? 'Search scripts...' : 'Search templates...'}
+          className="rd-menu__search-input"
+          placeholder={kind === TEMPLATE_KINDS.CALLS ? 'Search scripts…' : 'Search templates…'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus
-          style={{
-            width: '100%',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            padding: '6px 8px',
-            color: 'var(--text-primary)',
-            fontSize: '0.8rem',
-            outline: 'none',
-          }}
         />
       </div>
 
-      <div style={{ overflowY: 'auto', flex: 1 }}>
-        <div
+      <div className="rd-menu__list rd-menu__list--tall">
+        <button
+          type="button"
+          className={`rd-menu__item${!value ? ' rd-menu__item--active' : ''}`}
           onClick={() => handleSelect(null)}
-          style={{
-            padding: '8px 12px',
-            fontSize: '0.8rem',
-            color: !value ? 'var(--accent-blue)' : 'var(--text-muted)',
-            cursor: 'pointer',
-            borderBottom: '1px solid var(--border)',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
         >
-          {placeholder}
-        </div>
-
+          <span className="rd-menu__item-label">{placeholder}</span>
+        </button>
         {renderGroup(mySectionName, myTemplates)}
         {SECTIONS.map((sec) => renderGroup(sec, sectionTemplates[sec]))}
         {renderGroup('OTHER TEMPLATES', otherTemplates)}
-
-        {search.trim()
-          && myTemplates.length === 0
-          && otherTemplates.length === 0
-          && SECTIONS.every((sec) => sectionTemplates[sec].length === 0) && (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              {kind === TEMPLATE_KINDS.CALLS ? 'No scripts found' : 'No templates found'}
-            </div>
+        {noResults && (
+          <div className="rd-menu__empty">
+            {kind === TEMPLATE_KINDS.CALLS ? 'No scripts found' : 'No templates found'}
+          </div>
         )}
       </div>
     </div>,

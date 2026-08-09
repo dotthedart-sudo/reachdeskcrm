@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getCallWindowBadgeStyle,
   getCallWindowStatus,
@@ -21,15 +21,20 @@ export default function CallWindowBadge({
   const style = getCallWindowBadgeStyle(status);
   const localTime = showLocalTime ? getLeadLocalTimeLabel(lead, at, defaultCountryCode) : null;
 
-  const filtered = COUNTRY_TIMEZONE_OPTIONS.filter((c) => {
+  const sorted = useMemo(
+    () => [...COUNTRY_TIMEZONE_OPTIONS].sort((a, b) => a.name.localeCompare(b.name)),
+    [],
+  );
+
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
+    if (!q) return sorted;
+    return sorted.filter((c) => (
       c.name.toLowerCase().includes(q)
       || c.dial.includes(q.replace(/^\+/, ''))
       || c.timezone.toLowerCase().includes(q)
-    );
-  });
+    ));
+  }, [query, sorted]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -71,51 +76,60 @@ export default function CallWindowBadge({
       )}
       {open && (
         <div
+          className="rd-menu"
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
             zIndex: 40,
-            top: '100%',
+            top: 'calc(100% + 6px)',
             left: 0,
-            marginTop: 4,
-            padding: '0.5rem',
-            background: 'var(--bg-primary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
             minWidth: 260,
           }}
         >
-          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-            Country / dial code
-          </label>
-          <input
-            type="search"
-            className="form-input"
-            placeholder="Pakistan, +92…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ width: '100%', fontSize: '0.8rem', marginBottom: 6 }}
-            autoFocus
-          />
-          <select
-            className="form-input"
-            style={{ width: '100%', fontSize: '0.8rem' }}
-            value={lead?.timezone || ''}
-            size={6}
-            onChange={(e) => {
-              onTimezoneChange?.(e.target.value || null);
-              setOpen(false);
-              setQuery('');
-            }}
-          >
-            <option value="">Auto from phone</option>
-            {filtered.map((c) => (
-              <option key={`${c.name}-${c.timezone}`} value={c.timezone}>
-                {c.name} (+{c.dial})
-              </option>
-            ))}
-          </select>
+          <div className="rd-menu__search">
+            <input
+              type="search"
+              className="rd-menu__search-input"
+              placeholder="Search country or dial code…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="rd-menu__list">
+            <button
+              type="button"
+              className={`rd-menu__item${!lead?.timezone ? ' rd-menu__item--active' : ''}`}
+              onClick={() => {
+                onTimezoneChange?.(null);
+                setOpen(false);
+                setQuery('');
+              }}
+            >
+              <span className="rd-menu__item-label">Auto from phone</span>
+            </button>
+            {filtered.map((c) => {
+              const active = lead?.timezone === c.timezone;
+              return (
+                <button
+                  key={`${c.name}-${c.timezone}`}
+                  type="button"
+                  className={`rd-menu__item${active ? ' rd-menu__item--active' : ''}`}
+                  onClick={() => {
+                    onTimezoneChange?.(c.timezone);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                >
+                  <span className="rd-menu__item-label">{c.name}</span>
+                  <span className="rd-menu__item-meta">+{c.dial}</span>
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="rd-menu__empty">No matching countries</div>
+            )}
+          </div>
         </div>
       )}
     </span>

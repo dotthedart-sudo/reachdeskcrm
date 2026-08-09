@@ -1,5 +1,9 @@
 .data-table.data-table--resizable {
   table-layout: fixed;
+  /* Keep configured column widths; scroll the container instead of compressing */
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
 }
 
 .data-table.data-table--resizable th,
@@ -7,6 +11,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+.crm-leads-table-scroll {
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .crm-resizable-th__label {
@@ -147,8 +159,9 @@ body.crm-resizing-row * {
   background: var(--bg-hover);
 }
 
-.data-table tr:hover .copyable-cell__btn,
+/* Only reveal copy on that cell (or while focusing the icon) — not on whole-row hover */
 .copyable-cell:hover .copyable-cell__btn,
+.copyable-cell:focus-within .copyable-cell__btn,
 .copyable-cell__btn:focus-visible {
   opacity: 1;
 }

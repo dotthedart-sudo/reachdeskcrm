@@ -62,25 +62,27 @@ export default function RdSelect({
       </button>
 
       {open && (
-        <div className="rd-select__menu" role="listbox">
-          {Object.entries(groups).map(([groupName, items]) => (
-            <React.Fragment key={groupName || 'default'}>
-              {groupName && <div className="rd-select__group-label">{groupName}</div>}
-              {items.map((opt) => (
-                <button
-                  key={String(opt.value)}
-                  type="button"
-                  role="option"
-                  aria-selected={opt.value === value}
-                  className={`rd-select__option${opt.value === value ? ' rd-select__option--active' : ''}`}
-                  onClick={() => pick(opt)}
-                >
-                  <span>{opt.label}</span>
-                  {opt.value === value && <Check size={14} className="rd-select__check" />}
-                </button>
-              ))}
-            </React.Fragment>
-          ))}
+        <div className="rd-menu rd-menu--anchored rd-select__menu" role="listbox">
+          <div className="rd-menu__list">
+            {Object.entries(groups).map(([groupName, items]) => (
+              <React.Fragment key={groupName || 'default'}>
+                {groupName && <div className="rd-menu__group-label">{groupName}</div>}
+                {items.map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    role="option"
+                    aria-selected={opt.value === value}
+                    className={`rd-menu__item${opt.value === value ? ' rd-menu__item--active' : ''}`}
+                    onClick={() => pick(opt)}
+                  >
+                    <span className="rd-menu__item-label">{opt.label}</span>
+                    {opt.value === value && <Check size={14} className="rd-select__check" />}
+                  </button>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       )}
     </div>
