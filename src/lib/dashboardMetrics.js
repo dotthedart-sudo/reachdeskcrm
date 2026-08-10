@@ -55,13 +55,33 @@ export function countMessagePipeline(leads = []) {
   return counts;
 }
 
-/** Cumulative reach — leads at this stage or any later pipeline stage. */
-export function countCumulativeMessagePipeline(leads = []) {
+/** Derive cumulative message counts from current-distribution counts (exact status buckets). */
+export function cumulativeMessageFromCurrent(currentCounts = {}) {
   const counts = {};
   MESSAGE_PIPELINE_STAGES.forEach((st, stageIdx) => {
-    counts[st] = leads.filter((l) => getMessageStageIndex(l.status) >= stageIdx).length;
+    counts[st] = MESSAGE_PIPELINE_STAGES.slice(stageIdx).reduce(
+      (sum, key) => sum + (Number(currentCounts[key]) || 0),
+      0,
+    );
   });
   return counts;
+}
+
+/** Cumulative reach — leads at this stage or any later pipeline stage. */
+export function countCumulativeMessagePipeline(leads = []) {
+  return cumulativeMessageFromCurrent(countMessagePipeline(leads));
+}
+
+/** Leads Overview mini-stats from RPC / current counts (no row scan). */
+export function computeLeadsOverviewFromStats(stats = {}) {
+  const current = stats.message_current || {};
+  const cumulative = cumulativeMessageFromCurrent(current);
+  return {
+    total: Number(stats.total) || 0,
+    contacted: cumulative.Contacted ?? 0,
+    replied: cumulative['Positive Reply'] ?? 0,
+    positive: Number(stats.positive) || 0,
+  };
 }
 
 /** Leads Overview mini-stats derived from cumulative pipeline counts. */
@@ -96,13 +116,21 @@ function getCallBucketIndex(callStatus) {
   return CALL_BUCKET_ORDER.indexOf(bucket);
 }
 
-/** Cumulative call reach — leads at this bucket or any later bucket in the call funnel. */
-export function countCumulativeCallPipeline(leads = []) {
+/** Derive cumulative call counts from current bucket counts. */
+export function cumulativeCallFromCurrent(currentCounts = {}) {
   const counts = Object.fromEntries(CALL_BUCKET_ORDER.map((id) => [id, 0]));
   CALL_BUCKET_ORDER.forEach((id, stageIdx) => {
-    counts[id] = leads.filter((l) => getCallBucketIndex(l.call_status) >= stageIdx).length;
+    counts[id] = CALL_BUCKET_ORDER.slice(stageIdx).reduce(
+      (sum, key) => sum + (Number(currentCounts[key]) || 0),
+      0,
+    );
   });
   return counts;
+}
+
+/** Cumulative call reach — leads at this bucket or any later bucket in the call funnel. */
+export function countCumulativeCallPipeline(leads = []) {
+  return cumulativeCallFromCurrent(countCallPipeline(leads));
 }
 
 /** Display label for message pipeline stages in Reports UI. */

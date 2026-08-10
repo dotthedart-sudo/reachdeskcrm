@@ -158,6 +158,7 @@ export function buildTeamOverview({
   suggestionsEnabled = true,
   profile = null,
   currentUserId = null,
+  totalLeads = null,
 }) {
   const byMember = {};
   leads.forEach((l) => {
@@ -202,7 +203,7 @@ export function buildTeamOverview({
     memberSummaries: Object.values(byMember).sort((a, b) => b.mismatchCount - a.mismatchCount),
     statusCounts,
     followUpLeads,
-    totalLeads: leads.length,
+    totalLeads: typeof totalLeads === 'number' ? totalLeads : leads.length,
   };
 }
 

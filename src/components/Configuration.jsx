@@ -17,6 +17,7 @@ import { exportLeads, exportNotes } from '../utils/exportUtils';
 import { BRAND_NAME } from '../config/brand';
 import { getDialerPrefs, setDialerPrefs } from '../lib/callDialer';
 import { getTeamIds } from '../lib/utils';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 import {
   DEFAULT_CALL_OUTCOME_RULES,
   DEFAULT_CALL_STATUS_RULES,
@@ -769,10 +770,10 @@ export default function Configuration({
           const scopeIds = currentUser.team_id
             ? await getTeamIds(currentUser.id, { respectLeadIsolation: false })
             : [currentUser.id];
-          const { data: leadsData } = await supabase
-            .from('leads')
-            .select('id, status, action_to_take')
-            .in('user_id', scopeIds);
+          const leadsData = await fetchAllLeadsForScope({
+            userIds: scopeIds,
+            columns: 'id, status, action_to_take',
+          });
 
           if (leadsData?.length > 0) {
             const updates = [];

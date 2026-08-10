@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { splitFullName, normalizePriority } from './csvMapping';
 import { getTeamIds } from '../lib/utils';
 import { getPlanLeadLimit, normalizePlan } from '../lib/planConfig';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 
 interface ImportBatchOptions {
   data: any[][];
@@ -66,11 +67,11 @@ export async function processImportBatch({
   // 1. Pre-fetch existing leads to handle duplicates efficiently
   const existingEmails = new Map<string, string>(); // email -> lead_id
   try {
-    const { data: leadsData } = await supabase
-      .from('leads')
-      .select('id, email')
-      .eq('user_id', userId);
-      
+    const leadsData = await fetchAllLeadsForScope({
+      userIds: [userId],
+      columns: 'id, email',
+    });
+
     if (leadsData) {
       leadsData.forEach(lead => {
         if (lead.email) {

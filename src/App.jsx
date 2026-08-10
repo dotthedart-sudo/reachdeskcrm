@@ -24,6 +24,7 @@ import { BRAND_NAME } from './config/brand';
 import * as Sentry from '@sentry/react';
 import { CALL_SCRIPT_SECTIONS, TEMPLATE_KINDS } from './lib/templateKinds';
 import { countDueCheckpointLeads } from './lib/checkpointNotifications';
+import { fetchAllLeadsForScope } from './lib/leadsQuery';
 import PaidInviteJoinModal from './components/PaidInviteJoinModal';
 
 // Helper for lazy loading components with automatic retry on dynamic import / chunk load failures (e.g. after new deployments)
@@ -942,10 +943,10 @@ function AppProvider({ children }) {
         }
       }
 
-      const [inv, rev, l, t, snip, revProfilesRes] = await Promise.all([
+      const [inv, rev, leadsData, t, snip, revProfilesRes] = await Promise.all([
         invoiceQuery,
         revenueQuery,
-        supabase.from('leads').select('*').in('user_id', ids).order('created_at', { ascending: false }).order('id', { ascending: true }),
+        fetchAllLeadsForScope({ userIds: ids }),
         supabase.from('templates').select('*').or(`user_id.in.(${workspaceIds.join(',')}),user_id.is.null`),
         snippetsQuery,
         supabase.from('user_profiles').select('id, email, full_name').in('id', workspaceIds),
@@ -995,9 +996,8 @@ function AppProvider({ children }) {
       }));
       setRevenueLogs(mappedRevenue);
       // Client-side priority migration for emojis
-      const leadsData = l.data || [];
       const updatedLeadsList = [];
-      for (let lead of leadsData) {
+      for (let lead of (leadsData || [])) {
         if (lead.priority && /🔥|⚡|📦|🧊/.test(lead.priority)) {
           let cleanPriority = lead.priority.replace(/🔥|⚡|📦|🧊/g, '').trim();
           if (cleanPriority.toLowerCase() === 'hot') cleanPriority = 'Hot';

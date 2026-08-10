@@ -20,6 +20,7 @@ import CurrencySelector from './CurrencySelector';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
 import { getTeamIds } from '../lib/utils';
 import { teamMemberDisplayName } from '../lib/teamWorkspace';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 
 // Main Dashboard view for managing and creating invoices
 export default function InvoiceGenerator({ 
@@ -89,12 +90,15 @@ export default function InvoiceGenerator({
         const scopeIds = teamIds?.length > 1
           ? teamIds
           : await getTeamIds(currentUser.id, { respectLeadIsolation: false });
-        const [leadsRes, foldersRes] = await Promise.all([
-          supabase.from('leads').select('id, first_name, last_name, email, status, folder_id').in('user_id', scopeIds),
+        const [leadsData, foldersRes] = await Promise.all([
+          fetchAllLeadsForScope({
+            userIds: scopeIds,
+            columns: 'id, first_name, last_name, email, status, folder_id',
+          }),
           supabase.from('folders').select('id, name').in('user_id', scopeIds)
         ]);
 
-        if (leadsRes.data) setDbLeads(leadsRes.data);
+        setDbLeads(leadsData || []);
         if (foldersRes.data) setFolders(foldersRes.data);
       } catch (err) {
         console.error("Error fetching leads/folders for dropdown:", err);

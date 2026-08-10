@@ -67,6 +67,7 @@ import ShareListModal from './CRM/ShareListModal';
 import { mergeTemplateFields, normalizePhoneNumber, generatePrefilledUrl } from '../utils/templateMerge';
 import { celebrateClosedWon } from '../utils/celebrateWin';
 import { generateAIDraft } from '../utils/aiDraft';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 import RdSelect from './ui/RdSelect';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
 
@@ -772,10 +773,6 @@ export default function CRM({
       const sharesRes = await fetchSharesForUser(currentUser.id);
       const sharedFolderIds = sharesRes.map((s) => s.folder_id).filter(Boolean);
 
-      const leadsOrClause = sharedFolderIds.length
-        ? `user_id.in.(${teamIds.join(',')}),folder_id.in.(${sharedFolderIds.join(',')})`
-        : null;
-
       const foldersPromise = isOwner
         ? supabase.from('folders').select('*').in('user_id', teamIds).order('sort_order', { ascending: true })
         : (async () => {
@@ -794,9 +791,10 @@ export default function CRM({
         ? supabase.from('user_folders').select('*').in('user_id', teamIds).order('created_at', { ascending: true })
         : supabase.from('user_folders').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true });
 
-      const leadsPromise = leadsOrClause
-        ? supabase.from('leads').select('*').or(leadsOrClause).order('created_at', { ascending: false }).order('id', { ascending: true })
-        : supabase.from('leads').select('*').in('user_id', teamIds).order('created_at', { ascending: false }).order('id', { ascending: true });
+      const leadsPromise = fetchAllLeadsForScope({
+        userIds: teamIds,
+        sharedFolderIds: sharedFolderIds.length ? sharedFolderIds : null,
+      });
 
       const teamMembersPromise = currentUser.team_id
         ? supabase.from('user_profiles').select('id, email, full_name, team_role').eq('team_id', currentUser.team_id)
@@ -808,7 +806,7 @@ export default function CRM({
         statusesRes,
         templatesRes,
         columnsRes,
-        leadsRes,
+        rawLeads,
         rulesRes,
         teamMembersRes,
       ] = await Promise.all([
@@ -822,7 +820,6 @@ export default function CRM({
         teamMembersPromise,
       ]);
 
-      if (leadsRes.error) throw leadsRes.error;
       if (columnsRes.error) throw columnsRes.error;
 
       const fData = foldersRes.data || [];
@@ -830,8 +827,7 @@ export default function CRM({
       const sData = statusesRes.data || [];
       const tData = templatesRes.data || [];
       const cols = columnsRes.data || [];
-      const rawLeads = leadsRes.data || [];
-      const lData = rawLeads.map(lead => {
+      const lData = (rawLeads || []).map(lead => {
         if (lead.priority && /🔥|⚡|📦|🧊/.test(lead.priority)) {
           let cleanPriority = lead.priority.replace(/🔥|⚡|📦|🧊/g, '').trim();
           if (cleanPriority.toLowerCase() === 'hot') cleanPriority = 'Hot';

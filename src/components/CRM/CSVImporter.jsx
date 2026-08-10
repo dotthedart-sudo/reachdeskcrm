@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, ArrowRight, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { fetchAllLeadsForScope } from '../../lib/leadsQuery';
 
 function parseCSV(text) {
   const lines = [];
@@ -169,11 +170,11 @@ export default function CSVImporter({
     // Fetch all existing emails to do clientside skip or overwrite logic
     let existingLeadsMap = {};
     try {
-      const { data: leadsData } = await supabase
-        .from('leads')
-        .select('id, email')
-        .eq('user_id', currentUser.id);
-      
+      const leadsData = await fetchAllLeadsForScope({
+        userIds: [currentUser.id],
+        columns: 'id, email',
+      });
+
       leadsData?.forEach(l => {
         if (l.email) existingLeadsMap[l.email.toLowerCase().trim()] = l.id;
       });

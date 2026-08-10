@@ -6,6 +6,7 @@ import { exportLeads, exportNotes } from '../utils/exportUtils';
 import ExportSheetsModal from './CRM/ExportSheetsModal';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
 import { startGoogleSheetsOAuth, needsSheetsReconnect } from '../lib/googleSheetsOAuth';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -54,12 +55,7 @@ export default function UpgradeLockModal({ profile, handleLogout, theme }) {
             }
           }
 
-          const { data: leadsData } = await supabase
-            .from('leads')
-            .select('*')
-            .in('user_id', ids)
-            .order('created_at', { ascending: false });
-
+          const leadsData = await fetchAllLeadsForScope({ userIds: ids });
           if (leadsData) {
             setLeads(leadsData);
           }

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { prepareLeadExportRows } from '../lib/leadExportFields';
+import { fetchAllLeadsForScope } from '../lib/leadsQuery';
 
 export function triggerDownload(content, filename, mime = 'text/plain') {
   const blob = new Blob([content], { type: mime });
@@ -26,14 +27,10 @@ export function stripHTML(html = '') {
 export async function exportLeads(userId, leadsData = null, filename = 'reachdesk-leads.csv', options = {}) {
   let leads = leadsData;
   if (!leads) {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    leads = data;
+    leads = await fetchAllLeadsForScope({
+      userIds: [userId],
+      orderBy: [{ column: 'created_at', ascending: true }],
+    });
   }
   if (!leads || leads.length === 0) {
     throw new Error('No leads found.');

@@ -13,13 +13,12 @@ import { exportElementToPdf } from '../utils/exportReportsPdf';
 import {
   MESSAGE_PIPELINE_STAGES,
   CALL_PIPELINE_STAGES,
-  countCumulativeMessagePipeline,
-  countMessagePipeline,
-  countCumulativeCallPipeline,
-  countCallPipeline,
+  cumulativeMessageFromCurrent,
+  cumulativeCallFromCurrent,
   computeStageConversionRatesForStages,
   getMessageStageDisplayLabel,
 } from '../lib/dashboardMetrics';
+import { fetchLeadPipelineStats, emptyPipelineStats } from '../lib/leadsQuery';
 import { usePageHeader } from '../context/PageHeaderContext';
 import SegmentedControl from './ui/SegmentedControl';
 import ReportsFunnel from './Reports/ReportsFunnel';
@@ -34,14 +33,6 @@ const DATE_PRESETS = [
   { id: 'custom', label: 'Custom' },
 ];
 
-/** Soft-deleted leads are hard-deleted today; keep a defensive guard for future columns. */
-function isActiveLead(lead) {
-  if (!lead) return false;
-  if (lead.deleted_at) return false;
-  if (lead.is_deleted === true) return false;
-  return true;
-}
-
 function startOfLocalDay(dateStr) {
   if (!dateStr) return null;
   const d = new Date(`${dateStr}T00:00:00`);
@@ -51,13 +42,6 @@ function startOfLocalDay(dateStr) {
 function endOfLocalDay(dateStr) {
   if (!dateStr) return null;
   const d = new Date(`${dateStr}T23:59:59.999`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function leadEnteredAt(lead) {
-  const raw = lead?.created_at;
-  if (!raw) return null;
-  const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -191,8 +175,10 @@ export default function Reports({ currentUser }) {
 
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [allLeads, setAllLeads] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [sharedFolderIds, setSharedFolderIds] = useState([]);
+  const [teamIds, setTeamIds] = useState([]);
+  const [pipelineStats, setPipelineStats] = useState(emptyPipelineStats);
   const [selectedListIds, setSelectedListIds] = useState([]);
   const [datePreset, setDatePreset] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -207,6 +193,7 @@ export default function Reports({ currentUser }) {
     );
   }, [reportScope, canUseTeamScope, folders, currentUser?.id]);
 
+  // Load folders + team scope once
   useEffect(() => {
     if (!currentUser?.id || !allowed) {
       setLoading(false);
@@ -215,21 +202,20 @@ export default function Reports({ currentUser }) {
 
     let cancelled = false;
 
-    async function loadData() {
-      setLoading(true);
+    async function loadMeta() {
       try {
-        const teamIds = await getTeamIds(currentUser.id);
+        const ids = await getTeamIds(currentUser.id);
         const owner = isTeamOwner(currentUser);
         const shares = owner ? [] : await fetchSharesForUser(currentUser.id);
-        const sharedFolderIds = shares.map((s) => s.folder_id).filter(Boolean);
+        const sharedIds = shares.map((s) => s.folder_id).filter(Boolean);
 
         const foldersPromise = owner
-          ? supabase.from('folders').select('id, name, color, user_id, sort_order').in('user_id', teamIds).order('sort_order', { ascending: true })
+          ? supabase.from('folders').select('id, name, color, user_id, sort_order').in('user_id', ids).order('sort_order', { ascending: true })
           : (async () => {
             const [ownRes, sharedRes] = await Promise.all([
               supabase.from('folders').select('id, name, color, user_id, sort_order').eq('user_id', currentUser.id).order('sort_order', { ascending: true }),
-              sharedFolderIds.length
-                ? supabase.from('folders').select('id, name, color, user_id, sort_order').in('id', sharedFolderIds).order('sort_order', { ascending: true })
+              sharedIds.length
+                ? supabase.from('folders').select('id, name, color, user_id, sort_order').in('id', sharedIds).order('sort_order', { ascending: true })
                 : Promise.resolve({ data: [] }),
             ]);
             const byId = new Map();
@@ -237,47 +223,24 @@ export default function Reports({ currentUser }) {
             return { data: [...byId.values()] };
           })();
 
-        const leadsOrClause = sharedFolderIds.length
-          ? `user_id.in.(${teamIds.join(',')}),folder_id.in.(${sharedFolderIds.join(',')})`
-          : null;
-
-        const leadsPromise = leadsOrClause
-          ? supabase
-            .from('leads')
-            .select('id, user_id, status, reply_type, folder_id, created_at, call_status')
-            .or(leadsOrClause)
-            .order('created_at', { ascending: false })
-          : supabase
-            .from('leads')
-            .select('id, user_id, status, reply_type, folder_id, created_at, call_status')
-            .in('user_id', teamIds)
-            .order('created_at', { ascending: false });
-
-        const [foldersRes, leadsRes] = await Promise.all([foldersPromise, leadsPromise]);
-        if (leadsRes.error) throw leadsRes.error;
+        const foldersRes = await foldersPromise;
         if (foldersRes.error) throw foldersRes.error;
-
         if (cancelled) return;
 
+        setTeamIds(ids);
+        setSharedFolderIds(sharedIds);
         setFolders(foldersRes.data || []);
-        setAllLeads((leadsRes.data || []).filter(isActiveLead));
       } catch (err) {
-        console.error('[Reports] Failed to load data:', err);
-      } finally {
+        console.error('[Reports] Failed to load folders:', err);
         if (!cancelled) setLoading(false);
       }
     }
 
-    loadData();
+    loadMeta();
     return () => {
       cancelled = true;
     };
   }, [currentUser?.id, currentUser?.team_id, currentUser?.team_role, allowed]);
-
-  const scopedLeads = useMemo(() => {
-    if (canUseTeamScope && reportScope === 'team') return allLeads;
-    return allLeads.filter((lead) => lead.user_id === currentUser?.id);
-  }, [allLeads, canUseTeamScope, reportScope, currentUser?.id]);
 
   const visibleFolders = useMemo(() => {
     if (canUseTeamScope && reportScope === 'team') return folders;
@@ -304,35 +267,75 @@ export default function Reports({ currentUser }) {
     return { from: null, to: null };
   }, [datePreset, customFrom, customTo]);
 
-  const filteredLeads = useMemo(() => {
-    return scopedLeads.filter((lead) => {
-      if (!isActiveLead(lead)) return false;
+  // Exact pipeline stats via RPC whenever filters change (no max-rows cap)
+  useEffect(() => {
+    if (!currentUser?.id || !allowed) {
+      setLoading(false);
+      return;
+    }
+    if (!teamIds.length) {
+      setLoading(false);
+      return;
+    }
 
-      if (selectedListIds.length > 0) {
-        const inUnfiled = selectedListIds.includes(UNFILED_ID) && !lead.folder_id;
-        const inFolder = lead.folder_id && selectedListIds.includes(lead.folder_id);
-        if (!inUnfiled && !inFolder) return false;
+    let cancelled = false;
+
+    async function loadStats() {
+      setLoading(true);
+      try {
+        const useTeam = canUseTeamScope && reportScope === 'team';
+        const applyFolderFilter = selectedListIds.length > 0;
+        const includeUnfiled = selectedListIds.includes(UNFILED_ID);
+        const selectedFolderIds = selectedListIds.filter((id) => id !== UNFILED_ID);
+
+        const stats = await fetchLeadPipelineStats({
+          userIds: useTeam ? teamIds : [currentUser.id],
+          sharedFolderIds: useTeam ? sharedFolderIds : sharedFolderIds,
+          applyFolderFilter,
+          selectedFolderIds,
+          includeUnfiled,
+          createdFrom: dateBounds.from ? dateBounds.from.toISOString() : null,
+          createdTo: dateBounds.to ? dateBounds.to.toISOString() : null,
+          ownerUserId: useTeam ? null : currentUser.id,
+        });
+
+        if (!cancelled) setPipelineStats(stats);
+      } catch (err) {
+        console.error('[Reports] Failed to load pipeline stats:', err);
+        if (!cancelled) setPipelineStats(emptyPipelineStats());
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    }
 
-      const entered = leadEnteredAt(lead);
-      if (dateBounds.from && (!entered || entered < dateBounds.from)) return false;
-      if (dateBounds.to && (!entered || entered > dateBounds.to)) return false;
-
-      return true;
-    });
-  }, [scopedLeads, selectedListIds, dateBounds]);
+    loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUser?.id,
+    allowed,
+    teamIds,
+    sharedFolderIds,
+    canUseTeamScope,
+    reportScope,
+    selectedListIds,
+    dateBounds,
+  ]);
 
   const messageCounts = useMemo(() => {
-    if (countMode === 'current') return countMessagePipeline(filteredLeads);
-    return countCumulativeMessagePipeline(filteredLeads);
-  }, [filteredLeads, countMode]);
+    const current = pipelineStats.message_current || {};
+    if (countMode === 'current') return current;
+    return cumulativeMessageFromCurrent(current);
+  }, [pipelineStats, countMode]);
 
   const callStageIds = useMemo(() => CALL_PIPELINE_STAGES.map((s) => s.id), []);
 
   const callCounts = useMemo(() => {
-    if (countMode === 'current') return countCallPipeline(filteredLeads);
-    return countCumulativeCallPipeline(filteredLeads);
-  }, [filteredLeads, countMode]);
+    const current = pipelineStats.call_current || {};
+    if (countMode === 'current') return current;
+    return cumulativeCallFromCurrent(current);
+  }, [pipelineStats, countMode]);
 
   const messageConversionRates = useMemo(
     () => computeStageConversionRatesForStages(MESSAGE_PIPELINE_STAGES, messageCounts),
@@ -345,6 +348,7 @@ export default function Reports({ currentUser }) {
   );
 
   const getCallStageLabel = (id) => CALL_PIPELINE_STAGES.find((s) => s.id === id)?.label || id;
+  const totalLeads = pipelineStats.total || 0;
 
   const scopeSummary = useMemo(() => {
     if (canUseTeamScope && reportScope === 'team') return 'Whole team';
@@ -396,13 +400,13 @@ export default function Reports({ currentUser }) {
         type="button"
         className="btn btn-primary btn-sm"
         onClick={handleExportPdf}
-        disabled={exporting || loading || filteredLeads.length === 0}
+        disabled={exporting || loading || totalLeads === 0}
       >
         <Download size={14} />
         {exporting ? 'Exporting…' : 'Export PDF'}
       </button>
     ) : null
-  ), [allowed, exporting, loading, filteredLeads.length]);
+  ), [allowed, exporting, loading, totalLeads]);
 
   usePageHeader({ title: 'Reports', actions: headerActions });
 
@@ -437,7 +441,6 @@ export default function Reports({ currentUser }) {
     return <div className="loading-container">Loading reports...</div>;
   }
 
-  const totalLeads = filteredLeads.length;
   const generatedLabel = new Date().toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',

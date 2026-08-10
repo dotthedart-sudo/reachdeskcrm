@@ -43,11 +43,9 @@ import {
   MESSAGE_PIPELINE_STAGES,
   MESSAGE_STAGE_COLORS,
   CALL_PIPELINE_STAGES,
-  countMessagePipeline,
-  countCallPipeline,
-  computeWeekActivity,
-  computeLeadsOverviewMetrics,
+  computeLeadsOverviewFromStats,
 } from '../lib/dashboardMetrics';
+import { fetchLeadPipelineStats, fetchAllLeadsForScope } from '../lib/leadsQuery';
 import { fetchMyCallAttempts } from '../lib/callActivity';
 import { hasOutreachByPlan } from '../lib/callActivity';
 
@@ -114,6 +112,9 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const [expandedReplies, setExpandedReplies] = useState({});
   const [ignoredMismatches, setIgnoredMismatches] = useState({});
   const [weekActivity, setWeekActivity] = useState({ messaged: 0, called: 0, followUpsDue: 0, days: 7 });
+  const [messageStageCounts, setMessageStageCounts] = useState({});
+  const [callStageCounts, setCallStageCounts] = useState({});
+  const [weeklyPitchCount, setWeeklyPitchCount] = useState(0);
   const { reveal, rootClass, blockClass, blockProp } = useFirstVisitReveal();
 
   // Rules of Hooks: must run before any conditional return (including loading guards).
@@ -140,64 +141,70 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         return;
       }
 
-      // Parallel Data Fetching
       const remindersEnabled = currentUser?.reminders_enabled !== false;
-      const [invoicesRes, rulesRes, leadsRes, dueCheckpoints, attemptsData] = await Promise.all([
+      const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
+
+      const [invoicesRes, rulesRes, pipelineStats, dueCheckpoints, attemptsData, feedLeads] = await Promise.all([
         supabase.from('invoices').select('*').eq('user_id', currentUser.id),
         supabase.from('action_suggestion_rules').select('*'),
-        supabase.from('leads').select('id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at').in('user_id', teamIds).order('created_at', { ascending: false }).order('id', { ascending: true }),
+        fetchLeadPipelineStats({ userIds: teamIds }),
         remindersEnabled
           ? fetchDueCheckpointLeads({ userIds: [currentUser.id], limit: 5 })
           : Promise.resolve([]),
         hasOutreachByPlan(currentUser)
           ? fetchMyCallAttempts(currentUser.id)
           : Promise.resolve([]),
+        // Thin columns for Up Next / team overview — paged so we never stop at 1000.
+        fetchAllLeadsForScope({ userIds: teamIds, columns: feedColumns }),
       ]);
 
       const loadedInvoices = invoicesRes.data || [];
       const loadedRules = rulesRes.data || [];
-      const loadedLeads = leadsRes.data || [];
+      const loadedLeads = feedLeads || [];
       const loadedAttempts = attemptsData || [];
 
       setInvoices(loadedInvoices);
       setSuggestionRules(loadedRules);
       setLeadsList(loadedLeads);
       setReminders(dueCheckpoints);
-      setWeekActivity(computeWeekActivity({
-        leads: loadedLeads,
-        attempts: loadedAttempts,
-        currentUserId: currentUser.id,
-      }));
 
-      // 1. Calculate Core Metrics (cumulative stage reach for overview cards)
-      setMetrics(computeLeadsOverviewMetrics(loadedLeads));
+      setMetrics(computeLeadsOverviewFromStats(pipelineStats));
+      setMessageStageCounts(pipelineStats.message_current || {});
+      setCallStageCounts(pipelineStats.call_current || {});
+      setWeeklyPitchCount(pipelineStats.velocity_7d || 0);
 
-      // 2. Fetch Copy performance templates if allowed
+      const calledLeadIds = new Set();
+      const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      for (const a of loadedAttempts) {
+        const t = new Date(a.occurred_at || a.created_at).getTime();
+        if (t >= since) calledLeadIds.add(a.lead_id);
+      }
+      setWeekActivity({
+        messaged: pipelineStats.week_messaged || 0,
+        called: calledLeadIds.size,
+        followUpsDue: pipelineStats.week_followups_due || 0,
+        days: 7,
+      });
+
       if (limits.copyAnalytics) {
         const { data: templatesData } = await supabase
           .from('templates')
           .select('id, title')
           .or(`user_id.eq.${currentUser.id},user_id.is.null`);
 
-        const positiveLeadsByTemplate = loadedLeads.filter(l => l.reply_type === 'positive' && l.template_used);
-        const counts = {};
-        positiveLeadsByTemplate.forEach(l => {
-          counts[l.template_used] = (counts[l.template_used] || 0) + 1;
-        });
-
+        const counts = pipelineStats.positive_by_template || {};
         const sortedAnalytics = Object.entries(counts).map(([templateId, count]) => {
-          const matchedTemplate = (templatesData || []).find(t => t.id === templateId);
+          const matchedTemplate = (templatesData || []).find((t) => t.id === templateId);
           return {
             id: templateId,
             title: matchedTemplate ? matchedTemplate.title : 'Unknown Template',
-            count
+            count: Number(count) || 0,
           };
         }).sort((a, b) => b.count - a.count);
 
         setCopyAnalytics(sortedAnalytics);
       }
 
-      // 3. Compile personal "Upcoming Next" feed (scoped to current user)
       const personalFeed = buildPersonalUpNextFeed({
         leads: loadedLeads,
         invoices: loadedInvoices,
@@ -217,6 +224,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           suggestionsEnabled,
           profile: currentUser,
           currentUserId: currentUser.id,
+          totalLeads: pipelineStats.total,
         }));
         try {
           const todayKey = todayDateKeyInZone(getEffectiveUserTimeZone(currentUser));
@@ -375,14 +383,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revenueTarget = Number(currentUser.monthly_revenue_target) || 0;
   const targetPct = revenueTarget > 0 ? Math.min(100, Math.round((totalRevenueCollected / revenueTarget) * 100)) : 0;
 
-  // Calculate Pitching Velocity (Leads created/contacted in last 7 days)
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklyPitchCount = leadsList.filter(l => {
-    const created = l.created_at ? new Date(l.created_at).getTime() : 0;
-    const contacted = l.last_contacted_at ? new Date(l.last_contacted_at).getTime() : 0;
-    return created >= sevenDaysAgo || contacted >= sevenDaysAgo;
-  }).length;
-
+  // Calculate Pitching Velocity (exact count from RPC — not capped at max-rows)
   let velocityLevel = 'low';
   let velocityColor = 'var(--danger-color)';
   let velocityMsg = 'Pipeline is cooling down. Increase pitching velocity.';
@@ -403,11 +404,9 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const pathLength = 126; // arc circumference length
   const dashOffset = pathLength * (1 - dialPercentage / 100);
 
-  // Dual pipelines (messages vs calls)
+  // Dual pipelines (exact counts from RPC)
   const forwardStages = MESSAGE_PIPELINE_STAGES;
   const STAGE_COLORS = MESSAGE_STAGE_COLORS;
-  const messageStageCounts = countMessagePipeline(leadsList);
-  const callStageCounts = countCallPipeline(leadsList);
   const showCallsStrip = hasOutreachByPlan(currentUser);
   const callStageIds = CALL_PIPELINE_STAGES.map((s) => s.id);
   const callStageMeta = Object.fromEntries(CALL_PIPELINE_STAGES.map((s) => [s.id, s]));

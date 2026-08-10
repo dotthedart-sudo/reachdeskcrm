@@ -65,10 +65,15 @@ export async function insertCallAttempt({
   teamId = null,
   occurredAt = null,
 }) {
+  const outcomeText = typeof outcome === 'string' ? outcome.trim() : '';
+  if (!outcomeText) {
+    throw new Error('Call outcome is required.');
+  }
+
   const payload = {
     lead_id: leadId,
     user_id: userId,
-    outcome,
+    outcome: outcomeText,
     note: note?.trim() || null,
     note_visibility: noteVisibility === 'private' ? 'private' : 'team',
     occurred_at: occurredAt || new Date().toISOString(),

@@ -238,20 +238,26 @@ serve(async (req) => {
       console.error('Error checking lead limits:', err);
     }
 
-    // ── Step 3: Pre-fetch existing leads for deduplication ───────────────────
+    // ── Step 3: Pre-fetch existing leads for deduplication (paged — max-rows safe) ─
     const existingEmails = new Map<string, string>();
     try {
-      const { data: leadsData } = await supabaseAdmin
-        .from('leads')
-        .select('id, email')
-        .in('user_id', teamIds);
-        
-      if (leadsData) {
-        leadsData.forEach(lead => {
+      const pageSize = 1000;
+      let from = 0;
+      for (;;) {
+        const { data: leadsData, error: leadsPrefetchErr } = await supabaseAdmin
+          .from('leads')
+          .select('id, email')
+          .in('user_id', teamIds)
+          .range(from, from + pageSize - 1);
+        if (leadsPrefetchErr) throw leadsPrefetchErr;
+        const batch = leadsData || [];
+        batch.forEach((lead: { id: string; email: string | null }) => {
           if (lead.email) {
             existingEmails.set(lead.email.toLowerCase().trim(), lead.id);
           }
         });
+        if (batch.length < pageSize) break;
+        from += pageSize;
       }
     } catch (err) {
       console.error('Error pre-fetching leads:', err);

@@ -29,6 +29,7 @@ import ActivityTimelineRow from './CRM/ActivityTimelineRow';
 import { getLeadLocalTimeLabel } from '../lib/leadTimezone';
 import { fetchTeamTimelineForDay, logLeadTimelineEvent } from '../lib/leadTimeline';
 import { needsCalendarReconnect } from '../lib/googleCalendarOAuth';
+import { fetchAllLeadsForScope, fetchAllPaged } from '../lib/leadsQuery';
 import {
   fetchTeamCalendarPermissions,
   fetchTeamMembersForCalendar,
@@ -361,10 +362,10 @@ export default function CalendarPage({ currentUser }) {
       }
 
       const [
-        { data: attempts, error: attErr },
-        { data: leads, error: leadsErr },
-        { data: folderRows, error: folderErr },
-        { data: checkpointLeads, error: checkpointErr },
+        attemptsRes,
+        leads,
+        foldersRes,
+        checkpointLeads,
       ] = await Promise.all([
         supabase
           .from('lead_call_attempts')
@@ -373,24 +374,34 @@ export default function CalendarPage({ currentUser }) {
           .gte('created_at', outreachStart.toISOString())
           .lte('created_at', outreachEnd.toISOString())
           .order('created_at', { ascending: false }),
-        supabase
-          .from('leads')
-          .select('id, first_name, last_name, email, phone, company, folder_id, status, timezone, timezone_source, next_checkpoint_at, action_to_take')
-          .in('user_id', teamIdsResolved)
-          .order('created_at', { ascending: false }),
+        fetchAllLeadsForScope({
+          userIds: teamIdsResolved,
+          columns: 'id, first_name, last_name, email, phone, company, folder_id, status, timezone, timezone_source, next_checkpoint_at, action_to_take',
+        }),
         supabase
           .from('folders')
           .select('id, name, color')
           .in('user_id', teamIdsResolved)
           .order('sort_order', { ascending: true }),
-        supabase
-          .from('leads')
-          .select('id, first_name, last_name, email, phone, status, timezone, timezone_source, next_checkpoint_at, action_to_take')
-          .in('user_id', teamIdsResolved)
-          .not('next_checkpoint_at', 'is', null)
-          .gte('next_checkpoint_at', `${planStartKey}T00:00:00`)
-          .lte('next_checkpoint_at', `${planEndKey}T23:59:59`),
+        fetchAllPaged(() =>
+          supabase
+            .from('leads')
+            .select('id, first_name, last_name, email, phone, status, timezone, timezone_source, next_checkpoint_at, action_to_take')
+            .in('user_id', teamIdsResolved)
+            .not('next_checkpoint_at', 'is', null)
+            .gte('next_checkpoint_at', `${planStartKey}T00:00:00`)
+            .lte('next_checkpoint_at', `${planEndKey}T23:59:59`)
+            .order('created_at', { ascending: false }),
+        ),
       ]);
+
+      const attempts = attemptsRes.data;
+      const attErr = attemptsRes.error;
+      const folderRows = foldersRes.data;
+      const folderErr = foldersRes.error;
+
+      if (attErr) throw attErr;
+      if (folderErr) throw folderErr;
 
       let planned = [];
       try {
@@ -422,9 +433,7 @@ export default function CalendarPage({ currentUser }) {
       }
 
       if (attErr) throw attErr;
-      if (leadsErr) throw leadsErr;
       if (folderErr) throw folderErr;
-      if (checkpointErr) throw checkpointErr;
 
       setAllLeads(leads || []);
       setFolders(folderRows || []);
