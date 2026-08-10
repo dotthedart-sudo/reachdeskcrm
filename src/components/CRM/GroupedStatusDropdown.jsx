@@ -4,6 +4,7 @@ import { Search, ChevronDown, Pencil, Plus, Trash2, Check, X } from 'lucide-reac
 import { supabase } from '../../lib/supabase';
 import { DEFAULT_CALL_STATUSES as CALL_STATUS_DEFAULTS } from '../../lib/callOutcomeRules';
 import { softBadgeStyle, softDotStyle } from '../../lib/softBadgeStyle';
+import { rewriteAutomationRulesOnStatusRename } from '../../lib/customStatuses';
 
 const PRESET_COLORS = [
   '#8B949E', // Gray
@@ -335,6 +336,28 @@ export default function GroupedStatusDropdown({
               .update({ status: newL })
               .eq('user_id', userId)
               .eq('status', oldLabel);
+          }
+
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('team_id')
+              .eq('id', userId)
+              .maybeSingle();
+            await rewriteAutomationRulesOnStatusRename({
+              userId,
+              teamId: profile?.team_id || null,
+              channel,
+              oldLabel,
+              newLabel: newL,
+            });
+            window.dispatchEvent(
+              new CustomEvent('reachdesk:status-renamed', {
+                detail: { channel, oldLabel, newLabel: newL },
+              }),
+            );
+          } catch (renameErr) {
+            console.warn('Failed to rewrite automation rules after status rename:', renameErr);
           }
         }
         if (onUpdate) onUpdate();

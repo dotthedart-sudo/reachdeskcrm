@@ -7,7 +7,6 @@ import {
 } from '../../lib/callOutcomeRules';
 import {
   DEFAULT_MESSAGING_ACTION_RULES,
-  MESSAGING_STATUS_OPTIONS,
 } from '../../lib/automationRules';
 import { CALL_OUTCOMES } from '../../lib/outreachQueue';
 
@@ -17,34 +16,247 @@ const SECTIONS = [
   { id: 'calls', label: 'Calls', icon: Phone },
 ];
 
+const ADD_NEW_VALUE = '__add_new_status__';
+
+const settingsStackStyle = {
+  maxWidth: 760,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 20,
+};
+
+const settingsCardStyle = {
+  background: 'var(--bg-surface)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 10,
+  padding: 20,
+};
+
+function SettingsCard({ children, style }) {
+  return <div style={{ ...settingsCardStyle, ...style }}>{children}</div>;
+}
+
+function SettingsStack({ children }) {
+  return <div style={settingsStackStyle}>{children}</div>;
+}
+
+/** Visually separate preference toggles from rule tables when a tab grows tall. */
+function SettingsDivider({ label }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        margin: '4px 0',
+      }}
+    >
+      <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+      {label ? (
+        <span
+          style={{
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+        </span>
+      ) : null}
+      <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+    </div>
+  );
+}
+
+function CardHeading({ title, description }) {
+  return (
+    <div style={{ marginBottom: description ? 14 : 0 }}>
+      <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+        {title}
+      </div>
+      {description ? (
+        <p
+          style={{
+            margin: '6px 0 0',
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.45,
+          }}
+        >
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ToggleRow({ title, description, checked, onChange, disabled }) {
   return (
     <label
       style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: '1rem',
-        padding: '0.75rem 0',
+        display: 'block',
         cursor: disabled ? 'wait' : 'pointer',
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{title}</div>
-        {description && (
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: 1.4 }}>
-            {description}
-          </div>
-        )}
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+          {title}
+        </span>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          style={{
+            width: 18,
+            height: 18,
+            margin: 0,
+            flexShrink: 0,
+            cursor: disabled ? 'wait' : 'pointer',
+          }}
+        />
       </div>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-        style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0, cursor: disabled ? 'wait' : 'pointer' }}
-      />
+      {description ? (
+        <div
+          style={{
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            marginTop: 6,
+            lineHeight: 1.45,
+          }}
+        >
+          {description}
+        </div>
+      ) : null}
     </label>
+  );
+}
+
+/** Select tied to custom_statuses options, with inline “Add new status…”. */
+function StatusSelect({
+  value,
+  options = [],
+  onChange,
+  onCreate,
+  disabled,
+  allowEmpty = true,
+  emptyLabel = 'Select status',
+}) {
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const labels = Array.from(
+    new Set([...(options || []), value].filter((v) => typeof v === 'string' && v.trim())),
+  );
+
+  const commitCreate = async () => {
+    const label = draft.trim();
+    if (!label || busy) return;
+    setBusy(true);
+    try {
+      if (onCreate) await onCreate(label);
+      onChange(label);
+      setCreating(false);
+      setDraft('');
+    } catch (err) {
+      console.error('Failed to create status:', err);
+      alert(err.message || 'Could not add status.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (creating) {
+    return (
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="New status name"
+          value={draft}
+          autoFocus
+          disabled={disabled || busy}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitCreate();
+            }
+            if (e.key === 'Escape') {
+              setCreating(false);
+              setDraft('');
+            }
+          }}
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={disabled || busy || !draft.trim()}
+          onClick={commitCreate}
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={disabled || busy}
+          onClick={() => {
+            setCreating(false);
+            setDraft('');
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      className="form-input"
+      value={value || ''}
+      disabled={disabled}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (next === ADD_NEW_VALUE) {
+          setCreating(true);
+          return;
+        }
+        onChange(next);
+      }}
+    >
+      {allowEmpty && <option value="">{emptyLabel}</option>}
+      {labels.map((s) => (
+        <option key={s} value={s}>{s}</option>
+      ))}
+      <option value={ADD_NEW_VALUE}>+ Add new status…</option>
+    </select>
+  );
+}
+
+function FlowArrow() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        color: 'var(--text-secondary)',
+        fontSize: '0.95rem',
+        fontWeight: 600,
+        textAlign: 'center',
+        userSelect: 'none',
+      }}
+    >
+      →
+    </span>
   );
 }
 
@@ -52,8 +264,8 @@ function RuleTable({ columns, children }) {
   return (
     <div
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: 6,
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 8,
         overflow: 'hidden',
         background: 'var(--bg-tertiary)',
       }}
@@ -63,17 +275,15 @@ function RuleTable({ columns, children }) {
           display: 'grid',
           gridTemplateColumns: columns.map((c) => c.width || '1fr').join(' '),
           gap: '0.5rem',
-          padding: '0.5rem 0.75rem',
-          borderBottom: '1px solid var(--border)',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-          color: 'var(--text-muted)',
+          padding: '0.55rem 0.75rem',
+          borderBottom: '1px solid var(--border-subtle)',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          color: 'var(--text-secondary)',
         }}
       >
         {columns.map((c) => (
-          <span key={c.key}>{c.label}</span>
+          <span key={c.key} style={{ textAlign: c.align || 'left' }}>{c.label}</span>
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>
@@ -88,9 +298,9 @@ function RuleRow({ columns, children }) {
         display: 'grid',
         gridTemplateColumns: columns.map((c) => c.width || '1fr').join(' '),
         gap: '0.5rem',
-        padding: '0.55rem 0.75rem',
+        padding: '0.65rem 0.75rem',
         alignItems: 'center',
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid var(--border-subtle)',
         fontSize: '0.82rem',
       }}
     >
@@ -128,6 +338,10 @@ export default function AutomationsPanel({
   setGhlDialerUrl,
   customDialerUrl,
   setCustomDialerUrl,
+  messagingStatusOptions = [],
+  callStatusOptions = [],
+  onAddMessagingStatus,
+  onAddCallStatus,
   automationError,
   automationSuccess,
   automationSaving,
@@ -137,18 +351,22 @@ export default function AutomationsPanel({
   const [section, setSection] = useState('reminders');
 
   const messagingCols = [
-    { key: 'status', label: 'When status is', width: '1fr' },
-    { key: 'action', label: 'Suggest next step', width: '1fr' },
+    { key: 'status', label: 'Status', width: 'minmax(0, 1fr)' },
+    { key: 'arrow', label: '', width: '28px', align: 'center' },
+    { key: 'action', label: 'Next step', width: 'minmax(0, 1fr)' },
     { key: 'rm', label: '', width: '36px' },
   ];
   const outcomeCols = [
-    { key: 'outcome', label: 'Call outcome', width: '1fr' },
-    { key: 'status', label: 'Set call status', width: '1fr' },
-    { key: 'action', label: 'Set next step', width: '1fr' },
+    { key: 'outcome', label: 'Outcome', width: 'minmax(0, 1fr)' },
+    { key: 'arrow1', label: '', width: '28px', align: 'center' },
+    { key: 'status', label: 'Call status', width: 'minmax(0, 1fr)' },
+    { key: 'arrow2', label: '', width: '28px', align: 'center' },
+    { key: 'action', label: 'Next step', width: 'minmax(0, 1fr)' },
   ];
   const statusCols = [
-    { key: 'status', label: 'When call status is', width: '1fr' },
-    { key: 'action', label: 'Suggest next step', width: '1fr' },
+    { key: 'status', label: 'Status', width: 'minmax(0, 1fr)' },
+    { key: 'arrow', label: '', width: '28px', align: 'center' },
+    { key: 'action', label: 'Next step', width: 'minmax(0, 1fr)' },
     { key: 'rm', label: '', width: '36px' },
   ];
 
@@ -159,10 +377,10 @@ export default function AutomationsPanel({
           <h3>Automations</h3>
           <p className="rd-modal-sub">
             {isTeamWorkspace
-              ? 'Workspace rules shared with everyone on your team. Reminder preferences below stay personal to your account.'
-              : 'Personal rules for your account only — teammates keep their own settings.'}
+              ? 'Shared workspace rules. Reminder preferences below stay personal.'
+              : 'Rules for your account only — teammates keep their own.'}
             {' '}
-            These map existing statuses to next steps; they do not rename CRM dropdowns.
+            Status lists match Edit Statuses in CRM.
           </p>
         </div>
 
@@ -187,7 +405,7 @@ export default function AutomationsPanel({
             display: 'inline-flex',
             padding: 3,
             borderRadius: 8,
-            border: '1px solid var(--border)',
+            border: '1px solid var(--border-subtle)',
             background: 'var(--bg-tertiary)',
             gap: 2,
             flexWrap: 'wrap',
@@ -214,8 +432,7 @@ export default function AutomationsPanel({
                   fontSize: '0.82rem',
                   fontWeight: 600,
                   background: active ? 'var(--bg-card)' : 'transparent',
-                  color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-                  boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
                 }}
               >
                 <Icon size={14} />
@@ -226,129 +443,132 @@ export default function AutomationsPanel({
         </div>
 
         {section === 'reminders' && (
-          <div className="flex-col gap-3">
-            <ToggleRow
-              title="Follow-up reminders"
-              description="When on, you’ll get follow-up reminders and push digests for this account."
-              checked={remindersEnabled}
-              onChange={setRemindersEnabled}
-              disabled={automationSaving}
-            />
+          <SettingsStack>
+            <SettingsCard>
+              <ToggleRow
+                title="Remind me about follow-ups"
+                description="Turn on reminders and push digests for due follow-ups."
+                checked={remindersEnabled}
+                onChange={setRemindersEnabled}
+                disabled={automationSaving}
+              />
+            </SettingsCard>
 
             {remindersEnabled && (
-              <div
-                style={{
-                  padding: '0.85rem 1rem',
-                  borderRadius: 6,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-tertiary)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.85rem',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
-                    Push notification mode
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                      <input
-                        type="radio"
-                        name="reminder_notification_mode"
-                        checked={reminderNotificationMode === 'digest'}
-                        onChange={() => setReminderNotificationMode('digest')}
-                        disabled={automationSaving}
-                      />
-                      Daily digest (recommended)
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                      <input
-                        type="radio"
-                        name="reminder_notification_mode"
-                        checked={reminderNotificationMode === 'instant'}
-                        onChange={() => setReminderNotificationMode('instant')}
-                        disabled={automationSaving}
-                      />
-                      Instant per follow-up
-                    </label>
-                  </div>
-                </div>
-
-                {reminderNotificationMode === 'digest' && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Digest time</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Local hour for the daily follow-ups push.
-                      </div>
-                    </div>
-                    <select
-                      className="form-input"
-                      value={reminderDigestHour}
-                      onChange={(e) => setReminderDigestHour(Number(e.target.value))}
+              <SettingsCard>
+                <CardHeading title="How you're notified" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'var(--text-primary)', cursor: automationSaving ? 'wait' : 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="reminder_notification_mode"
+                      checked={reminderNotificationMode === 'digest'}
+                      onChange={() => setReminderNotificationMode('digest')}
                       disabled={automationSaving}
-                      style={{ width: 'auto', minWidth: 120 }}
-                    >
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <option key={h} value={h}>
-                          {h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
+                    />
+                    Daily digest (recommended)
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'var(--text-primary)', cursor: automationSaving ? 'wait' : 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="reminder_notification_mode"
+                      checked={reminderNotificationMode === 'instant'}
+                      onChange={() => setReminderNotificationMode('instant')}
+                      disabled={automationSaving}
+                    />
+                    Instant, for each follow-up
+                  </label>
+                </div>
+              </SettingsCard>
             )}
-          </div>
+
+            {remindersEnabled && reminderNotificationMode === 'digest' && (
+              <SettingsCard>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      Digest time
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.45 }}>
+                      What local hour you get the daily follow-ups push.
+                    </div>
+                  </div>
+                  <select
+                    className="form-input"
+                    value={reminderDigestHour}
+                    onChange={(e) => setReminderDigestHour(Number(e.target.value))}
+                    disabled={automationSaving}
+                    style={{ width: 'auto', minWidth: 120 }}
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>
+                        {h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </SettingsCard>
+            )}
+          </SettingsStack>
         )}
 
         {section === 'messaging' && (
-          <div className="flex-col gap-3">
-            <ToggleRow
-              title="Action suggestions"
-              description="Show status-based next-step suggestions and warning bulbs in messaging."
-              checked={suggestionsEnabled}
-              onChange={setSuggestionsEnabled}
-              disabled={automationSaving}
-            />
+          <SettingsStack>
+            <SettingsCard>
+              <ToggleRow
+                title="Next-step hints"
+                description="Show a hint on each lead about what to do next."
+                checked={suggestionsEnabled}
+                onChange={setSuggestionsEnabled}
+                disabled={automationSaving}
+              />
+            </SettingsCard>
 
             {suggestionsEnabled && (
-              <>
+              <SettingsCard>
                 <ToggleRow
-                  title="Auto-apply next step"
-                  description="When messaging status changes, write the suggested next step automatically."
+                  title="Fill in next steps for me"
+                  description="When you change a lead's status, the next step is written automatically."
                   checked={suggestionsAutoApply}
                   onChange={setSuggestionsAutoApply}
                   disabled={automationSaving}
                 />
+              </SettingsCard>
+            )}
 
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                    Status → next step
-                  </div>
-                  <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                    Pick an existing messaging status and the next step to suggest. This does not add or rename statuses in CRM.
-                  </p>
+            {suggestionsEnabled && (
+              <>
+                <SettingsDivider label="Rules" />
+                <SettingsCard>
+                  <CardHeading
+                    title="What happens after each status"
+                    description="Choose the next step to suggest for each status. This doesn't add or rename statuses — do that in Edit Statuses."
+                  />
 
                   <RuleTable columns={messagingCols}>
                     {messagingActionRules.map((rule, idx) => (
                       <RuleRow key={`${rule.status}-${idx}`} columns={messagingCols}>
-                        <select
-                          className="form-input"
+                        <StatusSelect
                           value={rule.status || ''}
-                          onChange={(e) => {
+                          options={messagingStatusOptions}
+                          emptyLabel="Select status"
+                          disabled={automationSaving}
+                          onCreate={onAddMessagingStatus}
+                          onChange={(status) => {
                             const next = [...messagingActionRules];
-                            next[idx] = { ...next[idx], status: e.target.value };
+                            next[idx] = { ...next[idx], status };
                             setMessagingActionRules(next);
                           }}
-                          disabled={automationSaving}
-                        >
-                          <option value="">Select status</option>
-                          {MESSAGING_STATUS_OPTIONS.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                        />
+                        <FlowArrow />
                         <input
                           type="text"
                           className="form-input"
@@ -367,6 +587,7 @@ export default function AutomationsPanel({
                           title="Remove rule"
                           disabled={automationSaving}
                           onClick={() => setMessagingActionRules(messagingActionRules.filter((_, i) => i !== idx))}
+                          style={{ justifySelf: 'end' }}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -374,7 +595,7 @@ export default function AutomationsPanel({
                     ))}
                   </RuleTable>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 14 }}>
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
@@ -392,57 +613,70 @@ export default function AutomationsPanel({
                       Reset to defaults
                     </button>
                   </div>
-                </div>
+                </SettingsCard>
               </>
             )}
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.25rem' }}>
+            <SettingsCard>
               <ToggleRow
-                title="Always draft before sending"
-                description="Show template preview and destinations before opening outreach channels."
+                title="Preview before sending"
+                description="Show the template and where it goes before opening WhatsApp or SMS."
                 checked={alwaysDraft}
                 onChange={setAlwaysDraft}
                 disabled={automationSaving}
               />
-            </div>
-          </div>
+            </SettingsCard>
+          </SettingsStack>
         )}
 
         {section === 'calls' && (
-          <div className="flex-col gap-3">
-            <ToggleRow
-              title="Auto-apply call next step"
-              description="When call status or outcome changes, sync call next step from the rules below."
-              checked={callSuggestionsAutoApply}
-              onChange={setCallSuggestionsAutoApply}
-              disabled={automationSaving}
-            />
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Default country code</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Prefix used to normalize local numbers for WhatsApp / SMS.
-                </div>
-              </div>
-              <input
-                type="text"
-                className="form-input"
-                value={defaultCountryCode}
-                onChange={(e) => setDefaultCountryCode(e.target.value)}
-                placeholder="+92"
+          <SettingsStack>
+            <SettingsCard>
+              <ToggleRow
+                title="Fill in call next steps for me"
+                description="When call status or outcome changes, update the call next step from the rules below."
+                checked={callSuggestionsAutoApply}
+                onChange={setCallSuggestionsAutoApply}
                 disabled={automationSaving}
-                style={{ width: 88, textAlign: 'center' }}
               />
-            </div>
+            </SettingsCard>
 
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                Call outcome rules
+            <SettingsCard>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                    Default country code
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.45 }}>
+                    Used to complete local numbers for WhatsApp and SMS.
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={defaultCountryCode}
+                  onChange={(e) => setDefaultCountryCode(e.target.value)}
+                  placeholder="+92"
+                  disabled={automationSaving}
+                  style={{ width: 88, textAlign: 'center' }}
+                />
               </div>
-              <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                When you log a call, optionally set call status and next step from the outcome.
-              </p>
+            </SettingsCard>
+
+            <SettingsDivider label="Rules" />
+
+            <SettingsCard>
+              <CardHeading
+                title="After each call outcome"
+                description="When you log a call, optionally set call status and next step from the outcome."
+              />
               <RuleTable columns={outcomeCols}>
                 {callOutcomeRules.map((rule, idx) => (
                   <RuleRow key={`${rule.outcome}-${idx}`} columns={outcomeCols}>
@@ -460,22 +694,24 @@ export default function AutomationsPanel({
                         <option key={o} value={o}>{o}</option>
                       ))}
                     </select>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Optional"
+                    <FlowArrow />
+                    <StatusSelect
                       value={rule.suggested_call_status || rule.suggested_status || ''}
-                      onChange={(e) => {
+                      options={callStatusOptions}
+                      emptyLabel="Optional"
+                      disabled={automationSaving}
+                      onCreate={onAddCallStatus}
+                      onChange={(status) => {
                         const next = [...callOutcomeRules];
                         next[idx] = {
                           ...next[idx],
-                          suggested_call_status: e.target.value || null,
+                          suggested_call_status: status || null,
                           suggested_status: undefined,
                         };
                         setCallOutcomeRules(next);
                       }}
-                      disabled={automationSaving}
                     />
+                    <FlowArrow />
                     <input
                       type="text"
                       className="form-input"
@@ -494,36 +730,35 @@ export default function AutomationsPanel({
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                style={{ marginTop: '0.65rem' }}
+                style={{ marginTop: 14 }}
                 disabled={automationSaving}
                 onClick={() => setCallOutcomeRules([...DEFAULT_CALL_OUTCOME_RULES])}
               >
                 Reset outcome rules
               </button>
-            </div>
+            </SettingsCard>
 
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                Call status → next step
-              </div>
-              <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Suggested call action in Call Queue when call status changes.
-              </p>
+            <SettingsCard>
+              <CardHeading
+                title="What happens after each call status"
+                description="Choose the next step to suggest when call status changes. Statuses come from Call Queue Edit Statuses."
+              />
               <RuleTable columns={statusCols}>
                 {callStatusRules.map((rule, idx) => (
                   <RuleRow key={`${rule.status}-${idx}`} columns={statusCols}>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Call status"
-                      value={rule.status}
-                      onChange={(e) => {
+                    <StatusSelect
+                      value={rule.status || ''}
+                      options={callStatusOptions}
+                      emptyLabel="Select status"
+                      disabled={automationSaving}
+                      onCreate={onAddCallStatus}
+                      onChange={(status) => {
                         const next = [...callStatusRules];
-                        next[idx] = { ...next[idx], status: e.target.value };
+                        next[idx] = { ...next[idx], status };
                         setCallStatusRules(next);
                       }}
-                      disabled={automationSaving}
                     />
+                    <FlowArrow />
                     <input
                       type="text"
                       className="form-input"
@@ -542,13 +777,14 @@ export default function AutomationsPanel({
                       title="Remove rule"
                       disabled={automationSaving}
                       onClick={() => setCallStatusRules(callStatusRules.filter((_, i) => i !== idx))}
+                      style={{ justifySelf: 'end' }}
                     >
                       <Trash2 size={14} />
                     </button>
                   </RuleRow>
                 ))}
               </RuleTable>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 14 }}>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -566,21 +802,19 @@ export default function AutomationsPanel({
                   Reset to defaults
                 </button>
               </div>
-            </div>
+            </SettingsCard>
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.85rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                Default dialer
-              </div>
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Used by the Call button in Cold Calls. Other options stay in the menu.
-              </p>
+            <SettingsCard>
+              <CardHeading
+                title="Default dialer"
+                description="Used by the Call button in Cold Calls. Other dialers stay in the menu."
+              />
               <select
                 className="form-input"
                 value={defaultDialer}
                 onChange={(e) => setDefaultDialer(e.target.value)}
                 disabled={automationSaving}
-                style={{ maxWidth: 280, marginBottom: '0.5rem' }}
+                style={{ maxWidth: 280, marginBottom: defaultDialer === 'ghl' || defaultDialer === 'custom' ? 10 : 0 }}
               >
                 {DIALER_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
@@ -608,11 +842,11 @@ export default function AutomationsPanel({
                   style={{ fontSize: '0.85rem' }}
                 />
               )}
-            </div>
-          </div>
+            </SettingsCard>
+          </SettingsStack>
         )}
 
-        <div className="rd-page-form-actions" style={{ marginTop: '0.5rem' }}>
+        <div className="rd-page-form-actions" style={{ marginTop: '0.5rem', maxWidth: 760 }}>
           <button type="submit" className="btn btn-primary" disabled={automationSaving}>
             <Save size={16} /> {automationSaving ? 'Saving…' : 'Save automations'}
           </button>

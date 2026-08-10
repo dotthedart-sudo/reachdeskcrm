@@ -58,14 +58,20 @@
   --transition-smooth: all 0.25s ease;
   --transition-fast: all 0.15s ease;
 
-  /* ── Dark mode — black / white / grey ── */
-  --bg-page:         #050505;
-  --bg-card:         #0F0F0F;
-  --bg-card-hover:   #171717;
-  --bg-hover:        #171717;
-  --bg-selected:     rgba(255, 255, 255, 0.08);
-  --border:          #1F1F1F;
-  --border-strong:   #2E2E2E;
+  /* ── Dark mode — black / white / grey ──
+     Elevation (darkest → lightest):
+       page → sidebar → card/surface nest → hover/active
+  */
+  --bg-page:         #050505; /* L0 — canvas */
+  --bg-sidebar:      #121212; /* L1 — between page and cards */
+  --bg-card:         #1A1A1A; /* L2 — main panels / tables */
+  --bg-surface:      #222222; /* L2.5 — nested panels on cards */
+  --bg-card-hover:   #2A2A2A; /* L3 — hover / active wells */
+  --bg-hover:        #2A2A2A;
+  --bg-selected:     rgba(255, 255, 255, 0.10);
+  --border:          #333333;
+  --border-subtle:   #2A2A2A;
+  --border-strong:   #454545;
   --text-primary:    #FFFFFF;
   --text-secondary:  #A3A3A3;
   --text-muted:      #737373;
@@ -79,12 +85,12 @@
   --status-cold:     #5B8FB9;
   --shadow-sm:       none;
 
-  /* Legacy aliases → same neutral system */
-  --bg-primary:    #050505;
-  --bg-secondary:  #0F0F0F;
-  --bg-tertiary:   #171717;
-  --border-color:  #1F1F1F;
-  --border-hover:  #2E2E2E;
+  /* Legacy aliases → same elevation stack */
+  --bg-primary:    #050505; /* = page */
+  --bg-secondary:  #1A1A1A; /* = card */
+  --bg-tertiary:   #2A2A2A; /* = hover */
+  --border-color:  #333333;
+  --border-hover:  #454545;
   --primary-purple:  #FFFFFF;
   --primary-magenta: #D4D4D4;
   --gradient-brand:  #FFFFFF;
@@ -101,11 +107,14 @@
 /* ── Light mode — black / white / grey ── */
 :root.light {
   --bg-page:         #FAFAFA;
+  --bg-sidebar:      #FFFFFF;
   --bg-card:         #FFFFFF;
+  --bg-surface:      #FFFFFF;
   --bg-card-hover:   #F5F5F5;
   --bg-hover:        #F5F5F5;
   --bg-selected:     rgba(10, 10, 10, 0.06);
   --border:          #E5E5E5;
+  --border-subtle:   #EBEBEB;
   --border-strong:   #D4D4D4;
   --text-primary:    #0A0A0A;
   --text-secondary:  #525252;
@@ -575,7 +584,7 @@ h3 { font-size: var(--text-md); }
 /* Sidebar Component */
 .sidebar {
   width: var(--sidebar-width);
-  background-color: var(--bg-card);
+  background-color: var(--bg-sidebar);
   border-right: var(--hairline);
   padding: var(--space-4) var(--space-3);
   display: flex;
@@ -732,7 +741,7 @@ h3 { font-size: var(--text-md); }
   gap: 2px;
   padding: 2px;
   border-radius: 8px;
-  background: var(--bg-secondary);
+  background: var(--bg-sidebar);
   border: 1px solid var(--border);
   width: fit-content;
 }
@@ -1095,12 +1104,12 @@ h3 { font-size: var(--text-md); }
 }
 
 .sidebar-item:hover {
-  background-color: var(--bg-card-hover);
+  background-color: var(--bg-card);
   color: var(--text-primary);
 }
 
 .sidebar-item.active {
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
   color: var(--text-primary);
   box-shadow: none;
 }

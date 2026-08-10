@@ -31,6 +31,12 @@ import {
   getMessagingRulesForEditor,
 } from '../lib/automationRules';
 import { getSuggestionForStatus } from '../lib/reminders';
+import {
+  fetchCustomStatusLabels,
+  ensureCustomStatus,
+  ensureCustomStatuses,
+  applyStatusLabelRenameToRules,
+} from '../lib/customStatuses';
 import { getBrowserTimeZone, getSupportedTimeZones } from '../lib/dateTime';
 import SettingsNav from './Configuration/SettingsNav';
 import ProfilePanel from './Configuration/ProfilePanel';
@@ -212,6 +218,8 @@ export default function Configuration({
   const [profileTimezone, setProfileTimezone] = useState(currentUser?.timezone || '');
   const [callOutcomeRules, setCallOutcomeRules] = useState(DEFAULT_CALL_OUTCOME_RULES);
   const [callStatusRules, setCallStatusRules] = useState(DEFAULT_CALL_STATUS_RULES);
+  const [messagingStatusOptions, setMessagingStatusOptions] = useState([]);
+  const [callStatusOptions, setCallStatusOptions] = useState([]);
   const browserTimezone = useMemo(() => getBrowserTimeZone(), []);
   const timezoneOptions = useMemo(() => getSupportedTimeZones(), []);
 
@@ -363,6 +371,86 @@ export default function Configuration({
     currentUser?.call_outcome_rules,
     currentUser?.call_suggestions_auto_apply,
   ]);
+
+  const loadAutomationStatusOptions = async () => {
+    if (!currentUser?.id) return;
+    try {
+      const userIds = currentUser.team_id
+        ? await getTeamIds(currentUser.id, { respectLeadIsolation: false })
+        : [currentUser.id];
+      const [messaging, calls] = await Promise.all([
+        fetchCustomStatusLabels({ userIds, channel: 'messaging' }),
+        fetchCustomStatusLabels({ userIds, channel: 'calls' }),
+      ]);
+      setMessagingStatusOptions(messaging);
+      setCallStatusOptions(calls);
+    } catch (err) {
+      console.error('Failed to load custom statuses for automations:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'automations' || !currentUser?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const userIds = currentUser.team_id
+          ? await getTeamIds(currentUser.id, { respectLeadIsolation: false })
+          : [currentUser.id];
+        const [messaging, calls] = await Promise.all([
+          fetchCustomStatusLabels({ userIds, channel: 'messaging' }),
+          fetchCustomStatusLabels({ userIds, channel: 'calls' }),
+        ]);
+        if (cancelled) return;
+        setMessagingStatusOptions(messaging);
+        setCallStatusOptions(calls);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load custom statuses for automations:', err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, currentUser?.id, currentUser?.team_id]);
+
+  useEffect(() => {
+    const onStatusRenamed = (event) => {
+      const { channel, oldLabel, newLabel } = event.detail || {};
+      if (!channel || !oldLabel || !newLabel) return;
+      if (channel === 'messaging') {
+        setMessagingActionRules((prev) =>
+          applyStatusLabelRenameToRules({
+            channel,
+            oldLabel,
+            newLabel,
+            messagingActionRules: prev,
+          }).messagingActionRules || prev,
+        );
+      } else {
+        setCallStatusRules((prev) =>
+          applyStatusLabelRenameToRules({
+            channel,
+            oldLabel,
+            newLabel,
+            callStatusRules: prev,
+          }).callStatusRules || prev,
+        );
+        setCallOutcomeRules((prev) =>
+          applyStatusLabelRenameToRules({
+            channel,
+            oldLabel,
+            newLabel,
+            callOutcomeRules: prev,
+          }).callOutcomeRules || prev,
+        );
+      }
+      void loadAutomationStatusOptions();
+    };
+    window.addEventListener('reachdesk:status-renamed', onStatusRenamed);
+    return () => window.removeEventListener('reachdesk:status-renamed', onStatusRenamed);
+  }, [currentUser?.id, currentUser?.team_id]);
 
   useEffect(() => {
     if (currentUser) {
@@ -714,16 +802,34 @@ export default function Configuration({
     setAutomationSaving(true);
 
     try {
+      const filteredMessaging = messagingActionRules.filter(
+        (r) => (r.status || '').trim() && (r.suggested_action || '').trim(),
+      );
+      const filteredCallStatus = callStatusRules.filter(
+        (r) => (r.status || '').trim() && (r.suggested_call_action || '').trim(),
+      );
+      const filteredCallOutcome = callOutcomeRules.filter((r) => (r.outcome || '').trim());
+
       const rulesPayload = {
-        messaging_action_rules: messagingActionRules.filter(
-          (r) => (r.status || '').trim() && (r.suggested_action || '').trim(),
-        ),
-        call_status_rules: callStatusRules.filter(
-          (r) => (r.status || '').trim() && (r.suggested_call_action || '').trim(),
-        ),
-        call_outcome_rules: callOutcomeRules.filter((r) => (r.outcome || '').trim()),
+        messaging_action_rules: filteredMessaging,
+        call_status_rules: filteredCallStatus,
+        call_outcome_rules: filteredCallOutcome,
         call_suggestions_auto_apply: callSuggestionsAutoApply,
       };
+
+      await ensureCustomStatuses({
+        userId: currentUser.id,
+        channel: 'messaging',
+        labels: filteredMessaging.map((r) => r.status),
+      });
+      await ensureCustomStatuses({
+        userId: currentUser.id,
+        channel: 'calls',
+        labels: [
+          ...filteredCallStatus.map((r) => r.status),
+          ...filteredCallOutcome.map((r) => r.suggested_call_status || r.suggested_status),
+        ],
+      });
 
       // Reminders + dialer prefs remain personal; automation rules are team-owned on Teams
       const profilePayload = {
@@ -799,6 +905,14 @@ export default function Configuration({
       }
 
       setAutomationSuccess('Automations updated successfully!');
+      await loadAutomationStatusOptions();
+      if (typeof onRefreshStatuses === 'function') {
+        try {
+          await onRefreshStatuses();
+        } catch (refreshErr) {
+          console.warn('Status refresh after automations save failed:', refreshErr);
+        }
+      }
       if (onRefreshProfile) {
         await onRefreshProfile();
       }
@@ -981,6 +1095,24 @@ export default function Configuration({
             setGhlDialerUrl={setGhlDialerUrl}
             customDialerUrl={customDialerUrl}
             setCustomDialerUrl={setCustomDialerUrl}
+            messagingStatusOptions={messagingStatusOptions}
+            callStatusOptions={callStatusOptions}
+            onAddMessagingStatus={async (label) => {
+              await ensureCustomStatus({
+                userId: currentUser.id,
+                channel: 'messaging',
+                label,
+              });
+              await loadAutomationStatusOptions();
+            }}
+            onAddCallStatus={async (label) => {
+              await ensureCustomStatus({
+                userId: currentUser.id,
+                channel: 'calls',
+                label,
+              });
+              await loadAutomationStatusOptions();
+            }}
             automationError={automationError}
             automationSuccess={automationSuccess}
             automationSaving={automationSaving}
