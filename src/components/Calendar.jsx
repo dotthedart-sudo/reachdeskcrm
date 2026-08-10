@@ -28,6 +28,7 @@ import CallWindowBadge from './CRM/CallWindowBadge';
 import ActivityTimelineRow from './CRM/ActivityTimelineRow';
 import { getLeadLocalTimeLabel } from '../lib/leadTimezone';
 import { fetchTeamTimelineForDay, logLeadTimelineEvent } from '../lib/leadTimeline';
+import { needsCalendarReconnect } from '../lib/googleCalendarOAuth';
 import {
   fetchTeamCalendarPermissions,
   fetchTeamMembersForCalendar,
@@ -862,7 +863,29 @@ export default function CalendarPage({ currentUser }) {
           <span>
             Reconnect Google Calendar in Settings to create, edit, or delete events.
           </span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/settings?tab=integrations')}>
+            Go to Settings
+          </button>
+        </div>
+      )}
+
+      {!needsReconnect && needsCalendarReconnect(calConnected) && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          borderRadius: 8,
+          background: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          fontSize: '0.875rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.75rem',
+          flexWrap: 'wrap',
+        }}>
+          <span>
+            Reconnect Google Calendar in Settings — we updated Google permissions to events access only.
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/settings?tab=integrations')}>
             Go to Settings
           </button>
         </div>

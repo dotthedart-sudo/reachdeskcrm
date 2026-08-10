@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
+import { markCalendarScopeAck } from '../lib/googleCalendarOAuth';
 
 /**
  * GoogleCalendarCallback
@@ -70,6 +71,7 @@ export default function GoogleCalendarCallback() {
         if (data?.error) throw new Error(data.error);
 
         // ── Success ───────────────────────────────────────────────────────
+        markCalendarScopeAck();
         setStatus('success');
 
         // Small delay so user can see the success message

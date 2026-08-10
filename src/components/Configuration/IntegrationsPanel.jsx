@@ -5,6 +5,7 @@ import {
 import { PLAN_LIMITS, getEffectivePlan } from '../../lib/utils';
 import { BRAND_NAME } from '../../config/brand';
 import { needsSheetsReconnect } from '../../lib/googleSheetsOAuth';
+import { needsCalendarReconnect } from '../../lib/googleCalendarOAuth';
 
 export default function IntegrationsPanel({
   currentUser,
@@ -23,6 +24,7 @@ export default function IntegrationsPanel({
   onUpgrade,
 }) {
   const sheetsNeedsReconnect = needsSheetsReconnect(!!sheetsIntegration);
+  const calNeedsReconnect = needsCalendarReconnect(!!calIntegration);
 
   return (
     <div className="card flex-col gap-3" id="integrations">
@@ -44,6 +46,33 @@ export default function IntegrationsPanel({
         <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', background: 'color-mix(in srgb, var(--success-color) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--success-color) 25%, transparent)', color: 'var(--success-color)', fontSize: 'var(--text-sm)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <CheckCircle size={16} style={{ flexShrink: 0 }} />
           <span>{sheetsSuccessMsg}</span>
+        </div>
+      )}
+
+      {calNeedsReconnect && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          fontSize: 'var(--text-sm)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.75rem',
+          flexWrap: 'wrap',
+        }}>
+          <span>
+            Reconnect Google Calendar to continue with updated Google permissions (events access only).
+          </span>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={onConnectCalendar}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}
+          >
+            <RefreshCw size={14} /> Reconnect Calendar
+          </button>
         </div>
       )}
 
@@ -83,9 +112,11 @@ export default function IntegrationsPanel({
           <span>
             {calLoading
               ? 'Checking status…'
-              : calIntegration
-                ? `Connected · since ${new Date(calIntegration.connected_at).toLocaleDateString()}`
-                : 'Not connected — leads won\'t be auto-marked as Booked'}
+              : calNeedsReconnect
+                ? 'Reconnect required — updated Google permissions'
+                : calIntegration
+                  ? `Connected · since ${new Date(calIntegration.connected_at).toLocaleDateString()}`
+                  : 'Not connected — leads won\'t be auto-marked as Booked'}
           </span>
         </div>
         <div className="rd-integration-actions">
@@ -101,9 +132,21 @@ export default function IntegrationsPanel({
           ) : !calLoading && (
             calIntegration ? (
               <>
-                <span className="rd-integration-status">
-                  <Check size={14} /> Connected
-                </span>
+                {!calNeedsReconnect && (
+                  <span className="rd-integration-status">
+                    <Check size={14} /> Connected
+                  </span>
+                )}
+                {calNeedsReconnect && (
+                  <button
+                    type="button"
+                    onClick={onConnectCalendar}
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <RefreshCw size={14} /> Reconnect
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onDisconnectCalendar}
@@ -192,9 +235,9 @@ export default function IntegrationsPanel({
       </div>
 
       <p className="rd-integration-footnote">
-        {BRAND_NAME} reads your calendar to detect bookings and can create events you add in-app.
+        {BRAND_NAME} reads and writes calendar events you use for bookings (Google&nbsp;Calendar events scope).
         Sheets access applies only to files you select in Google Picker.
-        Disconnect anytime to revoke access. Reconnect Calendar if you connected before write access was enabled.
+        Disconnect anytime to revoke access.
       </p>
     </div>
   );

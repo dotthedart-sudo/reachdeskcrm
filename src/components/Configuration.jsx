@@ -13,7 +13,6 @@ import {
   isTeamMember,
   canPurchaseExtraSeats,
 } from '../lib/teamWorkspace';
-import { getAppUrl } from '../utils/domain';
 import { exportLeads, exportNotes } from '../utils/exportUtils';
 import { BRAND_NAME } from '../config/brand';
 import { getDialerPrefs, setDialerPrefs } from '../lib/callDialer';
@@ -45,6 +44,11 @@ import {
   markSheetsScopeAck,
   clearSheetsScopeAck,
 } from '../lib/googleSheetsOAuth';
+import {
+  startGoogleCalendarOAuth,
+  markCalendarScopeAck,
+  clearCalendarScopeAck,
+} from '../lib/googleCalendarOAuth';
 import CancelSubscriptionModal from './Configuration/CancelSubscriptionModal';
 import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
 import { getExtraSeats } from '../lib/planConfig';
@@ -472,6 +476,7 @@ export default function Configuration({
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('connected') === 'google') {
+      markCalendarScopeAck();
       setActiveTab('integrations');
       setCalSuccessMsg('Google Calendar connected successfully! Leads will now be auto-marked as Booked when they appear in your calendar.');
       window.history.replaceState({}, '', '/settings?tab=integrations');
@@ -481,24 +486,7 @@ export default function Configuration({
 
   // â”€â”€ Connect Google Calendar (initiates OAuth with CSRF state) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleConnectCalendar = () => {
-    const state = crypto.randomUUID();
-    sessionStorage.setItem('google_oauth_state', state);
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = encodeURIComponent(getAppUrl('/auth/google/callback'));
-    // calendar.events = read + create/update events; calendar.readonly = list/watch calendars
-    const scope = encodeURIComponent(
-      'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly'
-    );
-    window.location.href = [
-      'https://accounts.google.com/o/oauth2/v2/auth',
-      `?client_id=${clientId}`,
-      `&redirect_uri=${redirectUri}`,
-      '&response_type=code',
-      `&scope=${scope}`,
-      '&access_type=offline',
-      '&prompt=consent',
-      `&state=${state}`,
-    ].join('');
+    startGoogleCalendarOAuth('/settings?tab=integrations');
   };
 
   // â”€â”€ Disconnect Google Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -541,6 +529,7 @@ export default function Configuration({
         .eq('user_id', currentUser.id)
         .eq('provider', 'google');
 
+      clearCalendarScopeAck();
       setCalIntegration(null);
       setCalSuccessMsg('Google Calendar disconnected. You can reconnect anytime.');
       setTimeout(() => setCalSuccessMsg(''), 5000);
