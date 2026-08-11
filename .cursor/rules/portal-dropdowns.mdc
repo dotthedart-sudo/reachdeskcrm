@@ -1,0 +1,34 @@
+---
+description: Dropdowns/popovers in tables must use portals — never absolute menus inside overflow:hidden cells
+alwaysApply: true
+---
+
+# Portaled menus (no clipped dropdowns)
+
+## What causes the bug
+
+Tables and scroll regions (e.g. `.data-table.data-table--resizable td { overflow: hidden }`) **clip** any child with `position: absolute`. An in-cell timezone/status menu then appears as a cut-off white strip (often only the search box is visible).
+
+## Required pattern
+
+For any dropdown, popover, or floating menu that can open from a table, dense list, or overflow container:
+
+1. Render the menu with `createPortal(..., document.body)`.
+2. Position with `position: fixed` from the trigger’s `getBoundingClientRect()` (see `src/lib/portalMenu.js`).
+3. Handle outside-click against **both** trigger and portaled panel refs.
+4. Reposition on `resize` and capture-phase `scroll`.
+
+Do **not** rely on raising `z-index` alone, and do not remove table `overflow: hidden` just to unclip menus (that breaks text truncation / column layout).
+
+## Already portaled (keep them that way)
+
+- `GroupedStatusDropdown`, `PriorityDropdown`, `EditableDropdown`, `GroupedTemplateDropdown`, `ListRowMenu`, `CheckpointPopover`
+- `CallWindowBadge`, `RdSelect`, `CountryTimezonePicker`, `DateTimePickerCell`, `PhonePopup`, `CallButton`, `CurrencySelector`, `DatabaseBlock` ColumnTypeSelector
+
+## When adding a new menu
+
+If the trigger might live in CRM tables, Call Queue, Calendar day panels, or drawers — **portal it from day one**. Prefer reusing `computePortalMenuPosition` / `portalMenuStyle` from `src/lib/portalMenu.js`.
+
+## Acceptable exceptions
+
+Menus that only open from toolbars/bulk bars outside overflow cells (e.g. CRM bulk “Change Status”) may stay absolutely positioned **if** their ancestors never set `overflow: hidden` — still prefer portaling for consistency.

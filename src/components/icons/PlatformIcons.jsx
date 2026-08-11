@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   SiInstagram, 
   SiX, 
@@ -20,6 +21,7 @@ import {
   SiTripadvisor
 } from '@icons-pack/react-simple-icons';
 import { Mail, Globe, Phone, MessageSquare } from 'lucide-react';
+import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
 
 // ── Inline LinkedIn SVG (no extra dependency) ─────────────────────────────────
 const SiLinkedin = ({ size = 24, color = 'currentColor', ...props }) => (
@@ -122,26 +124,91 @@ export const detectPlatformLabel = (url) => {
   return 'Website';
 };
 
-// ── Phone popup — used standalone in table cells ───────────────────────────────
+// ── Phone popup — used standalone in table cells (portaled; cells overflow:hidden) ─
 export const PhonePopup = ({ phone }) => {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
   const ref = useRef();
+  const triggerRef = useRef();
+  const panelRef = useRef();
+
+  const updatePos = () => {
+    if (!triggerRef.current) return;
+    setMenuPos(computePortalMenuPosition(triggerRef.current, {
+      menuWidth: 180,
+      menuHeight: 100,
+    }));
+  };
 
   useEffect(() => {
+    if (!open) return undefined;
+    updatePos();
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      const inTrigger = ref.current?.contains(e.target);
+      const inPanel = panelRef.current?.contains(e.target);
+      if (!inTrigger && !inPanel) setOpen(false);
     };
+    const onReposition = () => updatePos();
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [open]);
 
   if (!phone) return <span style={{ color: '#6B7280' }}>—</span>;
 
   const clean = phone.replace(/\D/g, '');
 
+  const menu = open && menuPos && createPortal(
+    <div
+      ref={panelRef}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        ...portalMenuStyle(menuPos),
+        background: 'var(--bg-secondary, #1a1a2e)',
+        border: '1px solid var(--border-color, #2d2d3d)',
+        borderRadius: '8px',
+        padding: '4px 0',
+        minWidth: '160px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+      }}
+    >
+      <a
+        href={`tel:${clean}`}
+        onClick={() => setOpen(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '8px 12px', color: 'var(--text-primary, #fff)',
+          textDecoration: 'none', fontSize: '13px',
+        }}
+      >
+        <Phone size={14} /> Call via SIM
+      </a>
+      <a
+        href={`https://wa.me/${clean}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setOpen(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '8px 12px', color: 'var(--text-primary, #fff)',
+          textDecoration: 'none', fontSize: '13px',
+        }}
+      >
+        <SiWhatsapp size={14} color="#25D366" /> Open WhatsApp
+      </a>
+    </div>,
+    document.body,
+  );
+
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
       <span
+        ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         style={{ cursor: 'pointer', color: 'var(--text-primary)' }}
         title="Click to call or WhatsApp"
@@ -149,40 +216,7 @@ export const PhonePopup = ({ phone }) => {
       >
         {phone}
       </span>
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, zIndex: 1000,
-          background: 'var(--bg-secondary, #1a1a2e)',
-          border: '1px solid var(--border-color, #2d2d3d)',
-          borderRadius: '8px', padding: '4px 0',
-          minWidth: '160px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-        }}>
-          <a
-            href={`tel:${clean}`}
-            onClick={() => setOpen(false)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 12px', color: 'var(--text-primary, #fff)',
-              textDecoration: 'none', fontSize: '13px'
-            }}
-          >
-            <Phone size={14} /> Call via SIM
-          </a>
-          <a
-            href={`https://wa.me/${clean}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 12px', color: 'var(--text-primary, #fff)',
-              textDecoration: 'none', fontSize: '13px'
-            }}
-          >
-            <SiWhatsapp size={14} color="#25D366" /> Open WhatsApp
-          </a>
-        </div>
-      )}
+      {menu}
     </div>
   );
 };

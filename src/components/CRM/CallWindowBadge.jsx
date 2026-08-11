@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   getCallWindowBadgeStyle,
   getCallWindowStatus,
   getLeadLocalTimeLabel,
   COUNTRY_TIMEZONE_OPTIONS,
 } from '../../lib/leadTimezone';
+import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
 
 export default function CallWindowBadge({
   lead,
@@ -16,7 +18,10 @@ export default function CallWindowBadge({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [menuPos, setMenuPos] = useState(null);
   const wrapRef = useRef(null);
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
   const { status, label } = getCallWindowStatus(lead, at, { defaultCountryCode });
   const style = getCallWindowBadgeStyle(status);
   const localTime = showLocalTime ? getLeadLocalTimeLabel(lead, at, defaultCountryCode) : null;
@@ -36,18 +41,93 @@ export default function CallWindowBadge({
     ));
   }, [query, sorted]);
 
+  const updatePos = () => {
+    if (!triggerRef.current) return;
+    setMenuPos(computePortalMenuPosition(triggerRef.current, {
+      menuWidth: 280,
+      menuHeight: 320,
+    }));
+  };
+
   useEffect(() => {
     if (!open) return undefined;
+    updatePos();
     const onDoc = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+      const inTrigger = wrapRef.current?.contains(e.target);
+      const inPanel = panelRef.current?.contains(e.target);
+      if (!inTrigger && !inPanel) setOpen(false);
     };
+    const onReposition = () => updatePos();
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
   }, [open]);
+
+  const menu = open && menuPos && createPortal(
+    <div
+      ref={panelRef}
+      className="rd-menu"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={portalMenuStyle(menuPos)}
+    >
+      <div className="rd-menu__search">
+        <input
+          type="search"
+          className="rd-menu__search-input"
+          placeholder="Search country or dial code…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+      </div>
+      <div className="rd-menu__list">
+        <button
+          type="button"
+          className={`rd-menu__item${!lead?.timezone ? ' rd-menu__item--active' : ''}`}
+          onClick={() => {
+            onTimezoneChange?.(null);
+            setOpen(false);
+            setQuery('');
+          }}
+        >
+          <span className="rd-menu__item-label">Auto from phone</span>
+        </button>
+        {filtered.map((c) => {
+          const active = lead?.timezone === c.timezone;
+          return (
+            <button
+              key={`${c.name}-${c.timezone}`}
+              type="button"
+              className={`rd-menu__item${active ? ' rd-menu__item--active' : ''}`}
+              onClick={() => {
+                onTimezoneChange?.(c.timezone);
+                setOpen(false);
+                setQuery('');
+              }}
+            >
+              <span className="rd-menu__item-label">{c.name}</span>
+              <span className="rd-menu__item-meta">+{c.dial}</span>
+            </button>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="rd-menu__empty">No matching countries</div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
 
   return (
     <span ref={wrapRef} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
       <button
+        ref={triggerRef}
         type="button"
         className="badge"
         disabled={!editable}
@@ -74,64 +154,7 @@ export default function CallWindowBadge({
           {localTime ? `Their time: ${localTime}` : (editable ? 'Set timezone or add phone' : '—')}
         </span>
       )}
-      {open && (
-        <div
-          className="rd-menu"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            zIndex: 40,
-            top: 'calc(100% + 6px)',
-            left: 0,
-            minWidth: 260,
-          }}
-        >
-          <div className="rd-menu__search">
-            <input
-              type="search"
-              className="rd-menu__search-input"
-              placeholder="Search country or dial code…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="rd-menu__list">
-            <button
-              type="button"
-              className={`rd-menu__item${!lead?.timezone ? ' rd-menu__item--active' : ''}`}
-              onClick={() => {
-                onTimezoneChange?.(null);
-                setOpen(false);
-                setQuery('');
-              }}
-            >
-              <span className="rd-menu__item-label">Auto from phone</span>
-            </button>
-            {filtered.map((c) => {
-              const active = lead?.timezone === c.timezone;
-              return (
-                <button
-                  key={`${c.name}-${c.timezone}`}
-                  type="button"
-                  className={`rd-menu__item${active ? ' rd-menu__item--active' : ''}`}
-                  onClick={() => {
-                    onTimezoneChange?.(c.timezone);
-                    setOpen(false);
-                    setQuery('');
-                  }}
-                >
-                  <span className="rd-menu__item-label">{c.name}</span>
-                  <span className="rd-menu__item-meta">+{c.dial}</span>
-                </button>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="rd-menu__empty">No matching countries</div>
-            )}
-          </div>
-        </div>
-      )}
+      {menu}
     </span>
   );
 }

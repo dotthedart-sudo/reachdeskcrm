@@ -1,7 +1,9 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Trash2, CheckSquare, Type, Hash } from 'lucide-react';
+import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
 
 const DatabaseNodeView = ({ node, updateAttributes, selected }) => {
   const { columns, rows } = node.attrs;
@@ -183,36 +185,82 @@ const DatabaseNodeView = ({ node, updateAttributes, selected }) => {
 
 const ColumnTypeSelector = ({ type, onChange }) => {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+
+  const updatePos = () => {
+    if (!triggerRef.current) return;
+    setMenuPos(computePortalMenuPosition(triggerRef.current, {
+      menuWidth: 130,
+      menuHeight: 120,
+    }));
+  };
 
   useEffect(() => {
+    if (!open) return undefined;
+    updatePos();
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setOpen(false);
+      const inRoot = containerRef.current?.contains(event.target);
+      const inPanel = panelRef.current?.contains(event.target);
+      if (!inRoot && !inPanel) setOpen(false);
     };
+    const onReposition = () => updatePos();
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [open]);
 
   const icons = { text: <Type size={14} />, number: <Hash size={14} />, checkbox: <CheckSquare size={14} /> };
 
+  const menu = open && menuPos && createPortal(
+    <div
+      ref={panelRef}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        ...portalMenuStyle(menuPos),
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-color)',
+        borderRadius: '6px',
+        padding: '4px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        minWidth: '120px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      }}
+    >
+      <button type="button" onClick={() => { onChange('text'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
+        <Type size={14} /> Text
+      </button>
+      <button type="button" onClick={() => { onChange('number'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
+        <Hash size={14} /> Number
+      </button>
+      <button type="button" onClick={() => { onChange('checkbox'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
+        <CheckSquare size={14} /> Checkbox
+      </button>
+    </div>,
+    document.body,
+  );
+
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: '2px' }} title={`Type: ${type}`}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: '2px' }}
+        title={`Type: ${type}`}
+      >
         {icons[type]}
       </button>
-      {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', zIndex: 100, padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <button onClick={() => { onChange('text'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
-            <Type size={14} /> Text
-          </button>
-          <button onClick={() => { onChange('number'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
-            <Hash size={14} /> Number
-          </button>
-          <button onClick={() => { onChange('checkbox'); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', textAlign: 'left', borderRadius: '4px', color: 'var(--text-primary)' }}>
-            <CheckSquare size={14} /> Checkbox
-          </button>
-        </div>
-      )}
+      {menu}
     </div>
   );
 };
