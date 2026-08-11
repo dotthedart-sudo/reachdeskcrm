@@ -38,11 +38,39 @@ export async function fetchDueCheckpointLeads({
 
   const { data, error } = await supabase
     .from('leads')
-    .select('id, user_id, first_name, last_name, company, email, status, next_checkpoint_at, action_to_take, last_contacted_at, checkpoint_notified_at')
+    .select('id, user_id, first_name, last_name, company, email, status, next_checkpoint_at, action_to_take, last_contacted_at, checkpoint_notified_at, folder_id, google_followup_event_id, folder:folders(id, name)')
     .in('user_id', ids)
     .in('status', CHECKPOINT_CYCLE_STATUSES)
     .not('next_checkpoint_at', 'is', null)
     .lte('next_checkpoint_at', nowIso)
+    .order('next_checkpoint_at', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Upcoming checkpoints through `through` (inclusive), including future ones
+ * for Today / This week groupings on the Reminders page.
+ */
+export async function fetchUpcomingCheckpointLeads({
+  userIds,
+  through,
+  limit = 200,
+} = {}) {
+  const ids = (userIds || []).filter(Boolean);
+  if (ids.length === 0 || !through) return [];
+
+  const throughIso = through instanceof Date ? through.toISOString() : through;
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select('id, user_id, first_name, last_name, company, email, status, next_checkpoint_at, action_to_take, last_contacted_at, checkpoint_notified_at, folder_id, google_followup_event_id, folder:folders(id, name)')
+    .in('user_id', ids)
+    .in('status', CHECKPOINT_CYCLE_STATUSES)
+    .not('next_checkpoint_at', 'is', null)
+    .lte('next_checkpoint_at', throughIso)
     .order('next_checkpoint_at', { ascending: true })
     .limit(limit);
 

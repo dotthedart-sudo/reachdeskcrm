@@ -119,9 +119,9 @@ export default function SidebarNav({
         <SidebarLink
           to="/reminders"
           icon={Bell}
-          label="Notifications"
+          label="Reminders"
           active={pathname === '/reminders'}
-          tip={tip('Notifications')}
+          tip={tip('Reminders')}
           badge={remindersCount > 0 ? (
             <span className="sidebar-item__badge sidebar-item__badge--count">{remindersCount > 99 ? '99+' : remindersCount}</span>
           ) : null}

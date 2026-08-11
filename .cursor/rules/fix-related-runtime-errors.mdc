@@ -1,0 +1,23 @@
+---
+description: After code changes, verify and fix related runtime breaks (including hot-reload ReferenceErrors)
+alwaysApply: true
+---
+
+# Fix related runtime errors when amending code
+
+When you change a page, data loader, or shared helper, **do not leave dangling references** from the old approach. After substantive edits:
+
+1. Search for removed symbols (variables, imports, hooks) still referenced in the same file/tree.
+2. Prefer a quick lint/read of the edited files before finishing.
+3. If the user reports a crash (`X is not defined`, hooks order, blank error boundary), **fix that crash in the same turn** before continuing feature work.
+4. Hot-reload leftovers that surface as ReferenceErrors are real bugs — treat them as broken code, not “just reload.”
+
+## Common regression from refactors
+
+- Renamed/removed state (`scopedLeads`, etc.) still referenced in JSX empty states
+- Early returns placed above new hooks
+- Frontend calls to RPCs/tables without the matching migration (see `frontend-db-migrations.mdc`)
+
+## Done means
+
+Edited surfaces render without new ReferenceErrors / TypeErrors from the change you just made.

@@ -39,6 +39,7 @@ import {
 } from '../lib/calendarActivity';
 import { hasTeammates } from '../lib/teamWorkspace';
 import MemberActivityFilter from './CRM/callActivity/MemberActivityFilter';
+import CheckpointPopover from './CRM/CheckpointPopover';
 import './Calendar/Calendar.css';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -132,15 +133,43 @@ function ViewSwitcher({ view, onChange }) {
   );
 }
 
+function attendeeInitials(attendee) {
+  const raw = (attendee?.displayName || attendee?.email || '?').trim();
+  const parts = raw.split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return raw.slice(0, 2).toUpperCase();
+}
+
+function AttendeeAvatars({ attendees = [], max = 4 }) {
+  if (!attendees.length) return null;
+  const shown = attendees.slice(0, max);
+  const extra = attendees.length - shown.length;
+  return (
+    <div className="cal-avatar-stack" aria-label={`${attendees.length} attendees`}>
+      {shown.map((a, i) => (
+        <span
+          key={`${a.email || a.displayName || i}`}
+          className="cal-avatar"
+          title={a.displayName || a.email || ''}
+          style={{ zIndex: shown.length - i }}
+        >
+          {attendeeInitials(a)}
+        </span>
+      ))}
+      {extra > 0 && <span className="cal-avatar cal-avatar--more">+{extra}</span>}
+    </div>
+  );
+}
+
 function MeetingCard({ ev, onEdit, onDelete, deleting, timeZone }) {
   return (
-    <div className="cal-list-row">
-      <div className="cal-list-row__title">{ev.summary}</div>
+    <div className="cal-list-row cal-list-row--meeting">
+      <div className="cal-list-row__title-row">
+        <div className="cal-list-row__title">{ev.summary}</div>
+        <AttendeeAvatars attendees={ev.attendees || []} />
+      </div>
       <div className="cal-list-row__meta">
         {formatLocalTime(ev.start, { timeZone, showZone: true, allDay: ev.allDay })}
-        {ev.attendees?.length > 0 && (
-          <> · {ev.attendees.map((a) => a.email).join(', ')}</>
-        )}
       </div>
       <div className="cal-list-row__actions">
         {(ev.hangoutLink || ev.htmlLink) && (
@@ -171,7 +200,15 @@ function MeetingCard({ ev, onEdit, onDelete, deleting, timeZone }) {
   );
 }
 
-function PlanTaskRow({ task, onLog, onCancel, onOpenLead, defaultCountryCode }) {
+function PlanTaskRow({
+  task,
+  onLog,
+  onCancel,
+  onOpenLead,
+  onLogFollowup,
+  defaultCountryCode,
+  rowRefCallback,
+}) {
   const lead = task.leads || task.lead;
   const taskType = task.task_type || 'call';
   const isCheckpoint = !!task.is_checkpoint;
@@ -183,51 +220,71 @@ function PlanTaskRow({ task, onLog, onCancel, onOpenLead, defaultCountryCode }) 
     cancelled: { bg: 'rgba(107, 114, 128, 0.2)', color: '#9ca3af' },
   }[task.status] || { bg: 'var(--bg-tertiary)', color: 'var(--text-muted)' };
 
-  const actionLabel = taskType === 'email'
-    ? 'Open lead'
-    : taskType === 'follow_up'
-      ? 'Follow up'
-      : 'Log call';
-  const ActionIcon = taskType === 'email' ? Mail : taskType === 'follow_up' ? Bell : Phone;
+  const categoryClass = isCheckpoint
+    ? 'cal-list-row--followup'
+    : taskType === 'email'
+      ? 'cal-list-row--outreach'
+      : 'cal-list-row--outreach';
+
+  const actionLabel = isCheckpoint
+    ? 'Log outcome'
+    : taskType === 'email'
+      ? 'Open lead'
+      : taskType === 'follow_up'
+        ? 'Follow up'
+        : 'Log call';
+  const ActionIcon = isCheckpoint ? Bell : taskType === 'email' ? Mail : taskType === 'follow_up' ? Bell : Phone;
 
   return (
-    <div className="cal-list-row">
+    <div
+      className={`cal-list-row ${categoryClass}`}
+      ref={rowRefCallback}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
         <button
           type="button"
-          onClick={() => onOpenLead(lead?.id)}
+          onClick={() => (isCheckpoint && onLogFollowup ? onLogFollowup(task) : onOpenLead(lead?.id))}
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit', flex: 1 }}
         >
           <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{leadDisplayName(lead)}</div>
-          {lead?.phone && taskType === 'call' && (
+          {lead?.phone && taskType === 'call' && !isCheckpoint && (
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{lead.phone}</div>
           )}
-          {isCheckpoint && lead?.action_to_take && (
+          {isCheckpoint && (
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Next step: {lead.action_to_take}
+              {lead?.action_to_take ? `Next step: ${lead.action_to_take}` : 'Due follow-up'}
+              {task.planned_date || lead?.next_checkpoint_at
+                ? ` · ${formatLocalTime(lead?.next_checkpoint_at || task.planned_date, { showZone: false })}`
+                : ''}
             </div>
           )}
-          {localTime && taskType === 'call' && (
+          {localTime && taskType === 'call' && !isCheckpoint && (
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
               Their time: {localTime}
             </div>
           )}
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-            {isCheckpoint ? 'Due follow-up' : TASK_TYPE_LABELS[taskType] || taskType}
+          <span className={`badge${isCheckpoint ? ' cal-badge-followup' : ''}`}>
+            {isCheckpoint ? 'Follow-up' : TASK_TYPE_LABELS[taskType] || taskType}
           </span>
           {!isCheckpoint && (
             <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
               {task.status}
             </span>
           )}
-          {lead && taskType === 'call' && <CallWindowBadge lead={lead} defaultCountryCode={defaultCountryCode} />}
+          {lead && taskType === 'call' && !isCheckpoint && (
+            <CallWindowBadge lead={lead} defaultCountryCode={defaultCountryCode} />
+          )}
         </div>
       </div>
-      {(task.status === 'pending' || task.status === 'missed' || isCheckpoint) && onLog && (
+      {(task.status === 'pending' || task.status === 'missed' || isCheckpoint) && (onLog || onLogFollowup) && (
         <div className="cal-list-row__actions">
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => onLog(task)}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => (isCheckpoint && onLogFollowup ? onLogFollowup(task) : onLog?.(task))}
+          >
             <ActionIcon size={12} /> {actionLabel}
           </button>
           {!isCheckpoint && onCancel && (
@@ -257,6 +314,16 @@ export default function CalendarPage({ currentUser }) {
 
   const [view, setView] = useState('plan');
   const [meetingsLayout, setMeetingsLayout] = useState('month');
+  const [calendarRange, setCalendarRange] = useState('month'); // month | week | day
+  const [categoryFilters, setCategoryFilters] = useState({
+    meetings: true,
+    outreach: true,
+    followups: true,
+    activity: true,
+  });
+  const [checkpointLead, setCheckpointLead] = useState(null);
+  const [checkpointAnchor, setCheckpointAnchor] = useState(null);
+  const [suggestionRules, setSuggestionRules] = useState([]);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(() => todayDateKeyInZone());
   const [events, setEvents] = useState([]);
@@ -376,7 +443,7 @@ export default function CalendarPage({ currentUser }) {
           .order('created_at', { ascending: false }),
         fetchAllLeadsForScope({
           userIds: teamIdsResolved,
-          columns: 'id, first_name, last_name, email, phone, company, folder_id, status, timezone, timezone_source, next_checkpoint_at, action_to_take',
+          columns: 'id, first_name, last_name, email, phone, company, folder_id, status, timezone, timezone_source, next_checkpoint_at, action_to_take, google_followup_event_id',
         }),
         supabase
           .from('folders')
@@ -386,7 +453,7 @@ export default function CalendarPage({ currentUser }) {
         fetchAllPaged(() =>
           supabase
             .from('leads')
-            .select('id, first_name, last_name, email, phone, status, timezone, timezone_source, next_checkpoint_at, action_to_take')
+            .select('id, first_name, last_name, email, phone, status, timezone, timezone_source, next_checkpoint_at, action_to_take, google_followup_event_id')
             .in('user_id', teamIdsResolved)
             .not('next_checkpoint_at', 'is', null)
             .gte('next_checkpoint_at', `${planStartKey}T00:00:00`)
@@ -437,6 +504,9 @@ export default function CalendarPage({ currentUser }) {
 
       setAllLeads(leads || []);
       setFolders(folderRows || []);
+
+      const { data: rules } = await supabase.from('action_suggestion_rules').select('*');
+      if (rules) setSuggestionRules(rules);
 
       const { data: allAtt } = await supabase
         .from('lead_call_attempts')
@@ -564,9 +634,13 @@ export default function CalendarPage({ currentUser }) {
   const filteredTimeline = (timelineByDay[selectedDay] || []).filter((ev) => matchesActivityFilter(ev, activityTypeFilter));
   const selectedTimeline = filteredTimeline;
   const selectedPlan = planByDay[selectedDay] || [];
-  const planPending = selectedPlan.filter((t) => t.status === 'pending' || t.is_checkpoint);
-  const planDone = selectedPlan.filter((t) => t.status === 'done' && !t.is_checkpoint);
-  const planMissed = selectedPlan.filter((t) => t.status === 'missed' && !t.is_checkpoint);
+  const planPending = selectedPlan.filter((t) => {
+    if (!(t.status === 'pending' || t.is_checkpoint)) return false;
+    if (t.is_checkpoint) return categoryFilters.followups;
+    return categoryFilters.outreach;
+  });
+  const planDone = selectedPlan.filter((t) => t.status === 'done' && !t.is_checkpoint && categoryFilters.outreach);
+  const planMissed = selectedPlan.filter((t) => t.status === 'missed' && !t.is_checkpoint && categoryFilters.outreach);
 
   const showMemberFilter = hasTeamCalendarActivity(currentUser, teamIds)
     && canViewTeamCalendarFeed(currentUser, calendarPerms);
@@ -586,8 +660,19 @@ export default function CalendarPage({ currentUser }) {
     navigate('/leads');
   };
 
-  const handlePlanAction = (task) => {
-    if (task.is_checkpoint || task.task_type === 'follow_up' || task.task_type === 'email') {
+  const openFollowupLog = (task, anchorEl) => {
+    const lead = task?.leads || task?.lead;
+    if (!lead) return;
+    setCheckpointLead(lead);
+    setCheckpointAnchor(anchorEl || null);
+  };
+
+  const handlePlanAction = (task, anchorEl) => {
+    if (task.is_checkpoint) {
+      openFollowupLog(task, anchorEl);
+      return;
+    }
+    if (task.task_type === 'follow_up' || task.task_type === 'email') {
       openLead(task.lead_id || task.leads?.id);
       return;
     }
@@ -830,30 +915,48 @@ export default function CalendarPage({ currentUser }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
         <ViewSwitcher view={view} onChange={setView} />
-        {showMemberFilter && (
-          <MemberActivityFilter
-            members={calendarMembers}
-            value={memberFilter}
-            onChange={setMemberFilter}
-          />
-        )}
-        {isMeetings && (
-          <div className="cal-segment">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {showMemberFilter && (
+            <MemberActivityFilter
+              members={calendarMembers}
+              value={memberFilter}
+              onChange={setMemberFilter}
+            />
+          )}
+          <div className="cal-segment" role="group" aria-label="Calendar range">
             {[
+              { id: 'day', label: 'Day' },
+              { id: 'week', label: 'Week' },
               { id: 'month', label: 'Month' },
-              { id: 'upcoming', label: 'Next 14 days' },
             ].map((opt) => (
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setMeetingsLayout(opt.id)}
-                className={`cal-segment__btn${meetingsLayout === opt.id ? ' cal-segment__btn--active' : ''}`}
+                onClick={() => setCalendarRange(opt.id)}
+                className={`cal-segment__btn${calendarRange === opt.id ? ' cal-segment__btn--active' : ''}`}
               >
                 {opt.label}
               </button>
             ))}
           </div>
-        )}
+          {isMeetings && (
+            <div className="cal-segment">
+              {[
+                { id: 'month', label: 'Grid' },
+                { id: 'upcoming', label: 'Next 14 days' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setMeetingsLayout(opt.id)}
+                  className={`cal-segment__btn${meetingsLayout === opt.id ? ' cal-segment__btn--active' : ''}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {needsReconnect && (
@@ -953,14 +1056,78 @@ export default function CalendarPage({ currentUser }) {
           {loading && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</div>}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 1fr)', gap: '1rem' }} className="calendar-layout">
+        <div className="calendar-layout cal-shell">
+          <aside className="card cal-sidebar">
+            <div className="cal-mini">
+              <div className="cal-mini__nav">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month">
+                  <ChevronLeft size={14} />
+                </button>
+                <span>{monthLabel}</span>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              <div className="cal-mini__grid">
+                {WEEKDAYS.map((d) => (
+                  <div key={d} className="cal-mini__dow">{d.slice(0, 1)}</div>
+                ))}
+                {days.map((day) => {
+                  const key = toDateKey(day);
+                  const inMonth = day.getMonth() === month;
+                  const isToday = key === todayKey;
+                  const isSelected = key === selectedDay;
+                  return (
+                    <button
+                      key={`mini-${key}`}
+                      type="button"
+                      className={`cal-mini__day${isSelected ? ' is-selected' : ''}${isToday ? ' is-today' : ''}${inMonth ? '' : ' is-outside'}`}
+                      onClick={() => {
+                        handleDayClick(key);
+                        if (calendarRange === 'month') setCalendarRange('day');
+                      }}
+                    >
+                      {day.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="cal-filter-block">
+              <div className="cal-filter-block__title">Show</div>
+              {[
+                { id: 'meetings', label: 'Meetings', swatch: 'meeting' },
+                { id: 'outreach', label: 'Outreach', swatch: 'outreach' },
+                { id: 'followups', label: 'Follow-ups', swatch: 'followup' },
+                { id: 'activity', label: 'Activity', swatch: 'activity' },
+              ].map((opt) => (
+                <label key={opt.id} className="cal-filter-check">
+                  <input
+                    type="checkbox"
+                    checked={!!categoryFilters[opt.id]}
+                    onChange={(e) => setCategoryFilters((prev) => ({ ...prev, [opt.id]: e.target.checked }))}
+                  />
+                  <span className={`cal-filter-swatch cal-filter-swatch--${opt.swatch}`} />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+          </aside>
+
+        <div style={{ display: 'grid', gridTemplateColumns: calendarRange === 'month' ? 'minmax(0, 1.6fr) minmax(280px, 1fr)' : 'minmax(0, 1fr)', gap: '1rem' }} className="cal-main-detail">
+          {calendarRange === 'month' && (
           <div className="card flex-col gap-3" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                setCursor(new Date(year, month - 1, 1));
+              }} aria-label="Previous month">
                 <ChevronLeft size={16} />
               </button>
               <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{monthLabel}</h3>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                setCursor(new Date(year, month + 1, 1));
+              }} aria-label="Next month">
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -1091,6 +1258,7 @@ export default function CalendarPage({ currentUser }) {
               <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</div>
             )}
           </div>
+          )}
 
           <div className="card flex-col gap-3" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
@@ -1123,7 +1291,7 @@ export default function CalendarPage({ currentUser }) {
               </div>
             </div>
 
-            {(isPlan || isAll) && (
+            {(isPlan || isAll) && (categoryFilters.outreach || categoryFilters.followups) && (
               <>
                 <DaySection title={`TO CALL (${planPending.length})`}>
                   {planPending.length === 0 ? (
@@ -1134,6 +1302,7 @@ export default function CalendarPage({ currentUser }) {
                         key={task.id}
                         task={task}
                         onLog={handlePlanAction}
+                        onLogFollowup={(t) => openFollowupLog(t)}
                         onCancel={handleCancelPlanTask}
                         onOpenLead={openLead}
                         defaultCountryCode={defaultCountryCode}
@@ -1152,11 +1321,12 @@ export default function CalendarPage({ currentUser }) {
 
                 {planMissed.length > 0 && (
                   <DaySection title={`MISSED (${planMissed.length})`}>
-                    {planMissed.map((task) => (
+                    {                    planMissed.map((task) => (
                       <PlanTaskRow
                         key={task.id}
                         task={task}
                         onLog={handlePlanAction}
+                        onLogFollowup={(t) => openFollowupLog(t)}
                         onCancel={handleCancelPlanTask}
                         onOpenLead={openLead}
                         defaultCountryCode={defaultCountryCode}
@@ -1167,7 +1337,7 @@ export default function CalendarPage({ currentUser }) {
               </>
             )}
 
-            {(isActivity || isAll) && (
+            {(isActivity || isAll) && categoryFilters.activity && (
               <DaySection title={`ACTIVITY (${selectedTimeline.length || selectedOutreach.length})`}>
                 <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                   {ACTIVITY_FILTERS.map((f) => (
@@ -1234,7 +1404,7 @@ export default function CalendarPage({ currentUser }) {
               </DaySection>
             )}
 
-            {(isMeetings || isAll) && (
+            {(isMeetings || isAll) && categoryFilters.meetings && (
               <DaySection title={`MEETINGS (${selectedEvents.length})`}>
                 {selectedEvents.length === 0 ? (
                   <EmptyHint>
@@ -1256,6 +1426,25 @@ export default function CalendarPage({ currentUser }) {
             )}
           </div>
         </div>
+        </div>
+      )}
+
+      {checkpointLead && (
+        <CheckpointPopover
+          lead={checkpointLead}
+          anchorEl={checkpointAnchor}
+          suggestionRules={suggestionRules}
+          currentUser={currentUser}
+          onClose={() => {
+            setCheckpointLead(null);
+            setCheckpointAnchor(null);
+          }}
+          onResolved={() => {
+            setCheckpointLead(null);
+            setCheckpointAnchor(null);
+            loadData();
+          }}
+        />
       )}
 
       <style>{`

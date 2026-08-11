@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { captureDeviceTimestamp, getEffectiveUserTimeZone } from './dateTime';
 import { logLeadTimelineEvent } from './leadTimeline';
 import { resolveMessagingActionRules } from './automationRules';
+import { queueFollowupGoogleSync } from './googleFollowupSync';
 
 export const CHECKPOINT_OFFSETS_HOURS = [12, 24, 72, 120, 168, 336, 504];
 
@@ -233,6 +234,18 @@ export async function updateLeadStatusAndCheckpoint({
 
   if (updatedLead) {
     updatedLead.draftCreated = draftCreated;
+  }
+
+  if (currentUser && updatedLead) {
+    const prevCheckpoint = targetLead.next_checkpoint_at || null;
+    const nextCheckpoint = updatedLead.next_checkpoint_at || null;
+    if (prevCheckpoint !== nextCheckpoint || currentUser.sync_followups_to_google === true) {
+      queueFollowupGoogleSync({
+        lead: updatedLead,
+        currentUser,
+        previousCheckpointAt: prevCheckpoint,
+      });
+    }
   }
 
   return updatedLead;

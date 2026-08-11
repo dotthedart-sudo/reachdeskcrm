@@ -542,9 +542,9 @@ export default function Reports({ currentUser }) {
         {totalLeads === 0 ? (
           <div className="reports-empty">
             <p>
-              {scopedLeads.length === 0
-                ? 'Add leads in the CRM to see pipeline reports here.'
-                : 'No leads match the selected scope, lists, and date range.'}
+              {selectedListIds.length > 0 || datePreset !== 'all' || reportScope === 'mine'
+                ? 'No leads match the selected scope, lists, and date range.'
+                : 'Add leads in the CRM to see pipeline reports here.'}
             </p>
           </div>
         ) : (

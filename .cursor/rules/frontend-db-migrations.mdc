@@ -1,0 +1,36 @@
+---
+description: Require matching Supabase migrations whenever frontend code depends on new DB objects
+alwaysApply: true
+---
+
+# Frontend + migration together (hard requirement)
+
+Whenever you ship frontend (or edge-function) code that **reads or writes** a new database object, you MUST include the matching migration in the **same change / same response**. Never leave the user with client code that depends on a missing prod DB object.
+
+## What counts as a "new database object"
+
+- New or renamed **table**
+- New or renamed **column**
+- New or changed **RPC / SQL function** (`supabase.rpc(...)`)
+- New **enum** / check constraint the app relies on
+- New **RLS policy** required for the feature to work
+- Breaking signature changes to an existing RPC (new required args, renamed params)
+
+## Required workflow
+
+1. Create or update `supabase/migrations/YYYYMMDDHHMMSS_descriptive_name.sql` **before or alongside** the frontend that uses it.
+2. In the same response, surface the migration path and either apply it (if asked) or tell the user they must apply it — do not imply the feature works without it.
+3. Prefer documenting the migration path next to the client call (`@see supabase/migrations/...`).
+4. If `db push` fails due to remote migration history drift, still provide the SQL and apply via an explicit path the user can run (`supabase db query` / dashboard SQL) rather than shipping frontend alone.
+
+## Anti-patterns (caused production bugs)
+
+- Shipping Dashboard/Reports code that calls `get_lead_pipeline_stats` without ensuring the RPC migration is applied
+- Adding client fields for `team_invitations` / `call_outcome_rules` columns that never landed in a migration on the linked DB
+- "We'll migrate later" — not allowed for this repo
+
+## Checklist before finishing a DB-dependent task
+
+- [ ] Migration file exists under `supabase/migrations/`
+- [ ] Frontend references match names/signatures in that SQL
+- [ ] User was given the migration (path + how to apply) in the same turn as the frontend change

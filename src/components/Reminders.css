@@ -1,0 +1,123 @@
+.rd-reminders-page {
+  max-width: 760px;
+  text-align: left;
+}
+
+.rd-reminders-page__sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+}
+
+.rd-reminder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rd-reminder-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rd-reminder-group__header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rd-reminder-group__header span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.rd-reminder-group__header--overdue h3 {
+  color: var(--status-hot);
+}
+
+.rd-reminder-group__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rd-reminder-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+}
+
+.rd-reminder-row--overdue {
+  border-left: 3px solid var(--status-hot);
+}
+
+.rd-reminder-row__main {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.rd-reminder-row__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rd-reminder-row__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.rd-reminder-row__tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.rd-reminder-row__when {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.rd-reminder-row__when.is-overdue {
+  color: var(--status-hot);
+  font-weight: 600;
+}
+
+.rd-reminder-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.rd-reminder-row__folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rd-reminder-row__attempt {
+  color: var(--text-muted);
+}

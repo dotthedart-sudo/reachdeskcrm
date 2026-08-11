@@ -316,6 +316,9 @@ export default function AutomationsPanel({
   setReminderNotificationMode,
   reminderDigestHour,
   setReminderDigestHour,
+  syncFollowupsToGoogle,
+  setSyncFollowupsToGoogle,
+  googleCalendarConnected = false,
   suggestionsEnabled,
   setSuggestionsEnabled,
   suggestionsAutoApply,
@@ -515,6 +518,39 @@ export default function AutomationsPanel({
                     ))}
                   </select>
                 </div>
+              </SettingsCard>
+            )}
+
+            {remindersEnabled && (
+              <SettingsCard>
+                <ToggleRow
+                  title={
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      Sync follow-ups to Google Calendar
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 999,
+                          padding: '2px 7px',
+                        }}
+                      >
+                        Recommended off
+                      </span>
+                    </span>
+                  }
+                  description={
+                    googleCalendarConnected
+                      ? 'Off keeps follow-ups only in ReachDesk Calendar and Reminders. Turn on to also create timed Google Calendar events (can clutter your real calendar if you have many).'
+                      : 'Connect Google Calendar in Integrations first. Leave this off to keep follow-ups in ReachDesk only — recommended.'
+                  }
+                  checked={!!syncFollowupsToGoogle}
+                  onChange={setSyncFollowupsToGoogle}
+                  disabled={automationSaving || !googleCalendarConnected}
+                />
               </SettingsCard>
             )}
           </SettingsStack>

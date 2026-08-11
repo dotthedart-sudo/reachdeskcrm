@@ -122,6 +122,14 @@ export default function CheckpointPopover({
         openUp,
         top: openUp ? rect.top - popoverHeight - 4 : rect.bottom + 4
       });
+    } else {
+      const popoverWidth = mode === 'checkpoint' ? 260 : 72;
+      setPos({
+        left: Math.max(8, (window.innerWidth - popoverWidth) / 2),
+        width: popoverWidth,
+        openUp: false,
+        top: Math.max(24, window.innerHeight * 0.25),
+      });
     }
   }, [anchorEl, mode, lead.status]);
 

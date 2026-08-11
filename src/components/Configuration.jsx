@@ -200,6 +200,9 @@ export default function Configuration({
   const [reminderDigestHour, setReminderDigestHour] = useState(
     Number.isFinite(currentUser?.reminder_digest_hour) ? Number(currentUser.reminder_digest_hour) : 9,
   );
+  const [syncFollowupsToGoogle, setSyncFollowupsToGoogle] = useState(
+    currentUser?.sync_followups_to_google === true,
+  );
   const [suggestionsEnabled, setSuggestionsEnabled] = useState(currentUser?.suggestions_enabled !== false);
   const [suggestionsAutoApply, setSuggestionsAutoApply] = useState(currentUser?.suggestions_auto_apply !== false);
   const [callSuggestionsAutoApply, setCallSuggestionsAutoApply] = useState(
@@ -474,6 +477,7 @@ export default function Configuration({
       setReminderDigestHour(
         Number.isFinite(currentUser.reminder_digest_hour) ? Number(currentUser.reminder_digest_hour) : 9,
       );
+      setSyncFollowupsToGoogle(currentUser.sync_followups_to_google === true);
       setSuggestionsEnabled(currentUser.suggestions_enabled !== false);
       setSuggestionsAutoApply(currentUser.suggestions_auto_apply !== false);
       setCallSuggestionsAutoApply(currentUser.call_suggestions_auto_apply !== false);
@@ -836,6 +840,7 @@ export default function Configuration({
         reminders_enabled: remindersEnabled,
         reminder_notification_mode: reminderNotificationMode === 'instant' ? 'instant' : 'digest',
         reminder_digest_hour: Math.min(23, Math.max(0, Number(reminderDigestHour) || 9)),
+        sync_followups_to_google: !!syncFollowupsToGoogle,
         suggestions_enabled: suggestionsEnabled,
         suggestions_auto_apply: suggestionsAutoApply,
         always_draft_before_sending: alwaysDraft,
@@ -1073,6 +1078,9 @@ export default function Configuration({
             setReminderNotificationMode={setReminderNotificationMode}
             reminderDigestHour={reminderDigestHour}
             setReminderDigestHour={setReminderDigestHour}
+            syncFollowupsToGoogle={syncFollowupsToGoogle}
+            setSyncFollowupsToGoogle={setSyncFollowupsToGoogle}
+            googleCalendarConnected={!!calIntegration}
             suggestionsEnabled={suggestionsEnabled}
             setSuggestionsEnabled={setSuggestionsEnabled}
             suggestionsAutoApply={suggestionsAutoApply}

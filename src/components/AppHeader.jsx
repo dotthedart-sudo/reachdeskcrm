@@ -15,7 +15,7 @@ const ROUTE_DEFAULTS = {
   '/notes': { title: 'Notes' },
   '/calendar': { title: 'Calendar' },
   '/teams': { title: 'Teams' },
-  '/reminders': { title: 'Notifications' },
+  '/reminders': { title: 'Reminders' },
   '/settings': { title: 'Configuration' },
   '/get-started': { title: 'Get Started' },
   '/upgrade': { title: 'Billing' },
