@@ -144,7 +144,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       const remindersEnabled = currentUser?.reminders_enabled !== false;
       const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
 
-      const [invoicesRes, rulesRes, pipelineStats, dueCheckpoints, attemptsData, feedLeads] = await Promise.all([
+      const settled = await Promise.allSettled([
         supabase.from('invoices').select('*').eq('user_id', currentUser.id),
         supabase.from('action_suggestion_rules').select('*'),
         fetchLeadPipelineStats({ userIds: teamIds }),
@@ -157,6 +157,45 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         // Thin columns for Up Next / team overview — paged so we never stop at 1000.
         fetchAllLeadsForScope({ userIds: teamIds, columns: feedColumns }),
       ]);
+
+      const [
+        invoicesSettled,
+        rulesSettled,
+        pipelineSettled,
+        dueSettled,
+        attemptsSettled,
+        feedSettled,
+      ] = settled;
+
+      if (pipelineSettled.status === 'rejected') {
+        throw pipelineSettled.reason;
+      }
+      if (invoicesSettled.status === 'rejected') {
+        console.warn('[Dashboard] invoices load failed:', invoicesSettled.reason);
+      }
+      if (rulesSettled.status === 'rejected') {
+        console.warn('[Dashboard] rules load failed:', rulesSettled.reason);
+      }
+      if (dueSettled.status === 'rejected') {
+        console.warn('[Dashboard] due checkpoints load failed:', dueSettled.reason);
+      }
+      if (attemptsSettled.status === 'rejected') {
+        console.warn('[Dashboard] call attempts load failed:', attemptsSettled.reason);
+      }
+      if (feedSettled.status === 'rejected') {
+        console.warn('[Dashboard] feed leads load failed:', feedSettled.reason);
+      }
+
+      const invoicesRes = invoicesSettled.status === 'fulfilled'
+        ? invoicesSettled.value
+        : { data: [] };
+      const rulesRes = rulesSettled.status === 'fulfilled'
+        ? rulesSettled.value
+        : { data: [] };
+      const pipelineStats = pipelineSettled.value;
+      const dueCheckpoints = dueSettled.status === 'fulfilled' ? dueSettled.value : [];
+      const attemptsData = attemptsSettled.status === 'fulfilled' ? attemptsSettled.value : [];
+      const feedLeads = feedSettled.status === 'fulfilled' ? feedSettled.value : [];
 
       const loadedInvoices = invoicesRes.data || [];
       const loadedRules = rulesRes.data || [];
