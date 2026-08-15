@@ -5526,18 +5526,20 @@ select option {
 }
 
 .hp-hero-inner {
-  max-width: 1120px;
+  max-width: 1280px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 48px;
+  gap: 40px;
   align-items: center;
 }
 
 @media (min-width: 768px) {
   .hp-hero-inner {
-    grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr);
-    gap: 48px;
+    /* Product shot takes ~55% so it fills the marked hero media area */
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
+    gap: clamp(24px, 3vw, 40px);
+    align-items: center;
   }
 }
 
@@ -5599,58 +5601,60 @@ select option {
   border: none;
   box-shadow: none;
   min-width: 0;
+  align-self: stretch;
 }
 
 @media (min-width: 768px) {
   .hp-hero-media {
-    justify-content: flex-end;
-    padding-right: clamp(4px, 1.5vw, 16px);
+    justify-content: stretch;
+    padding-right: 0;
   }
 }
 
 .hero-image {
   display: block;
-  width: min(100%, 300px);
-  max-width: 100%;
+  width: 100%;
+  max-width: 1024px; /* match source pixels — stretching past this softens UI text */
   height: auto;
-  margin: 0 auto;
+  margin: 0;
   object-fit: contain;
   object-position: center;
   background: transparent;
   border: none;
-  box-shadow: none;
-  /* Keep line art crisp; avoid upscaling past native size */
+  border-radius: 12px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+  /* Keep screenshot text crisp; avoid GPU blur from transforms/filters */
   image-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  transform: none !important;
+  filter: none !important;
 }
 
-@media (min-width: 768px) {
-  .hero-image {
-    width: min(100%, 520px);
-    margin: 0;
-  }
-}
-
-@media (min-width: 1100px) {
-  .hero-image {
-    width: min(100%, 560px);
-  }
-}
-
-/* Light asset has more internal whitespace — nudge scale so subjects match dark */
 .hp-root[data-theme="light"] .hero-image {
-  width: min(100%, 280px);
+  box-shadow:
+    0 14px 44px rgba(15, 23, 42, 0.14),
+    0 2px 10px rgba(15, 23, 42, 0.08);
 }
 
 @media (min-width: 768px) {
-  .hp-root[data-theme="light"] .hero-image {
-    width: min(100%, 500px);
+  .hero-image {
+    border-radius: 14px;
+    max-width: 100%;
   }
 }
 
 @media (min-width: 1100px) {
-  .hp-root[data-theme="light"] .hero-image {
-    width: min(100%, 540px);
+  .hero-image {
+    border-radius: 16px;
   }
+}
+
+/* Opacity-only entrance for media — translateY on images causes lasting soft blur */
+.hp-hero-media.hp-hero-enter {
+  transform: none;
+  transition: opacity 0.55s ease;
 }
 
 .hp-hero-poster-hidden {

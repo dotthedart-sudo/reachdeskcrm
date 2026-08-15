@@ -5,6 +5,8 @@
 export const MARKETING_MEDIA = {
   heroVideo: '/marketing/hero-demo.mp4',
   heroVideoWebm: '/marketing/hero-demo.webm',
+  heroLight: '/marketing/hero-light.png',
+  heroDark: '/marketing/hero-dark.png',
   paywallBg: '/marketing/paywall-bg.webp',
 };
 

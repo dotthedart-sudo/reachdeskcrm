@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ReachDesk hero capture</title>
+  <style>
+    :root, [data-theme="light"] {
+      --bg: #f4f4f5;
+      --bg-app: #ffffff;
+      --bg-sidebar: #f4f4f5;
+      --bg-header: #ffffff;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --text-muted: #71717a;
+      --text-secondary: #52525b;
+      --hover: #f4f4f5;
+      --active: #e4e4e7;
+      --btn: #18181b;
+      --btn-text: #ffffff;
+      --input-bg: #ffffff;
+      --shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    [data-theme="dark"] {
+      --bg: #050505;
+      --bg-app: #0a0a0a;
+      --bg-sidebar: #121212;
+      --bg-header: #0a0a0a;
+      --border: #262626;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --text-secondary: #d4d4d8;
+      --hover: #1a1a1a;
+      --active: #222;
+      --btn: #fafafa;
+      --btn-text: #0a0a0a;
+      --input-bg: #141414;
+      --shadow: none;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 1600px;
+      height: 900px;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      width: 1600px;
+      height: 900px;
+      background: var(--bg-app);
+    }
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .brand {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin: 2px 8px 22px;
+      color: var(--text);
+    }
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 14px 8px 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      position: relative;
+    }
+    .nav-item.active {
+      background: var(--active);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .badge {
+      margin-left: auto;
+      background: #f59e0b;
+      color: #111;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 1px 6px;
+      min-width: 18px;
+      text-align: center;
+    }
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      background: var(--bg-header);
+    }
+    .page-title { font-size: 18px; font-weight: 650; }
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .search {
+      width: 240px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: 999px;
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+      color: var(--text-muted); position: relative;
+      background: var(--input-bg);
+      font-size: 14px;
+    }
+    .notif {
+      position: absolute; top: -3px; right: -3px;
+      background: #ef4444; color: white; font-size: 9px; font-weight: 700;
+      border-radius: 999px; padding: 1px 4px; min-width: 16px; text-align: center;
+    }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 999px;
+      background: linear-gradient(135deg, #64748b, #334155);
+    }
+    .content { padding: 16px 22px 22px; flex: 1; min-height: 0; }
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    }
+    .toolbar .search { flex: 1; max-width: none; }
+    .btn {
+      height: 34px; border-radius: 8px; border: 1px solid var(--border);
+      padding: 0 12px; font-size: 13px; background: var(--input-bg); color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--btn); color: var(--btn-text); border-color: transparent; font-weight: 600;
+    }
+    .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-app);
+      box-shadow: var(--shadow);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; font-weight: 550; color: var(--text-muted);
+      padding: 11px 12px; border-bottom: 1px solid var(--border);
+      background: var(--bg-sidebar); font-size: 12px;
+    }
+    td {
+      padding: 12px; border-bottom: 1px solid var(--border);
+      color: var(--text); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    .name { font-weight: 550; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+      white-space: nowrap;
+    }
+    .pill::after { content: "▾"; font-size: 9px; opacity: .7; margin-left: 2px; }
+    .p-warm { background: #ffedd5; color: #c2410c; }
+    .p-cold { background: #dbeafe; color: #1d4ed8; }
+    .p-hot { background: #fee2e2; color: #b91c1c; }
+    .s-booked { background: #fce7f3; color: #be185d; }
+    .s-contacted { background: #e0f2fe; color: #0369a1; }
+    .s-proposal { background: #ccfbf1; color: #0f766e; }
+    .s-ni { background: #fee2e2; color: #b91c1c; }
+    .s-positive { background: #dcfce7; color: #15803d; }
+    .s-won { background: #bbf7d0; color: #166534; }
+    .next {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid #c4b5fd; color: #6d28d9; background: transparent;
+      border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 550;
+    }
+    [data-theme="dark"] .p-warm { background: #431407; color: #fdba74; }
+    [data-theme="dark"] .p-cold { background: #1e3a8a; color: #93c5fd; }
+    [data-theme="dark"] .p-hot { background: #7f1d1d; color: #fca5a5; }
+    [data-theme="dark"] .s-booked { background: #831843; color: #f9a8d4; }
+    [data-theme="dark"] .s-contacted { background: #0c4a6e; color: #7dd3fc; }
+    [data-theme="dark"] .s-proposal { background: #134e4a; color: #5eead4; }
+    [data-theme="dark"] .s-ni { background: #7f1d1d; color: #fca5a5; }
+    [data-theme="dark"] .s-positive { background: #14532d; color: #86efac; }
+    [data-theme="dark"] .s-won { background: #166534; color: #86efac; }
+    [data-theme="dark"] .next { border-color: #7c3aed; color: #c4b5fd; }
+    .reach { display: flex; gap: 6px; }
+    .reach i {
+      width: 22px; height: 22px; border-radius: 6px;
+      display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff;
+    }
+    .li { background: #0a66c2; }
+    .ig { background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af); }
+    .web { background: #52525b; }
+    .mail { background: #3b82f6; }
+    .added { color: var(--text-muted); font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand">REACHDESK CRM</div>
+      <div class="nav-label">CRM</div>
+      <div class="nav-item">Dashboard</div>
+      <div class="nav-item active">Leads</div>
+      <div class="nav-item">Templates</div>
+      <div class="nav-item">Notes</div>
+      <div class="nav-label">Outreach</div>
+      <div class="nav-item">Cold Outreach</div>
+      <div class="nav-item">Calendar</div>
+      <div class="nav-label">Business</div>
+      <div class="nav-item">Client Invoices</div>
+      <div class="nav-item">Revenue Tracker</div>
+      <div class="nav-label">Insights</div>
+      <div class="nav-item">Reports</div>
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item">Teams</div>
+      <div class="nav-item">Reminders <span class="badge">11</span></div>
+      <div class="nav-item" style="margin-top:auto">Get Started</div>
+    </aside>
+    <section class="main">
+      <header class="topbar">
+        <div class="page-title">Leads</div>
+        <div class="top-actions">
+          <div class="search">Search leads...</div>
+          <div class="icon-btn">💬</div>
+          <div class="icon-btn">🔔<span class="notif">39</span></div>
+          <div class="avatar"></div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="toolbar">
+          <div class="search">Search leads...</div>
+          <button class="btn">More ▾</button>
+          <button class="btn btn-primary">+ Add Lead</button>
+        </div>
+        <div class="filters">
+          <button class="btn">Advanced Filters</button>
+          <button class="btn">Status: All ▾</button>
+          <button class="btn">Priority: All ▾</button>
+          <button class="btn">Sort ▾</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" /></th>
+                <th>Name</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Next step</th>
+                <th>Reach</th>
+                <th>Added By</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    const rows = [
+      ['Nadia Russo', 'warm', 'Warm', 'booked', 'Booked', 'Prepare for call', ['li','ig','web']],
+      ['Rayan Al-Farsi', 'cold', 'Cold', 'contacted', 'Contacted', 'Wait for reply', ['li','ig']],
+      ['David Kim', 'hot', 'Hot', 'proposal', 'Proposal Sent', 'Send proposal', ['li','mail']],
+      ['Sofia Mendes', 'warm', 'Warm', 'ni', 'Not Interested', 'Archive', ['ig','web']],
+      ['James Okafor', 'cold', 'Cold', 'positive', 'Positive Reply', 'Book a call', ['li','mail']],
+      ['Aisha Rahman', 'hot', 'Hot', 'won', 'Closed Won', 'Send invoice', ['li','ig','mail']],
+      ['Lucas Berg', 'warm', 'Warm', 'contacted', 'Contacted', 'Follow up', ['web','mail']],
+      ['Mia Chen', 'cold', 'Cold', 'booked', 'Booked', 'Prepare for call', ['li','ig']],
+      ['Omar Haddad', 'hot', 'Hot', 'proposal', 'Proposal Sent', 'Wait for reply', ['li','mail']],
+      ['Elena Rossi', 'warm', 'Warm', 'positive', 'Positive Reply', 'Send Calendly', ['ig','web']],
+    ];
+
+    document.getElementById('rows').innerHTML = rows.map(([name, p, pl, s, sl, next, reach]) => `
+      <tr>
+        <td><input type="checkbox" /></td>
+        <td class="name">${name}</td>
+        <td><span class="pill p-${p}">${pl}</span></td>
+        <td><span class="pill s-${s}">${sl}</span></td>
+        <td><span class="next"><span class="dot"></span>${next}</span></td>
+        <td><div class="reach">${reach.map(r => `<i class="${r}">${r==='li'?'in':r==='ig'?'ig':r==='mail'?'@':'🌐'}</i>`).join('')}</div></td>
+        <td class="added">dothedart...</td>
+      </tr>
+    `).join('');
+  </script>
+</body>
+</html>

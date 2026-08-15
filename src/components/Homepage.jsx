@@ -13,13 +13,15 @@ import {
   HOW_IT_WORKS_STEPS,
 } from '../lib/planMarketing';
 import { useLocalCurrency } from '../utils/useLocalCurrency';
-import heroDark from '../assets/hero-dark.png';
-import heroLight from '../assets/hero-light.png';
 import { FeatureMedia, StepMedia } from './marketing/MarketingMedia';
 import { Helmet } from 'react-helmet-async';
 import { siteMeta, generateOGTags } from '../config/metadata';
 import { getAppUrl, getMarketingUrl, isLocalDev } from '../utils/domain';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
+import { MARKETING_MEDIA } from '../lib/marketingAssets';
+
+const HERO_LIGHT = MARKETING_MEDIA.heroLight;
+const HERO_DARK = MARKETING_MEDIA.heroDark;
 
 export default function Homepage({ currentUserEmail }) {
   const navigate = useNavigate();
@@ -190,10 +192,14 @@ export default function Homepage({ currentUserEmail }) {
 
           <div className="hp-hero-media hp-hero-enter hp-hero-enter-3">
             <img
-              key={theme === 'dark' ? 'hero-dark-v2' : 'hero-light-v2'}
-              src={theme === 'dark' ? heroDark : heroLight}
-              alt="ReachDesk CRM illustration"
+              key={theme === 'dark' ? 'hero-dark-orig' : 'hero-light-orig'}
+              src={`${theme === 'dark' ? HERO_DARK : HERO_LIGHT}?v=orig2`}
+              alt={theme === 'dark' ? 'ReachDesk CRM leads table in dark mode' : 'ReachDesk CRM leads table in light mode'}
               className="hero-image"
+              width={1024}
+              height={505}
+              decoding="async"
+              fetchPriority="high"
             />
           </div>
         </div>
