@@ -5614,9 +5614,9 @@ select option {
 .hero-image {
   display: block;
   width: 100%;
-  max-width: 1024px; /* match source pixels — stretching past this softens UI text */
+  max-width: min(100%, 1024px); /* never upscale past source — that softens UI text */
   height: auto;
-  margin: 0;
+  margin: 0 auto;
   object-fit: contain;
   object-position: center;
   background: transparent;
@@ -5625,9 +5625,7 @@ select option {
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.28),
     0 2px 8px rgba(0, 0, 0, 0.12);
-  /* Keep screenshot text crisp; avoid GPU blur from transforms/filters */
   image-rendering: auto;
-  -webkit-font-smoothing: antialiased;
   transform: none !important;
   filter: none !important;
 }
@@ -5640,8 +5638,8 @@ select option {
 
 @media (min-width: 768px) {
   .hero-image {
+    margin: 0;
     border-radius: 14px;
-    max-width: 100%;
   }
 }
 
