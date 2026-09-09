@@ -16,7 +16,7 @@ export const DEFAULT_MESSAGING_ACTION_RULES = [
   { status: 'Contacted', suggested_action: 'Wait for reply' },
   { status: 'Positive Reply', suggested_action: 'Send proposal' },
   { status: 'Proposal Sent', suggested_action: 'Send Calendly' },
-  { status: 'Calendly Sent', suggested_action: 'Wait for reply' },
+  { status: 'Invite Sent', suggested_action: 'Wait for reply' },
   { status: 'Booked', suggested_action: 'Prepare for call' },
   { status: 'Followed up', suggested_action: 'Wait for reply' },
   { status: 'No show', suggested_action: 'Send a follow up' },

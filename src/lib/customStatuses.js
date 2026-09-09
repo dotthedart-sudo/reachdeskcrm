@@ -11,7 +11,7 @@ export const DEFAULT_MESSAGING_STATUSES = [
   { label: 'Lead', color: '#3b82f6' },
   { label: 'Contacted', color: '#f59e0b' },
   { label: 'Positive Reply', color: '#8b5cf6' },
-  { label: 'Calendly Sent', color: '#6B9FD4' },
+  { label: 'Invite Sent', color: '#6B9FD4' },
   { label: 'Booked', color: '#ec4899' },
   { label: 'No show', color: '#ef4444' },
   { label: 'Rescheduled', color: '#a855f7' },

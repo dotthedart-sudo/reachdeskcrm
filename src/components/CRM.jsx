@@ -34,6 +34,8 @@ import './CRM/DataTableEnhancements.css';
 import ConvertModal from './CRM/ConvertModal';
 import LeadFormFields from './CRM/LeadFormFields';
 import GroupedStatusDropdown, { DEFAULT_CALL_STATUSES } from './CRM/GroupedStatusDropdown';
+import GroupedChannelDropdown from './CRM/GroupedChannelDropdown';
+import { getChannelDefaults } from '../lib/customChannels';
 import GroupedTemplateDropdown from './CRM/GroupedTemplateDropdown';
 import CheckpointPopover from './CRM/CheckpointPopover';
 import HelpPopover from './HelpPopover';
@@ -87,7 +89,7 @@ const DEFAULT_STATUSES = [
   { label: 'Contacted', color: '#f59e0b' },
   { label: 'Positive Reply', color: '#8b5cf6' },
   { label: 'Proposal Sent', color: '#06b6d4' },
-  { label: 'Calendly Sent', color: '#6B9FD4' },
+  { label: 'Invite Sent', color: '#6B9FD4' },
   { label: 'Followed up', color: '#10b981' },
   { label: 'Booked', color: '#ec4899' },
   { label: 'No show', color: '#ef4444' },
@@ -250,7 +252,7 @@ export default function CRM({
         hot: 'Hot',
         warm: 'Warm',
         cold: 'Cold',
-        calendly: 'Calendly Sent',
+        calendly: 'Invite Sent',
         clients: 'Clients'
       };
     } catch {
@@ -259,7 +261,7 @@ export default function CRM({
         hot: 'Hot',
         warm: 'Warm',
         cold: 'Cold',
-        calendly: 'Calendly Sent',
+        calendly: 'Invite Sent',
         clients: 'Clients'
       };
     }
@@ -641,7 +643,7 @@ export default function CRM({
       } else if (sysType === 'cold') {
         setLeadForm(prev => ({ ...prev, folder_id: '', priority: 'Cold' }));
       } else if (sysType === 'calendly') {
-        setLeadForm(prev => ({ ...prev, folder_id: '', status: 'Calendly Sent' }));
+        setLeadForm(prev => ({ ...prev, folder_id: '', status: 'Invite Sent' }));
       } else if (sysType === 'clients') {
         setLeadForm(prev => ({ ...prev, folder_id: '', status: 'Closed Won' }));
       }
@@ -750,6 +752,8 @@ export default function CRM({
   };
 
   const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
+  const [showBulkChannelMenu, setShowBulkChannelMenu] = useState(false);
+  const [showBulkPriorityMenu, setShowBulkPriorityMenu] = useState(false);
 
   if (!currentUser) {
     return <div className="loading-container">Loading profile...</div>;
@@ -914,7 +918,8 @@ export default function CRM({
           // ── Contact Details view — Default visible: Name, Status, Reach
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'name',              column_label: 'Name',             column_type: 'text',     is_visible: true,  is_default: true, sort_order: 0, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'status',            column_label: 'Status',           column_type: 'status',   is_visible: true,  is_default: true, sort_order: 1, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'contact_details', column_key: 'action_to_take',    column_label: 'Next step',        column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 2, dropdown_options: ACTION_TO_TAKE_SEED },
+          { user_id: currentUser.id, table_view: 'contact_details', column_key: 'outreach_channel',  column_label: 'Channel',          column_type: 'channel',  is_visible: true,  is_default: true, sort_order: 2, dropdown_options: [] },
+          { user_id: currentUser.id, table_view: 'contact_details', column_key: 'action_to_take',    column_label: 'Next step',        column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 3, dropdown_options: ACTION_TO_TAKE_SEED },
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'platform',          column_label: 'Reach',            column_type: 'reach',    is_visible: true,  is_default: true, sort_order: 3, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'phone',             column_label: 'Phone',            column_type: 'text',     is_visible: true,  is_default: true, sort_order: 4, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'last_contacted_at', column_label: 'Last Contacted At',column_type: 'date',     is_visible: true,  is_default: true, sort_order: 5, dropdown_options: [] },
@@ -937,7 +942,8 @@ export default function CRM({
             { label: 'Cold', color: '#3b82f6' }
           ] },
           { user_id: currentUser.id, table_view: 'pipeline', column_key: 'status',            column_label: 'Status',            column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 2, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 3, dropdown_options: ACTION_TO_TAKE_SEED },
+          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'outreach_channel',  column_label: 'Channel',           column_type: 'channel',  is_visible: true,  is_default: true, sort_order: 3, dropdown_options: [] },
+          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 4, dropdown_options: ACTION_TO_TAKE_SEED },
           { user_id: currentUser.id, table_view: 'pipeline', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',     is_visible: true,  is_default: true, sort_order: 4, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'pipeline', column_key: 'template_used',     column_label: 'Template Used',    column_type: 'link',     is_visible: true,  is_default: true, sort_order: 5, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'pipeline', column_key: 'platform',          column_label: 'Reach',             column_type: 'reach',    is_visible: true,  is_default: true, sort_order: 6, dropdown_options: [] },
@@ -1000,7 +1006,8 @@ export default function CRM({
           // contact_details
           { table_view: 'contact_details', column_key: 'name',              column_label: 'Name',             column_type: 'text',     is_visible: true,  sort_order: 0,  dropdown_options: [] },
           { table_view: 'contact_details', column_key: 'status',            column_label: 'Status',           column_type: 'status',   is_visible: true,  sort_order: 1,  dropdown_options: [] },
-          { table_view: 'contact_details', column_key: 'action_to_take',    column_label: 'Next step',        column_type: 'dropdown', is_visible: true,  sort_order: 2,  dropdown_options: ACTION_TO_TAKE_SEED },
+          { table_view: 'contact_details', column_key: 'outreach_channel',  column_label: 'Channel',          column_type: 'channel',  is_visible: true,  sort_order: 2,  dropdown_options: [] },
+          { table_view: 'contact_details', column_key: 'action_to_take',    column_label: 'Next step',        column_type: 'dropdown', is_visible: true,  sort_order: 3,  dropdown_options: ACTION_TO_TAKE_SEED },
           { table_view: 'contact_details', column_key: 'platform',          column_label: 'Reach',            column_type: 'reach',    is_visible: true,  sort_order: 3,  dropdown_options: [] },
           { table_view: 'contact_details', column_key: 'phone',             column_label: 'Phone',            column_type: 'text',     is_visible: true,  sort_order: 4,  dropdown_options: [] },
           { table_view: 'contact_details', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',    is_visible: true,  sort_order: 5,  dropdown_options: [] },
@@ -1020,14 +1027,15 @@ export default function CRM({
             { label: 'Hot', color: '#ef4444' }, { label: 'Warm', color: '#f59e0b' }, { label: 'Cold', color: '#3b82f6' }
           ] },
           { table_view: 'pipeline', column_key: 'status',            column_label: 'Status',            column_type: 'dropdown', is_visible: true,  sort_order: 2, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  sort_order: 3, dropdown_options: ACTION_TO_TAKE_SEED },
-          { table_view: 'pipeline', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',     is_visible: true,  sort_order: 4, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'template_used',     column_label: 'Template Used',    column_type: 'link',     is_visible: true,  sort_order: 5, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'platform',          column_label: 'Reach',             column_type: 'reach',    is_visible: true,  sort_order: 6, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'niche',             column_label: 'Niche',             column_type: 'text',     is_visible: false, sort_order: 7, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'email',             column_label: 'Email',             column_type: 'text',     is_visible: false, sort_order: 8, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'phone',             column_label: 'Phone',             column_type: 'text',     is_visible: false, sort_order: 9, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'company',           column_label: 'Company',           column_type: 'text',     is_visible: false, sort_order: 10, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'outreach_channel',  column_label: 'Channel',           column_type: 'channel',  is_visible: true,  sort_order: 3, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  sort_order: 4, dropdown_options: ACTION_TO_TAKE_SEED },
+          { table_view: 'pipeline', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',     is_visible: true,  sort_order: 5, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'template_used',     column_label: 'Template Used',     column_type: 'link',     is_visible: true,  sort_order: 6, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'platform',          column_label: 'Reach',             column_type: 'reach',    is_visible: true,  sort_order: 7, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'niche',             column_label: 'Niche',             column_type: 'text',     is_visible: false, sort_order: 8, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'email',             column_label: 'Email',             column_type: 'text',     is_visible: false, sort_order: 9, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'phone',             column_label: 'Phone',             column_type: 'text',     is_visible: false, sort_order: 10, dropdown_options: [] },
+          { table_view: 'pipeline', column_key: 'company',           column_label: 'Company',           column_type: 'text',     is_visible: false, sort_order: 11, dropdown_options: [] },
           ...CALL_QUEUE_DEFAULT_DEFS,
         ];
 
@@ -1739,7 +1747,7 @@ export default function CRM({
             extraUpdates.action_to_take = activeLink;
           }
         } else if (activeNextStep === 'meeting') {
-          targetStatus = 'Calendly Sent';
+          targetStatus = 'Invite Sent';
           if (activeLink) {
             extraUpdates.action_to_take = activeLink;
           }
@@ -1920,6 +1928,8 @@ export default function CRM({
       leadValue = lead.priority || '';
     } else if (field === 'Tag') {
       leadValue = lead.niche || lead.tags || lead.tag || '';
+    } else if (field === 'Channel') {
+      leadValue = lead.outreach_channel || '';
     }
 
     const leadStr = String(leadValue).toLowerCase();
@@ -1979,7 +1989,7 @@ export default function CRM({
       return lead.last_contacted_at && new Date(lead.last_contacted_at) >= fiveDaysAgo;
     }
     if (folderId === 'calendly') {
-      return lead.status?.toLowerCase() === 'calendly_sent' || lead.status === 'Calendly Sent';
+      return lead.status?.toLowerCase() === 'calendly_sent' || lead.status === 'Invite Sent';
     }
     if (folderId === 'clients') return isClientStatus(lead.status);
 
@@ -2005,7 +2015,7 @@ export default function CRM({
       cold: systemFolderNames.cold || 'Cold',
       'needs-followup': systemFolderNames['needs-followup'] || 'Needs Follow-Up',
       'recently-followed-up': systemFolderNames['recently-followed-up'] || 'Recently Followed Up',
-      calendly: systemFolderNames.calendly || 'Calendly Sent',
+      calendly: systemFolderNames.calendly || 'Invite Sent',
       clients: systemFolderNames.clients || 'Clients',
     };
     if (systemLabels[activeFolderId]) return systemLabels[activeFolderId];
@@ -2153,6 +2163,21 @@ export default function CRM({
       if (onRefreshReminders) onRefreshReminders();
     } catch (err) {
       console.error('Error during bulk status update:', err);
+    }
+  };
+
+  const handleBulkChannelChange = async (newChannel) => {
+    try {
+      await supabase.from('leads')
+        .update({ outreach_channel: newChannel })
+        .in('id', selectedIds)
+        .eq('user_id', currentUser.id);
+
+      setLeads(prev => prev.map(l => selectedIds.includes(l.id) ? { ...l, outreach_channel: newChannel } : l));
+      setSelectedIds([]);
+      setShowBulkChannelMenu(false);
+    } catch (err) {
+      console.error('Error during bulk channel update:', err);
     }
   };
 
@@ -2423,7 +2448,7 @@ export default function CRM({
           'waiting',
           'positive reply',
           'proposal sent',
-          'calendly sent',
+          'Invite Sent',
           'booked',
           'no show',
           'no show / rescheduled',
@@ -3172,6 +3197,29 @@ export default function CRM({
                 )}
               </div>
 
+              {/* Change Channel Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setShowBulkChannelMenu(!showBulkChannelMenu)} className="btn btn-secondary btn-sm">
+                  Change Channel ▾
+                </button>
+                 {showBulkChannelMenu && (
+                  <div className="rd-menu rd-menu--anchored" style={{ right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
+                    <div className="rd-menu__list">
+                      {getChannelDefaults('messaging').map(c => (
+                        <button
+                          key={c.label}
+                          type="button"
+                          className="rd-menu__item"
+                          onClick={() => { handleBulkChannelChange(c.label); setShowBulkChannelMenu(false); }}
+                        >
+                          <span className="rd-menu__item-label">{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {folders.length > 0 && (
                 <RdSelect
                   size="sm"
@@ -3483,6 +3531,22 @@ export default function CRM({
                                   onChange={(newVal) => handleDropdownChange(lead.id, 'status', newVal)}
                                   isTableInline={true}
                                   onUpdate={fetchData}
+                                />
+                              </CopyableCell>
+                            </td>
+                          );
+                        }
+
+                        if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
+                          return (
+                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                              <CopyableCell value={lead.outreach_channel || ''} onCopied={handleCopyCell} variant="inline">
+                                <GroupedChannelDropdown
+                                  value={lead.outreach_channel}
+                                  onChange={(newVal) => handleDropdownChange(lead.id, 'outreach_channel', newVal)}
+                                  isTableInline={true}
+                                  onUpdate={fetchData}
+                                  channel="messaging"
                                 />
                               </CopyableCell>
                             </td>
@@ -4611,21 +4675,25 @@ export default function CRM({
                 <div className="flex-col gap-2" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
                   {smartFolderForm.rules.map((rule, idx) => (
                     <div key={idx} className="flex gap-2 align-center" style={{ flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                      <select
-                        value={rule.field}
-                        onChange={e => {
-                          const newRules = [...smartFolderForm.rules];
-                          newRules[idx].field = e.target.value;
-                          newRules[idx].value = ''; // Reset value
-                          setSmartFolderForm({...smartFolderForm, rules: newRules});
-                        }}
-                        className="form-select"
-                        style={{ flex: 1, minWidth: '120px' }}
-                      >
-                        <option value="Status">Status</option>
-                        <option value="Priority">Priority</option>
-                        <option value="Tag">Tag</option>
-                      </select>
+                      <div style={{ flex: 1, minWidth: '120px' }}>
+                        <RdSelect
+                          value={rule.field}
+                          onChange={val => {
+                            const newRules = [...smartFolderForm.rules];
+                            newRules[idx].field = val;
+                            newRules[idx].value = ''; // Reset value
+                            setSmartFolderForm({...smartFolderForm, rules: newRules});
+                          }}
+                          options={[
+                            { value: 'Status', label: 'Status' },
+                            { value: 'Priority', label: 'Priority' },
+                            { value: 'Tag', label: 'Tag' },
+                            { value: 'Channel', label: 'Channel' },
+                          ]}
+                          ariaLabel="Rule Field"
+                          placeholder="Select field"
+                        />
+                      </div>
 
                       <select
                         value={rule.operator}

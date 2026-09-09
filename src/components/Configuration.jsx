@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
@@ -228,13 +228,13 @@ export default function Configuration({
 
   const [exporting, setExporting] = useState(null); // 'leads' | 'notes' | null
 
-  // â”€â”€ Google Calendar Integration State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Google Calendar Integration State ────────────────────────────────────
   const [calIntegration, setCalIntegration] = useState(null); // row from calendar_integrations
   const [calLoading, setCalLoading] = useState(true);
   const [calDisconnecting, setCalDisconnecting] = useState(false);
   const [calSuccessMsg, setCalSuccessMsg] = useState('');
 
-  // â”€â”€ Google Sheets Integration State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Google Sheets Integration State ──────────────────────────────────────
   const [sheetsIntegration, setSheetsIntegration] = useState(null); // row from sheets_integrations
   const [sheetsLoading, setSheetsLoading] = useState(true);
   const [sheetsDisconnecting, setSheetsDisconnecting] = useState(false);
@@ -345,7 +345,7 @@ export default function Configuration({
       setCallStatusRules(getCallStatusRulesForEditor(rulesSource, currentUser.id));
       setCallSuggestionsAutoApply(rulesSource.call_suggestions_auto_apply !== false);
 
-      // LocalStorage → profile migration only for personal (non-team) accounts
+      // LocalStorage ? profile migration only for personal (non-team) accounts
       if (!currentUser.team_id) {
         const patch = buildCallRulesMigrationPatch(currentUser, currentUser.id);
         if (patch) {
@@ -549,7 +549,7 @@ export default function Configuration({
     navigate(`/settings?tab=${tabId}`, { replace: true });
   };
 
-  // â”€â”€ Fetch calendar integration status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch calendar integration status ────────────────────────────────────
   useEffect(() => {
     async function fetchCalIntegration() {
       if (!currentUser?.id) { setCalLoading(false); return; }
@@ -565,7 +565,7 @@ export default function Configuration({
     fetchCalIntegration();
   }, [currentUser?.id]);
 
-  // â”€â”€ Show success banner if redirected back after OAuth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Show success banner if redirected back after OAuth ────────────────────
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('connected') === 'google') {
@@ -577,12 +577,12 @@ export default function Configuration({
     }
   }, [location.search]);
 
-  // â”€â”€ Connect Google Calendar (initiates OAuth with CSRF state) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Connect Google Calendar (initiates OAuth with CSRF state) ────────────
   const handleConnectCalendar = () => {
     startGoogleCalendarOAuth('/settings?tab=integrations');
   };
 
-  // â”€â”€ Disconnect Google Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Disconnect Google Calendar ────────────────────────────────────────────
   const handleDisconnectCalendar = async () => {
     if (!confirm(`Disconnect Google Calendar? ${BRAND_NAME} will no longer auto-detect bookings from your calendar.`)) return;
     setCalDisconnecting(true);
@@ -634,7 +634,7 @@ export default function Configuration({
     }
   };
 
-  // â”€â”€ Fetch Sheets integration status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch Sheets integration status ──────────────────────────────────────
   useEffect(() => {
     async function fetchSheetsIntegration() {
       if (!currentUser?.id) { setSheetsLoading(false); return; }
@@ -649,7 +649,7 @@ export default function Configuration({
     fetchSheetsIntegration();
   }, [currentUser?.id]);
 
-  // ── Show sheets success banner if redirected back after OAuth ───────────
+  // -- Show sheets success banner if redirected back after OAuth -----------
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('connected') === 'sheets') {
@@ -661,12 +661,12 @@ export default function Configuration({
     }
   }, [location.search]);
 
-  // ── Connect Google Sheets (initiates OAuth with CSRF state) ──────────────
+  // -- Connect Google Sheets (initiates OAuth with CSRF state) --------------
   const handleConnectSheets = () => {
     startGoogleSheetsOAuth('/settings?tab=integrations');
   };
 
-  // â”€â”€ Disconnect Google Sheets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Disconnect Google Sheets ──────────────────────────────────────────────
   const handleDisconnectSheets = async () => {
     if (!confirm(`Disconnect Google Sheets? ${BRAND_NAME} will no longer be able to export or import leads from your sheets.`)) return;
     setSheetsDisconnecting(true);
@@ -1014,7 +1014,7 @@ export default function Configuration({
         throw new Error(data.error || 'Could not find an active Paddle subscription for this account');
       }
       setResumeSuccessMsg(
-        `Synced from Paddle — ${data?.plan || data?.profile?.plan || 'plan'} is now active.`,
+        `Synced from Paddle � ${data?.plan || data?.profile?.plan || 'plan'} is now active.`,
       );
       if (onRefreshProfile) {
         await onRefreshProfile();

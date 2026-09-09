@@ -246,7 +246,7 @@ export default function CheckpointPopover({
         </div>
       );
     } else if (isFollowUpCheck) {
-      const titleText = lead.status === 'Calendly Sent'
+      const titleText = lead.status === 'Invite Sent'
         ? 'Did they book a call yet?'
         : `Did you follow up with ${firstName}?`;
 

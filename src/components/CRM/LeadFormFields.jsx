@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react';
 import GroupedStatusDropdown from './GroupedStatusDropdown';
 import GroupedTemplateDropdown from './GroupedTemplateDropdown';
+import GroupedChannelDropdown from './GroupedChannelDropdown';
 import { detectDomainIcon } from '../icons/PlatformIcons';
 import { inferTimezoneFromPhone } from '../../lib/leadTimezone';
 import CountryTimezonePicker from './CountryTimezonePicker';
@@ -178,6 +179,14 @@ export default function LeadFormFields({
               onUpdate={onStatusUpdate}
             />
           </div>
+          <div className="rd-form-group">
+            <label className="form-label">Channel</label>
+            <GroupedChannelDropdown
+              value={leadForm.outreach_channel}
+              onChange={(val) => setLeadForm({ ...leadForm, outreach_channel: val })}
+              channel="messaging"
+            />
+          </div>
         </div>
 
         <div className="rd-form-row">
@@ -194,7 +203,7 @@ export default function LeadFormFields({
                 <option value="sys:hot">Hot</option>
                 <option value="sys:warm">Warm</option>
                 <option value="sys:cold">Cold</option>
-                <option value="sys:calendly">Calendly Sent</option>
+                <option value="sys:calendly">Invite Sent</option>
                 <option value="sys:clients">Clients</option>
               </optgroup>
               {folders.length > 0 && (

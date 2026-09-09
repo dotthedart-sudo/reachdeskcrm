@@ -199,7 +199,7 @@ export default function Homepage({ currentUserEmail }) {
               width={1024}
               height={505}
               decoding="async"
-              fetchPriority="high"
+              fetchpriority="high"
             />
           </div>
         </div>

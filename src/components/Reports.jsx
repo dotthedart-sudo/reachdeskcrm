@@ -18,10 +18,10 @@ import {
   computeStageConversionRatesForStages,
   getMessageStageDisplayLabel,
 } from '../lib/dashboardMetrics';
-import { fetchLeadPipelineStats, emptyPipelineStats } from '../lib/leadsQuery';
+import { fetchLeadPipelineStats, fetchReportsAdvancedStats, emptyPipelineStats } from '../lib/leadsQuery';
 import { usePageHeader } from '../context/PageHeaderContext';
 import SegmentedControl from './ui/SegmentedControl';
-import ReportsFunnel from './Reports/ReportsFunnel';
+import ReportsTabs from './Reports/ReportsTabs';
 import './Reports/Reports.css';
 
 const UNFILED_ID = 'unfiled';
@@ -185,7 +185,11 @@ export default function Reports({ currentUser }) {
   const [customTo, setCustomTo] = useState('');
   const [reportScope, setReportScope] = useState('team');
   const [countMode, setCountMode] = useState('cumulative'); // 'cumulative' | 'current'
-
+  
+  // Advanced stats states
+  const [trendData, setTrendData] = useState([]);
+  const [breakdownData, setBreakdownData] = useState([]);
+  const [growthStats, setGrowthStats] = useState({});
   useEffect(() => {
     if (canUseTeamScope && reportScope === 'team') return;
     setSelectedListIds((ids) =>
@@ -288,21 +292,43 @@ export default function Reports({ currentUser }) {
         const includeUnfiled = selectedListIds.includes(UNFILED_ID);
         const selectedFolderIds = selectedListIds.filter((id) => id !== UNFILED_ID);
 
-        const stats = await fetchLeadPipelineStats({
-          userIds: useTeam ? teamIds : [currentUser.id],
-          sharedFolderIds: useTeam ? sharedFolderIds : sharedFolderIds,
-          applyFolderFilter,
-          selectedFolderIds,
-          includeUnfiled,
-          createdFrom: dateBounds.from ? dateBounds.from.toISOString() : null,
-          createdTo: dateBounds.to ? dateBounds.to.toISOString() : null,
-          ownerUserId: useTeam ? null : currentUser.id,
-        });
+        const [stats, advancedStats] = await Promise.all([
+          fetchLeadPipelineStats({
+            userIds: useTeam ? teamIds : [currentUser.id],
+            sharedFolderIds: useTeam ? sharedFolderIds : sharedFolderIds,
+            applyFolderFilter,
+            selectedFolderIds,
+            includeUnfiled,
+            createdFrom: dateBounds.from ? dateBounds.from.toISOString() : null,
+            createdTo: dateBounds.to ? dateBounds.to.toISOString() : null,
+            ownerUserId: useTeam ? null : currentUser.id,
+          }),
+          fetchReportsAdvancedStats({
+            userIds: useTeam ? teamIds : [currentUser.id],
+            sharedFolderIds: useTeam ? sharedFolderIds : sharedFolderIds,
+            applyFolderFilter,
+            selectedFolderIds,
+            includeUnfiled,
+            createdFrom: dateBounds.from ? dateBounds.from.toISOString() : null,
+            createdTo: dateBounds.to ? dateBounds.to.toISOString() : null,
+            ownerUserId: useTeam ? null : currentUser.id,
+          })
+        ]);
 
-        if (!cancelled) setPipelineStats(stats);
+        if (!cancelled) {
+          setPipelineStats(stats);
+          setTrendData(advancedStats?.trendData || []);
+          setBreakdownData(advancedStats?.breakdownData || []);
+          setGrowthStats(advancedStats?.growthStats || {});
+        }
       } catch (err) {
         console.error('[Reports] Failed to load pipeline stats:', err);
-        if (!cancelled) setPipelineStats(emptyPipelineStats());
+        if (!cancelled) {
+          setPipelineStats(emptyPipelineStats());
+          setTrendData([]);
+          setBreakdownData([]);
+          setGrowthStats({});
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -548,99 +574,40 @@ export default function Reports({ currentUser }) {
             </p>
           </div>
         ) : (
-          <>
-            <div className="reports-count-mode" role="group" aria-label="Pipeline count mode">
-              <button
-                type="button"
-                className={`reports-scope__btn ${countMode === 'cumulative' ? 'reports-scope__btn--active' : ''}`}
-                onClick={() => setCountMode('cumulative')}
-              >
-                Cumulative
-              </button>
-              <button
-                type="button"
-                className={`reports-scope__btn ${countMode === 'current' ? 'reports-scope__btn--active' : ''}`}
-                onClick={() => setCountMode('current')}
-              >
-                Current status
-              </button>
+          <div className="reports-content-body flex-col gap-6" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            
+            {/* KPI Cards Row */}
+            <div className="reports-kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+              {[
+                { label: 'Contacts', value: totalLeads },
+                { label: 'Contacted', value: messageCounts['Contacted'] || 0 },
+                { label: 'Positive Reply', value: messageCounts['Positive Reply'] || 0 },
+                { label: 'Booked', value: messageCounts['Booked'] || 0 },
+                { label: 'Closed Won', value: messageCounts['Closed Won'] || 0 }
+              ].map(kpi => (
+                <div key={kpi.label} style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{kpi.label}</span>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{kpi.value}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="reports-pipelines">
-              <section className="reports-pipeline-section">
-                <h3 className="reports-pipeline-section__title">
-                  <Mail size={16} />
-                  Messages pipeline
-                </h3>
-                <p className="reports-pipeline-section__desc">
-                  Email / LinkedIn stages by message status.
-                </p>
-                <div className="reports-metrics">
-                  {MESSAGE_PIPELINE_STAGES.map((stage) => {
-                    const count = messageCounts[stage] ?? 0;
-                    const isContacts = stage === 'Lead';
-                    const pctOfTotal = !isContacts && totalLeads > 0
-                      ? Math.round((count / totalLeads) * 100)
-                      : null;
-
-                    return (
-                      <div key={stage} className="reports-metric">
-                        <div className="reports-metric__label">{getMessageStageDisplayLabel(stage)}</div>
-                        <div className="reports-metric__value">{count}</div>
-                        {pctOfTotal != null && (
-                          <div className="reports-metric__context">
-                            {pctOfTotal}% of filtered leads
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <ReportsFunnel
-                  stages={MESSAGE_PIPELINE_STAGES}
-                  counts={messageCounts}
-                  conversionRates={messageConversionRates}
-                  totalLeads={totalLeads}
-                  getStageLabel={getMessageStageDisplayLabel}
-                />
-              </section>
-
-              <section className="reports-pipeline-section">
-                <h3 className="reports-pipeline-section__title">
-                  <Phone size={16} />
-                  Calls pipeline
-                </h3>
-                <p className="reports-pipeline-section__desc">
-                  Call queue stages by call status — Not called → Attempted → Connected → Callback → Closed.
-                </p>
-                <div className="reports-metrics">
-                  {callStageIds.map((stageId) => {
-                    const count = callCounts[stageId] ?? 0;
-                    const pctOfTotal = totalLeads > 0 ? Math.round((count / totalLeads) * 100) : null;
-
-                    return (
-                      <div key={stageId} className="reports-metric">
-                        <div className="reports-metric__label">{getCallStageLabel(stageId)}</div>
-                        <div className="reports-metric__value">{count}</div>
-                        {stageId !== 'not_called' && pctOfTotal != null && (
-                          <div className="reports-metric__context">
-                            {pctOfTotal}% of filtered leads
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <ReportsFunnel
-                  stages={callStageIds}
-                  counts={callCounts}
-                  conversionRates={callConversionRates}
-                  totalLeads={totalLeads}
-                  getStageLabel={getCallStageLabel}
-                />
-              </section>
-            </div>
-          </>
+            <ReportsTabs
+              totalLeads={totalLeads}
+              messageCounts={messageCounts}
+              messageConversionRates={messageConversionRates}
+              callCounts={callCounts}
+              callConversionRates={callConversionRates}
+              callStageIds={callStageIds}
+              getMessageStageDisplayLabel={getMessageStageDisplayLabel}
+              getCallStageLabel={getCallStageLabel}
+              trendData={trendData}
+              breakdownData={breakdownData}
+              growthStats={growthStats}
+              countMode={countMode}
+              setCountMode={setCountMode}
+            />
+          </div>
         )}
 
         <div className="reports-export-footer">

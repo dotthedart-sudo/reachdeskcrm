@@ -8,7 +8,7 @@ export const CHECKPOINT_OFFSETS_HOURS = [12, 24, 72, 120, 168, 336, 504];
 
 export const RESOLVED_STATUSES = ['Positive Reply', 'Booked', 'Rescheduled', 'Closed Won', 'Client'];
 
-export const REPLY_CHECK_STATUSES = ['Contacted', 'Calendly Sent', 'Proposal Sent', 'Followed up'];
+export const REPLY_CHECK_STATUSES = ['Contacted', 'Invite Sent', 'Proposal Sent', 'Followed up'];
 export const FOLLOW_UP_CHECK_STATUSES = ['No show', 'Not Interested'];
 
 /** Closed Won and Client both mean the lead is already a client. */
@@ -42,7 +42,7 @@ export function getSuggestionForStatus(status, suggestionRules = [], profile = n
     'lead': 'Send first pitch',
     'contacted': 'Wait for reply',
     'positive reply': 'Send proposal',
-    'calendly sent': 'Wait for reply',
+    'Invite Sent': 'Wait for reply',
     'booked': 'Prepare for call',
     'no show': 'Send a follow up',
     'rescheduled': 'Prepare for call',
@@ -192,7 +192,7 @@ export async function updateLeadStatusAndCheckpoint({
   // Automatically adjust priority based on status changes
   if (['Lead', 'Contacted', 'No show', 'Not Interested'].includes(newStatus)) {
     leadUpdate.priority = 'Cold';
-  } else if (['Positive Reply', 'Calendly Sent', 'Booked', 'Rescheduled', 'Proposal Sent', 'Followed up'].includes(newStatus)) {
+  } else if (['Positive Reply', 'Invite Sent', 'Booked', 'Rescheduled', 'Proposal Sent', 'Followed up'].includes(newStatus)) {
     leadUpdate.priority = 'Warm';
   } else if (isClientStatus(newStatus)) {
     leadUpdate.priority = 'Hot';

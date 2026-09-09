@@ -14,7 +14,7 @@ export const SYSTEM_VIEWS = [
   { id: 'cold', label: 'Cold', iconColor: 'var(--status-cold)' },
   { id: 'needs-followup', label: 'Needs Follow-Up', iconColor: 'var(--accent-blue)' },
   { id: 'recently-followed-up', label: 'Recently Followed Up', iconColor: 'var(--accent-green)' },
-  { id: 'calendly', label: 'Calendly Sent', iconColor: 'var(--accent-blue)' },
+  { id: 'calendly', label: 'Invite Sent', iconColor: 'var(--accent-blue)' },
   { id: 'clients', label: 'Clients', iconColor: 'var(--accent-blue)' },
 ];
 

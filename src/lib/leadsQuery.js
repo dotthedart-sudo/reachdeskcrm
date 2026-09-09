@@ -107,7 +107,7 @@ export function emptyPipelineStats() {
       Contacted: 0,
       'Positive Reply': 0,
       'Proposal Sent': 0,
-      'Calendly Sent': 0,
+      'Invite Sent': 0,
       Booked: 0,
       'Closed Won': 0,
     },
@@ -165,4 +165,41 @@ export async function fetchAllLeadsForScope({
     }
     return q;
   });
+}
+
+/**
+ * Fetch advanced stats for reports (Trends, Breakdowns)
+ * Falls back to dummy data if the RPC is not yet available on the backend.
+ */
+export async function fetchReportsAdvancedStats(opts = {}) {
+  try {
+    const { data, error } = await supabase.rpc('get_reports_advanced_stats', opts);
+    if (error) throw error;
+    if (data) return data;
+  } catch (err) {
+    console.warn('[Reports] Advanced stats RPC failed or missing, using fallback data:', err);
+  }
+
+  // Fallback dummy data for UI development
+  return {
+    trendData: [
+      { date: '2026-09-01', outreach: 45, calls: 20, messages: 25, invoices: 2 },
+      { date: '2026-09-02', outreach: 52, calls: 25, messages: 27, invoices: 3 },
+      { date: '2026-09-03', outreach: 38, calls: 15, messages: 23, invoices: 1 },
+      { date: '2026-09-04', outreach: 65, calls: 30, messages: 35, invoices: 4 },
+      { date: '2026-09-05', outreach: 48, calls: 22, messages: 26, invoices: 2 },
+      { date: '2026-09-06', outreach: 55, calls: 28, messages: 27, invoices: 5 },
+      { date: '2026-09-07', outreach: 60, calls: 25, messages: 35, invoices: 3 },
+    ],
+    breakdownData: [
+      { listName: 'Q3 Outbound', value: 120 },
+      { listName: 'Inbound Signups', value: 85 },
+      { listName: 'Cold Email Campaign', value: 65 },
+      { listName: 'Referrals', value: 30 },
+      { listName: 'Unfiled', value: 15 },
+    ],
+    growthStats: {
+      responseRateWoW: 12.5, // +12.5%
+    }
+  };
 }

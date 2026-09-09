@@ -2,53 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Pencil, Plus, Trash2, Check, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_CALL_STATUSES as CALL_STATUS_DEFAULTS } from '../../lib/callOutcomeRules';
 import { softBadgeStyle, softDotStyle } from '../../lib/softBadgeStyle';
-import { rewriteAutomationRulesOnStatusRename } from '../../lib/customStatuses';
+import { getChannelDefaults, channelFallbackLabel } from '../../lib/customChannels';
 
 const PRESET_COLORS = [
-  '#8B949E', // Gray
-  '#5B8FB9', // Blue
-  '#6B9FD4', // Light Blue
-  '#E8A838', // Yellow
-  '#F97316', // Orange
-  '#7FB5A0', // Greenish
-  '#4ADE80', // Emerald Green
-  '#E05252', // Red
-  '#6B7280'  // Slate Gray
+  '#8B949E', '#5B8FB9', '#6B9FD4', '#E8A838', '#F97316',
+  '#7FB5A0', '#4ADE80', '#E05252', '#6B7280'
 ];
-
-export const DEFAULT_STATUSES = [
-  { label: 'Lead', color: '#3b82f6' },
-  { label: 'Contacted', color: '#f59e0b' },
-  { label: 'Positive Reply', color: '#8b5cf6' },
-  { label: 'Invite Sent', color: '#6B9FD4' },
-  { label: 'Booked', color: '#ec4899' },
-  { label: 'No show', color: '#ef4444' },
-  { label: 'Rescheduled', color: '#a855f7' },
-  { label: 'Proposal Sent', color: '#06b6d4' },
-  { label: 'Followed up', color: '#10b981' },
-  { label: 'Not Interested', color: '#6b7280' },
-  { label: 'Closed Won', color: '#10b981' }
-];
-
-export const DEFAULT_CALL_STATUSES = CALL_STATUS_DEFAULTS;
 
 const seedingPromises = {};
 
-function channelDefaults(channel) {
-  return channel === 'calls' ? DEFAULT_CALL_STATUSES : DEFAULT_STATUSES;
-}
-
-function channelFallbackLabel(channel) {
-  return channel === 'calls' ? 'Not called' : 'Lead';
-}
-
-function channelLeadField(channel) {
-  return channel === 'calls' ? 'call_status' : 'status';
-}
-
-export default function GroupedStatusDropdown({
+export default function GroupedChannelDropdown({
   value,
   onChange,
   isTableInline = false,
@@ -58,11 +22,10 @@ export default function GroupedStatusDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState('');
-  const [statuses, setStatuses] = useState(() => channelDefaults(channel));
+  const [statuses, setStatuses] = useState(() => getChannelDefaults(channel));
   const [userId, setUserId] = useState(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 220, openUp: false });
 
-  // Edit mode inputs
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingLabel, setEditingLabel] = useState('');
   const [editingColor, setEditingColor] = useState('');
@@ -71,14 +34,13 @@ export default function GroupedStatusDropdown({
 
   const panelRef = useRef(null);
   const triggerRef = useRef(null);
-  const defaults = channelDefaults(channel);
+  const defaults = getChannelDefaults(channel);
   const fallbackLabel = channelFallbackLabel(channel);
-  const leadField = channelLeadField(channel);
+  const leadField = 'outreach_channel';
   const seedKey = (uid) => `${uid}:${channel}`;
 
   useEffect(() => {
     if (!isOpen) return undefined;
-
     const handleClickOutside = (e) => {
       const inTrigger = triggerRef.current?.contains(e.target);
       const inPanel = panelRef.current?.contains(e.target);
@@ -87,12 +49,9 @@ export default function GroupedStatusDropdown({
         setIsEditing(false);
       }
     };
-
-    // Defer so the opening click does not immediately close the panel.
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside);
     }, 0);
-
     return () => {
       clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -103,7 +62,7 @@ export default function GroupedStatusDropdown({
     e?.stopPropagation?.();
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownHeight = 320; // max expected height
+      const dropdownHeight = 320;
       const spaceBelow = window.innerHeight - rect.bottom;
       const openUp = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
       const width = isTableInline ? 220 : Math.max(rect.width, 220);
@@ -130,15 +89,14 @@ export default function GroupedStatusDropdown({
 
   const fetchChannelStatuses = async (uid) => {
     const { data } = await supabase
-      .from('custom_statuses')
+      .from('custom_channels')
       .select('*')
       .eq('user_id', uid)
-      .eq('channel', channel)
+      .eq('type', channel)
       .order('sort_order', { ascending: true });
-    return dedupeStatuses(data);
+    return dedupeStatuses(data.map(d => ({ ...d, label: d.name })));
   };
 
-  // Load user session and custom statuses from Supabase
   const loadStatuses = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -147,8 +105,6 @@ export default function GroupedStatusDropdown({
       setUserId(uid);
 
       const key = seedKey(uid);
-
-      // Lock to prevent concurrent seedings
       if (seedingPromises[key]) {
         await seedingPromises[key];
         const unique = await fetchChannelStatuses(uid);
@@ -157,14 +113,14 @@ export default function GroupedStatusDropdown({
       }
 
       const { data, error } = await supabase
-        .from('custom_statuses')
+        .from('custom_channels')
         .select('*')
         .eq('user_id', uid)
-        .eq('channel', channel)
+        .eq('type', channel)
         .order('sort_order', { ascending: true });
 
       if (error) {
-        console.warn('Error loading custom statuses:', error);
+        console.warn('Error loading custom channels:', error);
         setStatuses(defaults);
         return;
       }
@@ -175,7 +131,8 @@ export default function GroupedStatusDropdown({
           const duplicateIds = [];
           const uniqueData = [];
 
-          data.forEach(d => {
+          data.forEach(item => {
+            const d = { ...item, label: item.name };
             const lowerLabel = d.label.toLowerCase();
             if (seenLabels.has(lowerLabel)) {
               duplicateIds.push(d.id);
@@ -186,7 +143,7 @@ export default function GroupedStatusDropdown({
           });
 
           if (duplicateIds.length > 0) {
-            await supabase.from('custom_statuses').delete().in('id', duplicateIds);
+            await supabase.from('custom_channels').delete().in('id', duplicateIds);
           }
 
           const existingLabels = new Set(uniqueData.map(d => d.label.toLowerCase()));
@@ -196,19 +153,19 @@ export default function GroupedStatusDropdown({
             const performSeeding = async () => {
               const seedMissing = missingDefaults.map((d, idx) => ({
                 user_id: uid,
-                channel,
-                label: d.label,
+                type: channel,
+                name: d.label,
                 color: d.color,
                 sort_order: uniqueData.length + idx
               }));
               
               const { data: insertedData, error: insertErr } = await supabase
-                .from('custom_statuses')
+                .from('custom_channels')
                 .insert(seedMissing)
                 .select();
                 
               if (!insertErr && insertedData) {
-                return [...uniqueData, ...insertedData];
+                return [...uniqueData, ...insertedData.map(d => ({ ...d, label: d.name }))];
               }
               return uniqueData;
             };
@@ -224,18 +181,18 @@ export default function GroupedStatusDropdown({
           const performInitialSeeding = async () => {
             const seedData = defaults.map((d, idx) => ({
               user_id: uid,
-              channel,
-              label: d.label,
+              type: channel,
+              name: d.label,
               color: d.color,
               sort_order: idx
             }));
             const { data: insertedData, error: insertErr } = await supabase
-              .from('custom_statuses')
+              .from('custom_channels')
               .insert(seedData)
               .select();
             
             if (!insertErr && insertedData) {
-              return insertedData;
+              return insertedData.map(d => ({ ...d, label: d.name }));
             }
             return defaults;
           };
@@ -247,14 +204,19 @@ export default function GroupedStatusDropdown({
         }
       }
     } catch (err) {
-      console.error('Error loading custom statuses:', err);
+      console.error('Error loading custom channels:', err);
       setStatuses(defaults);
     }
   };
 
   useEffect(() => {
-    setStatuses(defaults);
-    loadStatuses();
+    let mounted = true;
+    getChannelDefaults(channel); // Just calling to be sure it's defined
+    loadStatuses().then(() => {
+      if (!mounted) return;
+    });
+    return () => { mounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
   const handleSelect = (val) => {
@@ -266,17 +228,17 @@ export default function GroupedStatusDropdown({
   const handleAdd = async () => {
     if (!newLabel.trim() || !userId) return;
     if (statuses.some(s => s.label.toLowerCase() === newLabel.trim().toLowerCase())) {
-      alert('Status label already exists.');
+      alert('Channel label already exists.');
       return;
     }
 
     try {
       const { data, error } = await supabase
-        .from('custom_statuses')
+        .from('custom_channels')
         .insert({
           user_id: userId,
-          channel,
-          label: newLabel.trim(),
+          type: channel,
+          name: newLabel.trim(),
           color: newColor,
           sort_order: statuses.length
         })
@@ -284,12 +246,12 @@ export default function GroupedStatusDropdown({
         .single();
 
       if (!error && data) {
-        setStatuses(prev => [...prev, data]);
+        setStatuses(prev => [...prev, { ...data, label: data.name }]);
         setNewLabel('');
         if (onUpdate) onUpdate();
       }
     } catch (err) {
-      console.error('Error adding status:', err);
+      console.error('Error adding channel:', err);
     }
   };
 
@@ -305,65 +267,31 @@ export default function GroupedStatusDropdown({
     const newL = editingLabel.trim();
 
     if (statuses.some((s, idx) => idx !== index && s.label.toLowerCase() === newL.toLowerCase())) {
-      alert('Status label already exists.');
+      alert('Channel label already exists.');
       return;
     }
 
     try {
       const { data, error } = await supabase
-        .from('custom_statuses')
-        .update({ label: newL, color: editingColor })
+        .from('custom_channels')
+        .update({ name: newL, color: editingColor })
         .eq('id', statuses[index].id)
         .select()
         .single();
 
       if (!error && data) {
         const updated = [...statuses];
-        updated[index] = data;
+        updated[index] = { ...data, label: data.name };
         setStatuses(updated);
         setEditingIndex(null);
 
         if (oldLabel !== newL) {
-          if (channel === 'calls') {
-            await supabase
-              .from('leads')
-              .update({ call_status: newL })
-              .eq('user_id', userId)
-              .eq('call_status', oldLabel);
-          } else {
-            await supabase
-              .from('leads')
-              .update({ status: newL })
-              .eq('user_id', userId)
-              .eq('status', oldLabel);
-          }
-
-          try {
-            const { data: profile } = await supabase
-              .from('user_profiles')
-              .select('team_id')
-              .eq('id', userId)
-              .maybeSingle();
-            await rewriteAutomationRulesOnStatusRename({
-              userId,
-              teamId: profile?.team_id || null,
-              channel,
-              oldLabel,
-              newLabel: newL,
-            });
-            window.dispatchEvent(
-              new CustomEvent('reachdesk:status-renamed', {
-                detail: { channel, oldLabel, newLabel: newL },
-              }),
-            );
-          } catch (renameErr) {
-            console.warn('Failed to rewrite automation rules after status rename:', renameErr);
-          }
+          await supabase.from('leads').update({ outreach_channel: newL }).eq('user_id', userId).eq('outreach_channel', oldLabel);
         }
         if (onUpdate) onUpdate();
       }
     } catch (err) {
-      console.error('Error updating status:', err);
+      console.error('Error updating channel:', err);
     }
   };
 
@@ -377,31 +305,27 @@ export default function GroupedStatusDropdown({
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId);
 
-      if (channel === 'calls') {
-        query.eq('call_status', labelToDelete);
-      } else {
-        query.eq('status', labelToDelete);
-      }
+      query.eq('outreach_channel', labelToDelete);
 
       const { count, error } = await query;
 
-      const resetValue = channel === 'calls' ? null : fallbackLabel;
-      const resetLabel = channel === 'calls' ? 'Not called' : fallbackLabel;
+      const resetValue = null;
+      const resetLabel = 'None';
 
       if (!error && count > 0) {
-        if (!confirm(`Warning: ${count} lead(s) are currently in "${labelToDelete}" status. Deleting this will reassign them to "${resetLabel}". Proceed?`)) {
+        if (!confirm(`Warning: ${count} lead(s) are currently assigned to "${labelToDelete}". Deleting this will reset them to "${resetLabel}". Proceed?`)) {
           return;
         }
-        const updatePayload = channel === 'calls' ? { call_status: resetValue } : { status: resetValue };
+        const updatePayload = { outreach_channel: resetValue };
         await supabase
           .from('leads')
           .update(updatePayload)
           .eq('user_id', userId)
-          .eq(leadField, labelToDelete);
+          .eq('outreach_channel', labelToDelete);
       }
 
       const { error: deleteErr } = await supabase
-        .from('custom_statuses')
+        .from('custom_channels')
         .delete()
         .eq('id', statuses[index].id);
 
@@ -410,38 +334,38 @@ export default function GroupedStatusDropdown({
         if (onUpdate) onUpdate();
       }
     } catch (err) {
-      console.error('Error deleting status:', err);
+      console.error('Error deleting channel:', err);
     }
   };
 
   const handleResetToDefaults = async () => {
-    if (!confirm('Are you sure you want to reset all statuses to defaults? This will delete custom edits.')) return;
+    if (!confirm('Are you sure you want to reset all channels to defaults? This will delete custom edits.')) return;
     try {
       const { error: delErr } = await supabase
-        .from('custom_statuses')
+        .from('custom_channels')
         .delete()
         .eq('user_id', userId)
-        .eq('channel', channel);
+        .eq('type', channel);
 
       if (delErr) throw delErr;
 
       const seedData = defaults.map((d, idx) => ({
         user_id: userId,
-        channel,
-        label: d.label,
+        type: channel,
+        name: d.label,
         color: d.color,
         sort_order: idx
       }));
 
       const { data: insertedData, error: insertErr } = await supabase
-        .from('custom_statuses')
+        .from('custom_channels')
         .insert(seedData)
         .select();
 
       if (insertErr) throw insertErr;
 
       if (insertedData && insertedData.length > 0) {
-        setStatuses(insertedData);
+        setStatuses(insertedData.map(d => ({ ...d, label: d.name })));
       } else {
         setStatuses(defaults);
       }
@@ -449,8 +373,8 @@ export default function GroupedStatusDropdown({
       if (onUpdate) onUpdate();
       setIsEditing(false);
     } catch (err) {
-      console.error('Error resetting to default statuses:', err);
-      alert('Failed to reset statuses: ' + err.message);
+      console.error('Error resetting channels:', err);
+      alert('Failed to reset channels: ' + err.message);
     }
   };
 
@@ -483,7 +407,7 @@ export default function GroupedStatusDropdown({
             <input
               type="text"
               className="rd-menu__search-input"
-              placeholder="Search status..."
+              placeholder="Search channel..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
@@ -492,7 +416,7 @@ export default function GroupedStatusDropdown({
 
           <div className="rd-menu__list">
             {filteredOptions.length === 0 ? (
-              <div className="rd-menu__empty">No matching statuses</div>
+              <div className="rd-menu__empty">No matching channels</div>
             ) : (
               filteredOptions.map(opt => {
                 const isSelected = opt.label.toLowerCase() === displayValue.toLowerCase();
@@ -522,14 +446,13 @@ export default function GroupedStatusDropdown({
             onClick={() => setIsEditing(true)}
           >
             <Pencil size={12} />
-            Edit Statuses
+            Edit Channels
           </button>
         </>
       ) : (
-        /* Editable Management Mode */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>Manage Statuses</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>Manage Channels</span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
                 type="button"
@@ -549,7 +472,6 @@ export default function GroupedStatusDropdown({
             </div>
           </div>
 
-          {/* Editable Option List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '140px', overflowY: 'auto' }}>
             {statuses.map((opt, idx) => (
               <div
@@ -607,7 +529,6 @@ export default function GroupedStatusDropdown({
             ))}
           </div>
 
-          {/* Add New Status */}
           <div style={{ borderTop: '1px solid var(--border-color, #30363D)', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Add New</span>
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -654,7 +575,6 @@ export default function GroupedStatusDropdown({
               </button>
             </div>
 
-            {/* Preset Colors */}
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
               {PRESET_COLORS.map(c => (
                 <button

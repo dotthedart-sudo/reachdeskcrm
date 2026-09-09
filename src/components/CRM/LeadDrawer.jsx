@@ -5,10 +5,11 @@ import { useAppContext } from '../../App';
 import { fetchLeadCallTimeline } from '../../lib/callActivity';
 import LogCallModal from './callActivity/LogCallModal';
 import LogMessageModal from './LogMessageModal';
-import EditableDropdown from './EditableDropdown';
+import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './EditableDropdown';
 import RichTextEditor from './RichTextEditor';
 import GroupedStatusDropdown from './GroupedStatusDropdown';
 import GroupedTemplateDropdown from './GroupedTemplateDropdown';
+import GroupedChannelDropdown from './GroupedChannelDropdown';
 import {
   updateLeadStatusAndCheckpoint,
   getSuggestionForStatus,
@@ -184,7 +185,7 @@ export default function LeadDrawer({
   }, [editingTitleId]);
 
   // ── Multi-note helpers ──
-  const fetchNotes = async () => {
+  async function fetchNotes() {
     if (!lead) return;
     setNotesLoading(true);
     try {
@@ -278,7 +279,7 @@ export default function LeadDrawer({
 
   const selectedNote = leadNotes.find(n => n.id === selectedNoteId) || null;
 
-  const fetchActivities = async () => {
+  async function fetchActivities() {
     if (!lead) return;
     setActivitiesLoading(true);
     try {
@@ -302,7 +303,7 @@ export default function LeadDrawer({
     }
   };
 
-  const fetchCallAttempts = async () => {
+  async function fetchCallAttempts() {
     if (!lead) return;
     const targetLeadId = isClientView ? lead.lead_id : lead.id;
     if (!targetLeadId) {
@@ -321,7 +322,7 @@ export default function LeadDrawer({
     }
   };
 
-  const fetchTimeline = async () => {
+  async function fetchTimeline() {
     if (!lead) return;
     const targetLeadId = isClientView ? lead.lead_id : lead.id;
     if (!targetLeadId) {
@@ -1004,6 +1005,19 @@ export default function LeadDrawer({
                     <GroupedStatusDropdown
                       value={currentStatus}
                       onChange={(newVal) => handleDropdownChange('status', newVal)}
+                    />
+                  </div>
+                );
+              }
+
+              if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
+                return (
+                  <div key={col.id} className="form-group">
+                    <label className="form-label">{col.column_label}</label>
+                    <GroupedChannelDropdown
+                      value={val}
+                      onChange={(newVal) => handleDropdownChange('outreach_channel', newVal)}
+                      channel="messaging"
                     />
                   </div>
                 );

@@ -7,7 +7,7 @@ export const MESSAGE_PIPELINE_STAGES = [
   'Contacted',
   'Positive Reply',
   'Proposal Sent',
-  'Calendly Sent',
+  'Invite Sent',
   'Booked',
   'Closed Won',
 ];
@@ -17,7 +17,7 @@ export const MESSAGE_STAGE_COLORS = {
   Contacted: '#f59e0b',
   'Positive Reply': '#8b5cf6',
   'Proposal Sent': '#06b6d4',
-  'Calendly Sent': '#6B9FD4',
+  'Invite Sent': '#6B9FD4',
   Booked: '#ec4899',
   'Closed Won': '#22c55e',
 };
