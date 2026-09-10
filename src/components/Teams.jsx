@@ -18,6 +18,8 @@ import {
 } from '../lib/teamWorkspace';
 import { getExtraSeats, TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY } from '../lib/planConfig';
 import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
+import SegmentedControl from './ui/SegmentedControl';
+import ToggleSwitch from './ui/ToggleSwitch';
 import {
   fetchTeamCallPermissions,
   updateTeamCallSettings,
@@ -713,12 +715,11 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                     When on, teammates can see revenue entries across the workspace.
                   </div>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
                   checked={!!settings.members_can_view_revenue}
                   onChange={() => handleToggleSetting('members_can_view_revenue')}
                   disabled={settingsSaving}
-                  style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
+                  ariaLabel="Members can view Revenue Tracker"
                 />
               </label>
 
@@ -741,12 +742,11 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                     When on, teammates can see invoices across the workspace. When off, each person only sees invoices they created.
                   </div>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
                   checked={!!settings.members_can_view_invoices}
                   onChange={() => handleToggleSetting('members_can_view_invoices')}
                   disabled={settingsSaving}
-                  style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
+                  ariaLabel="Members can view Invoices"
                 />
               </label>
             </div>
@@ -786,37 +786,30 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                   borderRadius: '6px',
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>Call activity sharing</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Call activity sharing</div>
+                  <ToggleSwitch
+                    checked={callSettings.call_activity_sharing !== 'off'}
+                    onChange={(checked) => handleCallSharingChange(checked ? 'all_members' : 'off')}
+                    disabled={callSettingsSaving}
+                  />
+                </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                   Control who can see team-wide call logs. Owners always see full activity and notes.
                 </div>
-                <div className="flex-col gap-2" style={{ marginBottom: '0.75rem' }}>
-                  {[
-                    { value: 'off', label: 'Off — members see only their own calls' },
-                    { value: 'all_members', label: 'All members — everyone sees team call activity' },
-                    { value: 'selected_members', label: 'Selected members — pick who can view team activity' },
-                  ].map((opt) => (
-                    <label
-                      key={opt.value}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        cursor: callSettingsSaving ? 'wait' : 'pointer',
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="call_activity_sharing"
-                        checked={callSettings.call_activity_sharing === opt.value}
-                        onChange={() => handleCallSharingChange(opt.value)}
-                        disabled={callSettingsSaving}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
+                {callSettings.call_activity_sharing !== 'off' && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <SegmentedControl
+                      ariaLabel="Call activity sharing"
+                      value={callSettings.call_activity_sharing}
+                      onChange={handleCallSharingChange}
+                      options={[
+                        { value: 'all_members', label: 'All members' },
+                        { value: 'selected_members', label: 'Selected members' },
+                      ]}
+                    />
+                  </div>
+                )}
 
                 <label
                   style={{
@@ -835,12 +828,11 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                       When off, teammates see outcome and timing only unless they logged the call or have note permission.
                     </div>
                   </div>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
                     checked={!!callSettings.call_notes_visible_to_team}
                     onChange={handleCallNotesToggle}
                     disabled={callSettingsSaving || callSettings.call_activity_sharing === 'off'}
-                    style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
+                    ariaLabel="Show call notes to viewers"
                   />
                 </label>
 
@@ -875,32 +867,30 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                               >
                                 <span style={{ fontWeight: 500 }}>{label}</span>
                                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-                                    <input
-                                      type="checkbox"
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <ToggleSwitch
                                       checked={!!perm.can_view_team_call_activity}
                                       disabled={callSettingsSaving}
-                                      onChange={(e) => handleMemberCallPermission(
+                                      onChange={(checked) => handleMemberCallPermission(
                                         member.id,
                                         'can_view_team_call_activity',
-                                        e.target.checked,
+                                        checked,
                                       )}
                                     />
-                                    View activity
-                                  </label>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-                                    <input
-                                      type="checkbox"
+                                    <span>View activity</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <ToggleSwitch
                                       checked={!!perm.can_view_call_notes}
                                       disabled={callSettingsSaving || !perm.can_view_team_call_activity}
-                                      onChange={(e) => handleMemberCallPermission(
+                                      onChange={(checked) => handleMemberCallPermission(
                                         member.id,
                                         'can_view_call_notes',
-                                        e.target.checked,
+                                        checked,
                                       )}
                                     />
-                                    View notes
-                                  </label>
+                                    <span>View notes</span>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -919,37 +909,30 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                   borderRadius: '6px',
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>Calendar activity sharing</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Calendar activity sharing</div>
+                  <ToggleSwitch
+                    checked={calendarSettings.calendar_activity_sharing !== 'off'}
+                    onChange={(checked) => handleCalendarSharingChange(checked ? 'all_members' : 'off')}
+                    disabled={callSettingsSaving}
+                  />
+                </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                   Control who can browse teammates&apos; calendar timeline and planned outreach.
                 </div>
-                <div className="flex-col gap-2" style={{ marginBottom: '0.75rem' }}>
-                  {[
-                    { value: 'off', label: 'Off — members see only their own calendar activity' },
-                    { value: 'all_members', label: 'All members — everyone sees team calendar activity' },
-                    { value: 'selected_members', label: 'Selected members — pick who can view team activity' },
-                  ].map((opt) => (
-                    <label
-                      key={opt.value}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        cursor: callSettingsSaving ? 'wait' : 'pointer',
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="calendar_activity_sharing"
-                        checked={calendarSettings.calendar_activity_sharing === opt.value}
-                        onChange={() => handleCalendarSharingChange(opt.value)}
-                        disabled={callSettingsSaving}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
+                {calendarSettings.calendar_activity_sharing !== 'off' && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <SegmentedControl
+                      ariaLabel="Calendar activity sharing"
+                      value={calendarSettings.calendar_activity_sharing}
+                      onChange={handleCalendarSharingChange}
+                      options={[
+                        { value: 'all_members', label: 'All members' },
+                        { value: 'selected_members', label: 'Selected members' },
+                      ]}
+                    />
+                  </div>
+                )}
 
                 {calendarSettings.calendar_activity_sharing === 'selected_members' && (
                   <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -966,7 +949,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                             };
                             const label = member.full_name || member.email;
                             return (
-                              <label
+                              <div
                                 key={member.id}
                                 style={{
                                   display: 'flex',
@@ -976,17 +959,15 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                                   padding: '0.5rem 0',
                                   borderBottom: '1px solid var(--border-color)',
                                   fontSize: '0.85rem',
-                                  cursor: 'pointer',
                                 }}
                               >
                                 <span style={{ fontWeight: 500 }}>{label}</span>
-                                <input
-                                  type="checkbox"
+                                <ToggleSwitch
                                   checked={!!perm.can_view_team_calendar_activity}
                                   disabled={callSettingsSaving}
-                                  onChange={(e) => handleMemberCalendarPermission(member.id, e.target.checked)}
+                                  onChange={(checked) => handleMemberCalendarPermission(member.id, checked)}
                                 />
-                              </label>
+                              </div>
                             );
                           })}
                       </div>

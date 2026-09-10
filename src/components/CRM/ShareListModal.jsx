@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Users } from 'lucide-react';
 import { saveFolderShares } from '../../lib/folderShares';
+import ToggleSwitch from '../ui/ToggleSwitch';
 
 export default function ShareListModal({
   open,
@@ -98,7 +99,7 @@ export default function ShareListModal({
                         cursor: 'pointer',
                       }}
                     >
-                      <input type="checkbox" checked={checked} onChange={() => toggle(m.id)} />
+                      <ToggleSwitch checked={checked} onChange={() => toggle(m.id)} />
                       <Users size={14} style={{ color: 'var(--text-muted)' }} />
                       <span style={{ flex: 1, fontSize: '0.85rem' }}>
                         {m.full_name || m.email}

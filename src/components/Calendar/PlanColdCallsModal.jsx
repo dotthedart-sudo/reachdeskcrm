@@ -192,14 +192,15 @@ export default function PlanColdCallsModal({
           </select>
         )}
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+          <ToggleSwitch
             checked={callableOnly}
-            onChange={(e) => { setCallableOnly(e.target.checked); setSelected(new Set()); }}
+            onChange={(checked) => { setCallableOnly(checked); setSelected(new Set()); }}
           />
-          Callable now (9am–6pm in lead&apos;s timezone, Mon–Fri)
-        </label>
+          <span style={{ fontSize: '0.85rem' }}>
+            Callable now (9am–6pm in lead&apos;s timezone, Mon–Fri)
+          </span>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>

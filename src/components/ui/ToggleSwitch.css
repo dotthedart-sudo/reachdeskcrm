@@ -1,0 +1,45 @@
+.rd-toggle-switch {
+  appearance: none;
+  border: 1px solid var(--border-color, #d1d5db);
+  padding: 0;
+  margin: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: var(--bg-tertiary, #f3f4f6);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.rd-toggle-switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--primary-magenta);
+}
+
+.rd-toggle-switch--on {
+  background-color: #10b981; /* Green when ON */
+  border-color: #10b981;
+}
+
+.rd-toggle-switch__thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.rd-toggle-switch--on .rd-toggle-switch__thumb {
+  transform: translateX(16px);
+}
+
+.rd-toggle-switch--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

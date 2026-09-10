@@ -5,10 +5,9 @@ import {
   DEFAULT_CALL_OUTCOME_RULES,
   DEFAULT_CALL_STATUS_RULES,
 } from '../../lib/callOutcomeRules';
-import {
-  DEFAULT_MESSAGING_ACTION_RULES,
-} from '../../lib/automationRules';
+import { DEFAULT_MESSAGING_ACTION_RULES } from '../../lib/automationRules';
 import { CALL_OUTCOMES } from '../../lib/outreachQueue';
+import ToggleSwitch from '../ui/ToggleSwitch';
 
 const SECTIONS = [
   { id: 'reminders', label: 'Reminders', icon: Bell },
@@ -109,18 +108,10 @@ function ToggleRow({ title, description, checked, onChange, disabled }) {
         <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
           {title}
         </span>
-        <input
-          type="checkbox"
+        <ToggleSwitch
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
+          onChange={onChange}
           disabled={disabled}
-          style={{
-            width: 18,
-            height: 18,
-            margin: 0,
-            flexShrink: 0,
-            cursor: disabled ? 'wait' : 'pointer',
-          }}
         />
       </div>
       {description ? (
