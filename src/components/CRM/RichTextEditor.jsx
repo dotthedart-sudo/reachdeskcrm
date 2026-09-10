@@ -90,7 +90,7 @@ export default function RichTextEditor({
   }, []);
 
   // Theme-aware defaults
-  const defaultDarkBg = '#13132a';
+  const defaultDarkBg = '#1A1A1A';
   const defaultLightBg = '#ffffff';
 
   const [editorBg, setEditorBg] = useState(() => {
@@ -113,9 +113,9 @@ export default function RichTextEditor({
   // Determine if the current bg is "light" so we can pick contrasting text
   const isBgLight = ['#f8f9fa', '#ffffff', '#f5f3ff', '#fefce8', '#eff6ff', '#f0fdf4', '#fdf2f8'].includes(editorBg);
   const editorTextColor = isBgLight ? '#1e1b4b' : '#e2e8f0';
-  const toolbarBg = isLightMode ? '#f5f3ff' : '#1e1e3a';
-  const footerBg = isLightMode ? '#f0eef9' : '#0f0f1f';
-  const footerTextColor = isLightMode ? '#6d28d9' : '#6b7280';
+  const toolbarBg = isLightMode ? '#F5F5F5' : '#222222';
+  const footerBg = isLightMode ? '#F0F0F0' : '#181818';
+  const footerTextColor = isLightMode ? '#525252' : '#6b7280';
 
   const autoSaveTimeoutRef = useRef(null);
 
@@ -520,15 +520,15 @@ export default function RichTextEditor({
           vertical-align: top;
         }
         .ProseMirror table th {
-          background: ${isLightMode ? 'rgba(109, 40, 217, 0.06)' : 'rgba(139, 92, 246, 0.1)'} !important;
+          background: ${isLightMode ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)'} !important;
           font-weight: 600;
-          color: ${isLightMode ? '#6d28d9' : '#c4b5fd'} !important;
+          color: ${isLightMode ? '#333338' : '#A3A3A3'} !important;
         }
         .ProseMirror table tr:hover td {
-          background: rgba(139, 92, 246, 0.04) !important;
+          background: ${isLightMode ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.03)'} !important;
         }
         .ProseMirror .selectedCell:after {
-          background: rgba(139, 92, 246, 0.15) !important;
+          background: ${isLightMode ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.10)'} !important;
         }
         .toolbar-btn {
           width: 32px;
@@ -544,12 +544,12 @@ export default function RichTextEditor({
           transition: all 0.2s;
         }
         .toolbar-btn:hover {
-          background-color: rgba(139, 92, 246, 0.15);
-          color: #8b5cf6;
+          background-color: var(--bg-hover);
+          color: var(--text-primary);
         }
         .toolbar-btn.is-active {
-          background-color: #8b5cf6;
-          color: white;
+          background-color: var(--accent-blue);
+          color: var(--accent-on);
         }
         .toolbar-select {
           background: ${toolbarBg};
@@ -574,7 +574,7 @@ export default function RichTextEditor({
           transform: scale(1.15);
         }
         .bg-picker-circle.is-active {
-          border-color: ${isLightMode ? '#6d28d9' : 'white'};
+          border-color: ${isLightMode ? '#333338' : '#FFFFFF'};
         }
         ul[data-type="taskList"] {
           list-style: none;

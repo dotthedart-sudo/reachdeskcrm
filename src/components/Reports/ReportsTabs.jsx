@@ -10,11 +10,13 @@ export default function ReportsTabs({
   messageConversionRates, 
   callCounts, 
   callConversionRates,
+  callActivity,
   callStageIds,
   getMessageStageDisplayLabel,
   getCallStageLabel,
   trendData,
   breakdownData,
+  listTableData,
   growthStats,
   countMode,
   setCountMode
@@ -105,6 +107,7 @@ export default function ReportsTabs({
             messageConversionRates={messageConversionRates}
             callCounts={callCounts}
             callConversionRates={callConversionRates}
+            callActivity={callActivity}
             callStageIds={callStageIds}
             getMessageStageDisplayLabel={getMessageStageDisplayLabel}
             getCallStageLabel={getCallStageLabel}
@@ -113,7 +116,9 @@ export default function ReportsTabs({
         {activeTab === 'breakdown' && (
           <ReportsBreakdownTab 
             breakdownData={breakdownData}
+            listTableData={listTableData}
             growthStats={growthStats}
+            countMode={countMode}
           />
         )}
       </div>

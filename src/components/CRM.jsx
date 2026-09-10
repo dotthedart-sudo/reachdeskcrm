@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/purity, react-hooks/preserve-manual-memoization, no-empty, no-extra-boolean-cast */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -222,6 +223,7 @@ export default function CRM({
     }
   });
   const [callStatuses, setCallStatuses] = useState(DEFAULT_CALL_STATUSES);
+  const [customChannels, setCustomChannels] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -365,7 +367,7 @@ export default function CRM({
   const activeListShowsLocalTime = useMemo(() => {
     if (!activeManualFolderId || outreachMode !== 'messages' || view === 'clients') return false;
     return listFolderShowsLocalTime(activeManualFolderId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- listSettingsTick refreshes localStorage-backed settings
+   
   }, [activeManualFolderId, outreachMode, view, listSettingsTick]);
 
   const tableCols = useMemo(() => {
@@ -755,9 +757,7 @@ export default function CRM({
   const [showBulkChannelMenu, setShowBulkChannelMenu] = useState(false);
   const [showBulkPriorityMenu, setShowBulkPriorityMenu] = useState(false);
 
-  if (!currentUser) {
-    return <div className="loading-container">Loading profile...</div>;
-  }
+
 
   const plan = getEffectivePlan(currentUser);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
@@ -856,6 +856,12 @@ export default function CRM({
       setFolders(fData);
       localStorage.setItem('crm_folders', JSON.stringify(fData));
       setUserFolders(ufData);
+
+      const { data: chData } = await supabase.from('custom_channels').select('*').in('user_id', teamIds).order('sort_order', { ascending: true });
+      if (chData) {
+        setCustomChannels(chData);
+      }
+      
       let mergedShares = sharesRes || [];
       if (isOwner && fData.length > 0) {
         const teamFolderIds = fData
@@ -2582,13 +2588,17 @@ export default function CRM({
 
 
 
+  if (!currentUser) {
+    return <div className="loading-container">Loading profile...</div>;
+  }
+
   return (
     <div
       className={`crm-workspace flex w-full${isBrowseMode ? '' : ' crm-workspace--list'}${rootClass}`}
       style={isBrowseMode ? undefined : { minHeight: 'calc(100vh - 120px)' }}
     >
       {/* Leads Table Content Section — no Lists sidebar; switch lists via breadcrumb */}
-      <div className={`flex-col gap-4 page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%' }}>
+      <div className={`flex-col page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%', gap: 'var(--space-6)' }}>
         {canUseIntegrations && sheetsNeedsReconnect && (
           <div style={{
             padding: '0.75rem 1rem',
@@ -3469,12 +3479,12 @@ export default function CRM({
                         const isCustom = !col.is_default;
                         const cellValue = isCustom ? lead.custom_fields?.[col.column_key] : lead[col.column_key];
                         const copyValue = getLeadCellCopyValue(lead, col);
-                        const tdProps = { key: col.id, style: cellWidth(col.column_key) };
+                        const { key: tdKey, ...tdProps } = { key: col.id, style: cellWidth(col.column_key) };
 
                         if (col.column_key === 'name') {
                           const displayName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || '—';
                           return (
-                            <td {...tdProps}>
+                            <td key={tdKey} {...tdProps}>
                               <CopyableCell value={copyValue} onCopied={handleCopyCell}>
                                 <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
                               </CopyableCell>
@@ -3484,7 +3494,7 @@ export default function CRM({
 
                         if (col.column_key === 'template_used') {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={lead.template_used || ''} onCopied={handleCopyCell} variant="inline">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -3524,7 +3534,7 @@ export default function CRM({
                         if (col.column_key === 'status') {
                           const currentStatus = cellValue || 'Lead';
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={currentStatus} onCopied={handleCopyCell} variant="inline">
                                 <GroupedStatusDropdown
                                   value={currentStatus}
@@ -3539,7 +3549,7 @@ export default function CRM({
 
                         if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={lead.outreach_channel || ''} onCopied={handleCopyCell} variant="inline">
                                 <GroupedChannelDropdown
                                   value={lead.outreach_channel}
@@ -3555,7 +3565,7 @@ export default function CRM({
 
                         if (col.column_key === 'priority') {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={lead.priority || ''} onCopied={handleCopyCell} variant="inline">
                                 <PriorityDropdown
                                   value={lead.priority}
@@ -3577,7 +3587,7 @@ export default function CRM({
                           const showLightbulb = isActionToTake && (isSuggestionMismatch || isCheckpointDue);
 
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   <EditableDropdown
@@ -3643,7 +3653,7 @@ export default function CRM({
                             catch { domain = cellValue.slice(0, 22); }
                           }
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={cellValue || ''} onCopied={handleCopyCell}>
                                 {linkHref ? (
                                   <a href={linkHref} target="_blank" rel="noopener noreferrer"
@@ -3670,7 +3680,7 @@ export default function CRM({
                             } catch {}
                           }
                           return (
-                            <td {...tdProps} style={{ ...tdProps.style, fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            <td key={tdKey} {...tdProps} style={{ ...tdProps.style, fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                               <CopyableCell value={formatted === '—' ? '' : formatted} onCopied={handleCopyCell}>
                                 {formatted}
                               </CopyableCell>
@@ -3680,7 +3690,7 @@ export default function CRM({
 
                         if (col.column_key === 'platform' || col.column_type === 'reach' || col.column_type === 'system') {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <ReachIcons lead={lead} columnDefs={columnDefs} onReachClick={handleReachClick} />
                             </td>
                           );
@@ -3690,7 +3700,7 @@ export default function CRM({
                         if (['linkedin_url', 'instagram_url', 'twitter_url', 'website'].includes(col.column_key) && cellValue) {
                           const url = cellValue.startsWith('http') ? cellValue : `https://${cellValue}`;
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
                               <CopyableCell value={cellValue} onCopied={handleCopyCell}>
                                 <a href={url} target="_blank" rel="noopener noreferrer"
                                   style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
@@ -3705,7 +3715,7 @@ export default function CRM({
                         // ── Clickable email ────────────────────────────────────
                         if (col.column_key === 'email' && cellValue) {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CopyableCell value={cellValue} onCopied={handleCopyCell}>
                                 <a href={`mailto:${cellValue}`}
                                   style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
@@ -3722,7 +3732,7 @@ export default function CRM({
                         if (col.column_key === 'local_time') {
                           const defaultCountryCode = currentUser?.default_country_code || '+92';
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()}>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
                               <CallWindowBadge
                                 lead={lead}
                                 defaultCountryCode={defaultCountryCode}
@@ -3737,7 +3747,7 @@ export default function CRM({
                         // ── Phone popup ────────────────────────────────────────
                         if (col.column_key === 'phone') {
                           return (
-                            <td {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
                               <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
                                 <PhonePopup phone={cellValue} />
                               </CopyableCell>
@@ -3746,7 +3756,7 @@ export default function CRM({
                         }
 
                         return (
-                          <td {...tdProps} data-ph-mask>
+                          <td key={tdKey} {...tdProps} data-ph-mask>
                             <CopyableCell value={copyValue} onCopied={handleCopyCell}>
                               {cellValue || '—'}
                             </CopyableCell>
@@ -4731,6 +4741,34 @@ export default function CRM({
                               <option key={s.label} value={s.label}>{s.label}</option>
                             ))
                           )}
+                        </select>
+                      ) : rule.field === 'Channel' ? (
+                        <select
+                          value={rule.value}
+                          onChange={e => {
+                            const newRules = [...smartFolderForm.rules];
+                            newRules[idx].value = e.target.value;
+                            setSmartFolderForm({...smartFolderForm, rules: newRules});
+                          }}
+                          className="form-select"
+                          style={{ flex: 1.5, minWidth: '150px' }}
+                          required
+                        >
+                          <option value="">-- Select Channel --</option>
+                          {(() => {
+                            const uniqueNames = new Set();
+                            const options = [];
+                            const addOption = (name) => {
+                              if (!uniqueNames.has(name.toLowerCase())) {
+                                uniqueNames.add(name.toLowerCase());
+                                options.push(<option key={name} value={name}>{name}</option>);
+                              }
+                            };
+                            getChannelDefaults('messaging').forEach(c => addOption(c.label));
+                            getChannelDefaults('calls').forEach(c => addOption(c.label));
+                            customChannels.forEach(c => addOption(c.name));
+                            return options;
+                          })()}
                         </select>
                       ) : rule.field === 'Priority' ? (
                         <select

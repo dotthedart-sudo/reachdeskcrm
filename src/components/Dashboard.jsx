@@ -453,11 +453,11 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revealBlock = blockClass;
 
   return (
-    <div className={`flex-col gap-4 page-stack${rootClass}`} style={{ textAlign: 'left' }}>
+    <div className={`flex-col page-stack${rootClass}`} style={{ textAlign: 'left', gap: 'var(--space-6)' }}>
       <p className="color-muted page-intro">Outreach engine tracking, conversions, and follow-ups status.</p>
 
       {metrics.total === 0 && !loading ? (
-        <div className={`card empty-state${revealBlock}`} style={{ marginTop: 'var(--space-5)' }}>
+        <div className={`card empty-state${revealBlock}`}>
           <div className="empty-state-icon" style={{ width: 56, height: 56, color: 'var(--text-primary)', background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
             <BarChart2 size={28} />
           </div>
@@ -473,7 +473,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         <>
           {/* Primary KPIs Row — uses dash-kpi-grid so the mobile @media override
               (max-width 768px → 1-column stack) applies correctly */}
-      <div className={`dash-kpi-grid${revealBlock}`}>
+      <div className={`dash-kpi-grid${revealBlock}`} style={{ marginBottom: 0 }}>
         
         {/* Leads card */}
         <div className="card flex align-start gap-3" style={{ minHeight: 140 }}>
@@ -629,7 +629,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           display: 'grid',
           gridTemplateColumns: showCallsStrip ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr',
           gap: '1rem',
-          marginTop: '0.5rem',
         }}
       >
         <div className="card">
@@ -674,7 +673,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
 
 
       {/* Main Dual Grid: Column 1 = Up Next chronological feed, Column 2 = Urgent Reminders & Templates */}
-      <div className={blockProp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '0.5rem' }}>
+      <div className={blockProp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
         
         {/* Column 1: Upcoming Next Feed */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

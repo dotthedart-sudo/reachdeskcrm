@@ -118,6 +118,22 @@ export function emptyPipelineStats() {
       callback: 0,
       closed: 0,
     },
+    call_activity: {
+      total_attempts: 0,
+      answered_count: 0,
+      connect_rate: 0,
+      distinct_leads: 0,
+      avg_attempts_per_lead: 0,
+      outcomes: {
+        Answered: 0,
+        'No Answer': 0,
+        'Voicemail Left': 0,
+        Busy: 0,
+        'Wrong Number': 0,
+        'Callback Requested': 0,
+        'Not Interested': 0,
+      },
+    },
     positive_by_template: {},
   };
 }
@@ -133,6 +149,14 @@ function normalizePipelineStats(raw) {
     week_followups_due: Number(raw.week_followups_due) || 0,
     message_current: { ...base.message_current, ...(raw.message_current || {}) },
     call_current: { ...base.call_current, ...(raw.call_current || {}) },
+    call_activity: {
+      total_attempts: Number(raw.call_activity?.total_attempts) || 0,
+      answered_count: Number(raw.call_activity?.answered_count) || 0,
+      connect_rate: Number(raw.call_activity?.connect_rate) || 0,
+      distinct_leads: Number(raw.call_activity?.distinct_leads) || 0,
+      avg_attempts_per_lead: Number(raw.call_activity?.avg_attempts_per_lead) || 0,
+      outcomes: { ...base.call_activity.outcomes, ...(raw.call_activity?.outcomes || {}) },
+    },
     positive_by_template: raw.positive_by_template || {},
   };
 }
@@ -171,9 +195,28 @@ export async function fetchAllLeadsForScope({
  * Fetch advanced stats for reports (Trends, Breakdowns)
  * Falls back to dummy data if the RPC is not yet available on the backend.
  */
-export async function fetchReportsAdvancedStats(opts = {}) {
+export async function fetchReportsAdvancedStats({
+  userIds,
+  sharedFolderIds = null,
+  applyFolderFilter = false,
+  selectedFolderIds = null,
+  includeUnfiled = false,
+  createdFrom = null,
+  createdTo = null,
+  ownerUserId = null,
+} = {}) {
   try {
-    const { data, error } = await supabase.rpc('get_reports_advanced_stats', opts);
+    const { data, error } = await supabase.rpc('get_reports_advanced_stats', {
+      p_user_ids: userIds,
+      p_shared_folder_ids: sharedFolderIds?.length ? sharedFolderIds : null,
+      p_apply_folder_filter: !!applyFolderFilter,
+      p_selected_folder_ids:
+        applyFolderFilter && selectedFolderIds?.length ? selectedFolderIds : null,
+      p_include_unfiled: !!includeUnfiled,
+      p_created_from: createdFrom,
+      p_created_to: createdTo,
+      p_owner_user_id: ownerUserId,
+    });
     if (error) throw error;
     if (data) return data;
   } catch (err) {
@@ -197,6 +240,13 @@ export async function fetchReportsAdvancedStats(opts = {}) {
       { listName: 'Cold Email Campaign', value: 65 },
       { listName: 'Referrals', value: 30 },
       { listName: 'Unfiled', value: 15 },
+    ],
+    listTableData: [
+      { listName: 'Q3 Outbound', folderId: '1', color: '#3b82f6', contacts: 120, contacted_cum: 95, positive_reply_cum: 40, booked_cum: 18, closed_won_cum: 8, contacted_curr: 30, positive_reply_curr: 15, booked_curr: 5, closed_won_curr: 8 },
+      { listName: 'Inbound Signups', folderId: '2', color: '#10b981', contacts: 85, contacted_cum: 70, positive_reply_cum: 35, booked_cum: 15, closed_won_cum: 6, contacted_curr: 20, positive_reply_curr: 12, booked_curr: 4, closed_won_curr: 6 },
+      { listName: 'Cold Email Campaign', folderId: '3', color: '#f59e0b', contacts: 65, contacted_cum: 50, positive_reply_cum: 20, booked_cum: 8, closed_won_cum: 3, contacted_curr: 18, positive_reply_curr: 8, booked_curr: 2, closed_won_curr: 3 },
+      { listName: 'Referrals', folderId: '4', color: '#8b5cf6', contacts: 30, contacted_cum: 28, positive_reply_cum: 18, booked_cum: 10, closed_won_cum: 5, contacted_curr: 5, positive_reply_curr: 6, booked_curr: 2, closed_won_curr: 5 },
+      { listName: 'Unfiled', folderId: null, color: null, contacts: 15, contacted_cum: 10, positive_reply_cum: 3, booked_cum: 1, closed_won_cum: 0, contacted_curr: 5, positive_reply_curr: 2, booked_curr: 1, closed_won_curr: 0 },
     ],
     growthStats: {
       responseRateWoW: 12.5, // +12.5%

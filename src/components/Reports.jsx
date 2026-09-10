@@ -189,6 +189,7 @@ export default function Reports({ currentUser }) {
   // Advanced stats states
   const [trendData, setTrendData] = useState([]);
   const [breakdownData, setBreakdownData] = useState([]);
+  const [listTableData, setListTableData] = useState([]);
   const [growthStats, setGrowthStats] = useState({});
   useEffect(() => {
     if (canUseTeamScope && reportScope === 'team') return;
@@ -319,6 +320,7 @@ export default function Reports({ currentUser }) {
           setPipelineStats(stats);
           setTrendData(advancedStats?.trendData || []);
           setBreakdownData(advancedStats?.breakdownData || []);
+          setListTableData(advancedStats?.listTableData || []);
           setGrowthStats(advancedStats?.growthStats || {});
         }
       } catch (err) {
@@ -327,6 +329,7 @@ export default function Reports({ currentUser }) {
           setPipelineStats(emptyPipelineStats());
           setTrendData([]);
           setBreakdownData([]);
+          setListTableData([]);
           setGrowthStats({});
         }
       } finally {
@@ -546,7 +549,7 @@ export default function Reports({ currentUser }) {
 
       <div
         ref={exportRef}
-        className="card reports-export-root reports-export-root--pdf"
+        className={`reports-export-root ${exporting ? 'reports-export-root--pdf' : ''}`}
       >
         <div className="reports-export-header">
           <div className="reports-export-brand">
@@ -561,7 +564,7 @@ export default function Reports({ currentUser }) {
             <div>Scope: {scopeSummary}</div>
             <div>Lists: {listFilterSummary}</div>
             <div>Entered: {dateFilterSummary}</div>
-            <div>Counting: {countMode === 'cumulative' ? 'Cumulative reach' : 'Current status'}</div>
+            <div>Counting: {countMode === 'cumulative' ? 'Cumulative reach' : 'Current state'}</div>
           </div>
         </div>
 
@@ -585,7 +588,7 @@ export default function Reports({ currentUser }) {
                 { label: 'Booked', value: messageCounts['Booked'] || 0 },
                 { label: 'Closed Won', value: messageCounts['Closed Won'] || 0 }
               ].map(kpi => (
-                <div key={kpi.label} style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div key={kpi.label} className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{kpi.label}</span>
                   <span style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{kpi.value}</span>
                 </div>
@@ -598,11 +601,13 @@ export default function Reports({ currentUser }) {
               messageConversionRates={messageConversionRates}
               callCounts={callCounts}
               callConversionRates={callConversionRates}
+              callActivity={pipelineStats.call_activity}
               callStageIds={callStageIds}
               getMessageStageDisplayLabel={getMessageStageDisplayLabel}
               getCallStageLabel={getCallStageLabel}
               trendData={trendData}
               breakdownData={breakdownData}
+              listTableData={listTableData}
               growthStats={growthStats}
               countMode={countMode}
               setCountMode={setCountMode}

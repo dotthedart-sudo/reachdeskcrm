@@ -161,7 +161,7 @@ export default function GroupedChannelDropdown({
               
               const { data: insertedData, error: insertErr } = await supabase
                 .from('custom_channels')
-                .insert(seedMissing)
+                .upsert(seedMissing, { onConflict: 'user_id,type,lower(name)', ignoreDuplicates: true })
                 .select();
                 
               if (!insertErr && insertedData) {
@@ -188,7 +188,7 @@ export default function GroupedChannelDropdown({
             }));
             const { data: insertedData, error: insertErr } = await supabase
               .from('custom_channels')
-              .insert(seedData)
+              .upsert(seedData, { onConflict: 'user_id,type,lower(name)', ignoreDuplicates: true })
               .select();
             
             if (!insertErr && insertedData) {

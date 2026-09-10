@@ -47,7 +47,7 @@ export default function ReportsOverviewTab({
     <div className="reports-overview-tab flex-col gap-6" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Trend Chart Section */}
-      <section className="reports-chart-section">
+      <section className="card reports-chart-section" style={{ padding: '1.5rem', marginBottom: '0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Trend</h3>
           <div style={{ position: 'relative' }}>
@@ -66,7 +66,7 @@ export default function ReportsOverviewTab({
           </div>
         </div>
         
-        <div style={{ height: 300, width: '100%', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '1rem' }}>
+        <div style={{ height: 300, width: '100%' }}>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -90,10 +90,17 @@ export default function ReportsOverviewTab({
       </section>
 
       {/* Conversion Funnel Section */}
-      <section className="reports-funnel-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Conversion Funnel</h3>
-          <div className="reports-count-mode" role="group" aria-label="Pipeline count mode" style={{ display: 'inline-flex', background: 'var(--bg-secondary)', padding: '2px', borderRadius: '6px' }}>
+      <section className="card reports-funnel-section" style={{ padding: '1.5rem', marginBottom: '0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Conversion Funnel</h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              {countMode === 'cumulative' 
+                ? 'Cumulative reach: counting all leads that reached each stage or beyond.' 
+                : 'Current state: counting leads currently sitting at each stage.'}
+            </span>
+          </div>
+          <div className="reports-count-mode" role="group" aria-label="Pipeline count mode" style={{ display: 'inline-flex', background: 'var(--bg-secondary)', padding: '3px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
             <button
               type="button"
               className={`btn-sm ${countMode === 'cumulative' ? 'active' : ''}`}
@@ -103,13 +110,15 @@ export default function ReportsOverviewTab({
                 color: countMode === 'cumulative' ? 'var(--text-primary)' : 'var(--text-muted)',
                 border: 'none',
                 borderRadius: '4px',
-                padding: '4px 12px',
+                padding: '6px 14px',
+                fontSize: '0.85rem',
                 boxShadow: countMode === 'cumulative' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                 transition: 'all 0.2s',
-                fontWeight: countMode === 'cumulative' ? 500 : 400
+                fontWeight: countMode === 'cumulative' ? 600 : 400,
+                cursor: 'pointer'
               }}
             >
-              Cumulative
+              Cumulative reach
             </button>
             <button
               type="button"
@@ -120,13 +129,15 @@ export default function ReportsOverviewTab({
                 color: countMode === 'current' ? 'var(--text-primary)' : 'var(--text-muted)',
                 border: 'none',
                 borderRadius: '4px',
-                padding: '4px 12px',
+                padding: '6px 14px',
+                fontSize: '0.85rem',
                 boxShadow: countMode === 'current' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                 transition: 'all 0.2s',
-                fontWeight: countMode === 'current' ? 500 : 400
+                fontWeight: countMode === 'current' ? 600 : 400,
+                cursor: 'pointer'
               }}
             >
-              Current status
+              Current state
             </button>
           </div>
         </div>

@@ -248,7 +248,7 @@ export default function NotesList({ currentUser }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h4 style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', margin: 0 }}>
-            <Folder size={18} style={{ color: 'var(--primary-purple)' }} /> Folders
+            <Folder size={18} style={{ color: 'var(--text-secondary)' }} /> Folders
           </h4>
           <button 
             onClick={() => setShowFolderModal(true)} 
@@ -270,7 +270,7 @@ export default function NotesList({ currentUser }) {
               padding: '0.6rem 0.75rem',
               borderRadius: '8px',
               border: 'none',
-              background: selectedFolderId === 'all' ? 'var(--primary-purple)' : 'transparent',
+              background: selectedFolderId === 'all' ? 'var(--accent-blue)' : 'transparent',
               color: selectedFolderId === 'all' ? '#ffffff' : 'var(--text-primary)',
               cursor: 'pointer',
               fontWeight: selectedFolderId === 'all' ? 600 : 500,
@@ -295,7 +295,7 @@ export default function NotesList({ currentUser }) {
               padding: '0.6rem 0.75rem',
               borderRadius: '8px',
               border: 'none',
-              background: selectedFolderId === 'pinned' ? 'var(--primary-purple)' : 'transparent',
+              background: selectedFolderId === 'pinned' ? 'var(--accent-blue)' : 'transparent',
               color: selectedFolderId === 'pinned' ? '#ffffff' : 'var(--text-primary)',
               cursor: 'pointer',
               fontWeight: selectedFolderId === 'pinned' ? 600 : 500,
@@ -326,7 +326,7 @@ export default function NotesList({ currentUser }) {
                       justifyContent: 'space-between',
                       padding: '0.6rem 0.75rem',
                       borderRadius: '8px',
-                      background: selectedFolderId === f.id ? 'var(--primary-purple)' : 'transparent',
+                      background: selectedFolderId === f.id ? 'var(--accent-blue)' : 'transparent',
                       color: selectedFolderId === f.id ? '#ffffff' : 'var(--text-primary)',
                       cursor: 'pointer',
                       fontWeight: selectedFolderId === f.id ? 600 : 500,
@@ -450,7 +450,7 @@ export default function NotesList({ currentUser }) {
               className="loading-spinner-inner" 
               style={{ 
                 border: '3px solid rgba(139, 92, 246, 0.1)', 
-                borderTop: '3px solid var(--primary-purple)', 
+                borderTop: '3px solid var(--accent-blue)', 
                 borderRadius: '50%', 
                 width: '40px', 
                 height: '40px', 
@@ -718,9 +718,9 @@ function DrawingPreview({ content }) {
           right: '8px',
           fontSize: '10px',
           fontWeight: 700,
-          color: '#8b5cf6',
-          background: 'rgba(139,92,246,0.1)',
-          border: '1px solid rgba(139,92,246,0.2)',
+          color: 'var(--text-secondary)',
+          background: 'rgba(100,116,139,0.1)',
+          border: '1px solid rgba(100,116,139,0.2)',
           borderRadius: '20px',
           padding: '1px 7px',
         }}>
@@ -729,7 +729,7 @@ function DrawingPreview({ content }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-        <PenLine size={22} color="#8b5cf6" style={{ opacity: 0.85, flexShrink: 0 }} />
+        <PenLine size={22} color="var(--text-secondary)" style={{ opacity: 0.85, flexShrink: 0 }} />
         <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>
           {hasContent ? 'Drawing' : 'Empty Canvas'}
         </span>
@@ -802,7 +802,7 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
             <button 
               onClick={(e) => { e.stopPropagation(); onPin(note); }}
               className="btn btn-icon" 
-              style={{ padding: '0.2rem', color: note.pinned ? 'var(--primary-purple)' : '#64748b' }}
+              style={{ padding: '0.2rem', color: note.pinned ? 'var(--accent-blue)' : '#64748b' }}
             >
               <Pin size={14} />
             </button>

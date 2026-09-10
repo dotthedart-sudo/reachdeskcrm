@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, X, ChevronDown, ChevronRight, Globe } from 'lucide-react';
 import GroupedStatusDropdown from './GroupedStatusDropdown';
 import GroupedTemplateDropdown from './GroupedTemplateDropdown';
 import GroupedChannelDropdown from './GroupedChannelDropdown';
@@ -9,6 +9,8 @@ import CountryTimezonePicker from './CountryTimezonePicker';
 
 /**
  * Shared Add/Edit lead fields — sectioned layout matching Auth spacing.
+ * Reordered by importance:
+ * Name -> Priority/Status/Channel -> Email/Phone -> Company/Niche -> Folder -> Country/timezone (collapsed) -> Template -> Notes -> Links & custom fields (collapsed)
  */
 export default function LeadFormFields({
   leadForm,
@@ -57,6 +59,7 @@ export default function LeadFormFields({
       }));
     }
   };
+
   const customCols = columnDefs.filter(
     (c) => !c.is_default && c.table_view === (view === 'pipeline' ? 'pipeline' : 'contact_details')
   );
@@ -67,12 +70,13 @@ export default function LeadFormFields({
     (showCustomFields && customCols.length > 0);
 
   const [moreOpen, setMoreOpen] = useState(Boolean(hasExtra));
+  const [timezoneOpen, setTimezoneOpen] = useState(Boolean(leadForm.timezone));
 
   return (
     <div className="rd-form">
+      {/* Primary Lead Details */}
       <section className="rd-form-section">
-        <h4 className="rd-form-section-title">Contact</h4>
-
+        {/* 1. Name */}
         <div className="rd-form-group">
           <label className="form-label" htmlFor="lead-name">Name *</label>
           <input
@@ -87,76 +91,7 @@ export default function LeadFormFields({
           />
         </div>
 
-        <div className="rd-form-row">
-          <div className="rd-form-group">
-            <label className="form-label" htmlFor="lead-email">Email</label>
-            <input
-              id="lead-email"
-              type="email"
-              value={leadForm.email}
-              onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })}
-              className="form-input"
-              placeholder="name@company.com"
-            />
-          </div>
-          <div className="rd-form-group">
-            <label className="form-label" htmlFor="lead-phone">Phone</label>
-            <input
-              id="lead-phone"
-              type="text"
-              value={leadForm.phone}
-              onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
-              onBlur={handlePhoneBlur}
-              className="form-input"
-              placeholder="+1…"
-            />
-          </div>
-        </div>
-
-        <div className="rd-form-group">
-          <CountryTimezonePicker
-            id="lead-timezone"
-            value={leadForm.timezone || ''}
-            onChange={(patch) => setLeadForm({ ...leadForm, ...patch })}
-          />
-          <div style={{ marginTop: '0.5rem' }}>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleDetectTimezone}>
-              Detect from phone
-            </button>
-          </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-            Used for “good time to call” hints. Search by country or dial code if the number has no country code.
-          </span>
-        </div>
-
-        <div className="rd-form-row">
-          <div className="rd-form-group">
-            <label className="form-label" htmlFor="lead-company">Company</label>
-            <input
-              id="lead-company"
-              type="text"
-              value={leadForm.company}
-              onChange={(e) => setLeadForm({ ...leadForm, company: e.target.value })}
-              className="form-input"
-            />
-          </div>
-          <div className="rd-form-group">
-            <label className="form-label" htmlFor="lead-niche">Niche</label>
-            <input
-              id="lead-niche"
-              type="text"
-              placeholder="e.g. SaaS founders"
-              value={leadForm.niche}
-              onChange={(e) => setLeadForm({ ...leadForm, niche: e.target.value })}
-              className="form-input"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="rd-form-section">
-        <h4 className="rd-form-section-title">Pipeline</h4>
-
+        {/* 2. Priority, Status & Channel grouped together */}
         <div className="rd-form-row">
           <div className="rd-form-group">
             <label className="form-label" htmlFor="lead-priority">Priority</label>
@@ -189,53 +124,140 @@ export default function LeadFormFields({
           </div>
         </div>
 
+        {/* 3. Email & Phone */}
         <div className="rd-form-row">
           <div className="rd-form-group">
-            <label className="form-label" htmlFor="lead-folder">Folder</label>
-            <select
-              id="lead-folder"
-              value={getFolderSelectValue()}
-              onChange={(e) => onFolderChange(e.target.value)}
-              className="form-select"
-            >
-              <option value="">No folder</option>
-              <optgroup label="System">
-                <option value="sys:hot">Hot</option>
-                <option value="sys:warm">Warm</option>
-                <option value="sys:cold">Cold</option>
-                <option value="sys:calendly">Invite Sent</option>
-                <option value="sys:clients">Clients</option>
-              </optgroup>
-              {folders.length > 0 && (
-                <optgroup label="Manual">
-                  {folders.map((f) => (
-                    <option key={f.id} value={`manual:${f.id}`}>{f.name}</option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label="Smart">
-                {userFolders.map((uf) => (
-                  <option key={uf.id} value={`smart:${uf.id}`} disabled>
-                    {uf.name} (rule-based)
-                  </option>
-                ))}
-                {plan === 'starter' && userFolders.length === 0 && (
-                  <option value="" disabled>Upgrade to Pro for Smart Folders</option>
-                )}
-              </optgroup>
-            </select>
+            <label className="form-label" htmlFor="lead-email">Email</label>
+            <input
+              id="lead-email"
+              type="email"
+              value={leadForm.email}
+              onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })}
+              className="form-input"
+              placeholder="name@company.com"
+            />
           </div>
           <div className="rd-form-group">
-            <label className="form-label">Template</label>
-            <GroupedTemplateDropdown
-              value={leadForm.template_used}
-              onChange={(val) => setLeadForm({ ...leadForm, template_used: val })}
-              templates={templates}
-              placeholder="None"
+            <label className="form-label" htmlFor="lead-phone">Phone</label>
+            <input
+              id="lead-phone"
+              type="text"
+              value={leadForm.phone}
+              onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
+              onBlur={handlePhoneBlur}
+              className="form-input"
+              placeholder="+1…"
             />
           </div>
         </div>
 
+        {/* 4. Company & Niche */}
+        <div className="rd-form-row">
+          <div className="rd-form-group">
+            <label className="form-label" htmlFor="lead-company">Company</label>
+            <input
+              id="lead-company"
+              type="text"
+              value={leadForm.company}
+              onChange={(e) => setLeadForm({ ...leadForm, company: e.target.value })}
+              className="form-input"
+            />
+          </div>
+          <div className="rd-form-group">
+            <label className="form-label" htmlFor="lead-niche">Niche</label>
+            <input
+              id="lead-niche"
+              type="text"
+              placeholder="e.g. SaaS founders"
+              value={leadForm.niche}
+              onChange={(e) => setLeadForm({ ...leadForm, niche: e.target.value })}
+              className="form-input"
+            />
+          </div>
+        </div>
+
+        {/* 5. Folder */}
+        <div className="rd-form-group">
+          <label className="form-label" htmlFor="lead-folder">Folder</label>
+          <select
+            id="lead-folder"
+            value={getFolderSelectValue()}
+            onChange={(e) => onFolderChange(e.target.value)}
+            className="form-select"
+          >
+            <option value="">No folder</option>
+            <optgroup label="System">
+              <option value="sys:hot">Hot</option>
+              <option value="sys:warm">Warm</option>
+              <option value="sys:cold">Cold</option>
+              <option value="sys:calendly">Invite Sent</option>
+              <option value="sys:clients">Clients</option>
+            </optgroup>
+            {folders.length > 0 && (
+              <optgroup label="Manual">
+                {folders.map((f) => (
+                  <option key={f.id} value={`manual:${f.id}`}>{f.name}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Smart">
+              {userFolders.map((uf) => (
+                <option key={uf.id} value={`smart:${uf.id}`} disabled>
+                  {uf.name} (rule-based)
+                </option>
+              ))}
+              {plan === 'starter' && userFolders.length === 0 && (
+                <option value="" disabled>Upgrade to Pro for Smart Folders</option>
+              )}
+            </optgroup>
+          </select>
+        </div>
+
+        {/* 6. Country & dial code (expandable section) */}
+        <div className="rd-timezone-section" style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
+          <button
+            type="button"
+            className="rd-more-toggle"
+            onClick={() => setTimezoneOpen((v) => !v)}
+            aria-expanded={timezoneOpen}
+            style={{ width: '100%', justifyContent: 'flex-start', background: 'transparent', border: 'none', padding: '0.25rem 0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}
+          >
+            {timezoneOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Globe size={14} />
+            Advanced: Country, timezone & call window
+          </button>
+
+          {timezoneOpen && (
+            <div className="rd-timezone-body" style={{ marginTop: '0.5rem', padding: '0.85rem', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+              <CountryTimezonePicker
+                id="lead-timezone"
+                value={leadForm.timezone || ''}
+                onChange={(patch) => setLeadForm({ ...leadForm, ...patch })}
+              />
+              <div style={{ marginTop: '0.5rem' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleDetectTimezone}>
+                  Detect from phone
+                </button>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                Used for “good time to call” hints. Search by country or dial code if the number has no country code.
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 7. Template */}
+        <div className="rd-form-group">
+          <label className="form-label">Template</label>
+          <GroupedTemplateDropdown
+            value={leadForm.template_used}
+            onChange={(val) => setLeadForm({ ...leadForm, template_used: val })}
+            templates={templates}
+            placeholder="None"
+          />
+        </div>
+
+        {/* 8. Notes */}
         <div className="rd-form-group">
           <label className="form-label" htmlFor="lead-notes">Notes</label>
           <textarea
@@ -248,6 +270,7 @@ export default function LeadFormFields({
         </div>
       </section>
 
+      {/* 9. Links & custom fields (expandable section) */}
       <section className="rd-form-section rd-form-section-more">
         <button
           type="button"

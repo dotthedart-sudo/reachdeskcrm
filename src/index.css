@@ -48,7 +48,7 @@
   --radius-lg: 10px;
 
   /* App density — clean with breathing room (not cramped) */
-  --hairline: 0.5px solid var(--border);
+  --hairline: 1px solid var(--border);
   --table-cell-y: 8px;
   --table-cell-x: 14px;
   --sidebar-width: 220px;
@@ -75,10 +75,10 @@
   --text-primary:    #FFFFFF;
   --text-secondary:  #A3A3A3;
   --text-muted:      #737373;
-  --accent-blue:     #FFFFFF;
-  --accent-blue-hover: #E5E5E5;
-  --accent-green:    #D4D4D4;
-  --accent-on:       #050505;
+  --accent-blue:     #2C2C30;
+  --accent-blue-hover: #3A3A40;
+  --accent-green:    #35353A;
+  --accent-on:       #FFFFFF;
   /* Status / priority keep semantic color (not monochrome) */
   --status-hot:      #E05252;
   --status-warm:     #E8A838;
@@ -91,10 +91,10 @@
   --bg-tertiary:   #2A2A2A; /* = hover */
   --border-color:  #333333;
   --border-hover:  #454545;
-  --primary-purple:  #FFFFFF;
-  --primary-magenta: #D4D4D4;
-  --gradient-brand:  #FFFFFF;
-  --gradient-hover:  #E5E5E5;
+  --primary-purple:  #2C2C30;
+  --primary-magenta: #3A3A40;
+  --gradient-brand:  #2C2C30;
+  --gradient-hover:  #3A3A40;
   --glow-shadow:      none;
   --glow-shadow-hover: none;
   --overlay-bg:    rgba(5, 5, 5, 0.88);
@@ -119,8 +119,8 @@
   --text-primary:    #0A0A0A;
   --text-secondary:  #525252;
   --text-muted:      #737373;
-  --accent-blue:     #0A0A0A;
-  --accent-blue-hover: #262626;
+  --accent-blue:     #333338;
+  --accent-blue-hover: #44444A;
   --accent-green:    #404040;
   --accent-on:       #FFFFFF;
   /* Status / priority keep semantic color (not monochrome) */
@@ -135,10 +135,10 @@
   --bg-tertiary:   #F5F5F5;
   --border-color:  #E5E5E5;
   --border-hover:  #D4D4D4;
-  --primary-purple:  #0A0A0A;
-  --primary-magenta: #404040;
-  --gradient-brand:  #0A0A0A;
-  --gradient-hover:  #262626;
+  --primary-purple:  #333338;
+  --primary-magenta: #44444A;
+  --gradient-brand:  #333338;
+  --gradient-hover:  #44444A;
   --glow-shadow:      none;
   --glow-shadow-hover: none;
   --overlay-bg:    rgba(250, 250, 250, 0.92);
@@ -789,7 +789,7 @@ h3 { font-size: var(--text-md); }
   width: 100%;
   height: 34px;
   padding: 0 0.65rem 0 2rem;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border-strong);
   border-radius: 8px;
   background: var(--bg-card);
   color: var(--text-primary);
@@ -1215,6 +1215,10 @@ h3 { font-size: var(--text-md); }
   color: var(--text-secondary);
 }
 
+.dark .btn-secondary {
+  border: 1px solid transparent;
+}
+
 .btn-secondary:hover {
   background: var(--bg-card-hover);
   color: var(--text-primary);
@@ -1300,7 +1304,7 @@ h3 { font-size: var(--text-md); }
 
 .card {
   background-color: var(--bg-card);
-  border: var(--hairline);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: var(--space-5);
   position: relative;
@@ -1309,9 +1313,13 @@ h3 { font-size: var(--text-md); }
   box-shadow: none;
 }
 
+.dark .card {
+  border: 1px solid transparent;
+}
+
 .card:hover {
-  background-color: var(--bg-card-hover);
-  border-color: var(--border-strong);
+  background-color: var(--bg-surface);
+  border-color: var(--border-subtle);
   box-shadow: none;
   transform: none;
 }
@@ -1371,7 +1379,7 @@ h3 { font-size: var(--text-md); }
 .search-input {
   width: 100%;
   background-color: var(--bg-card);
-  border: 0.5px solid var(--border-strong);
+  border: 2px solid var(--border-strong);
   color: var(--text-primary);
   padding: 0.5rem 1rem 0.5rem 2.25rem;
   border-radius: 4px;
@@ -1488,9 +1496,12 @@ h3 { font-size: var(--text-md); }
   color: var(--text-muted);
 }
 
-.form-input, .form-select, .form-textarea {
+.form-input, .form-select, .form-textarea,
+input[type="text"]:not(.btn), input[type="email"]:not(.btn), input[type="password"]:not(.btn),
+input[type="search"]:not(.btn), input[type="number"]:not(.btn), input[type="url"]:not(.btn),
+input[type="date"]:not(.btn) {
   background-color: var(--bg-card);
-  border: 0.5px solid var(--border-strong);
+  border: 2px solid var(--border-strong);
   color: var(--text-primary);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;

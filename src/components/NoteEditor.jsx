@@ -8,7 +8,7 @@ import RichTextEditor from './CRM/RichTextEditor';
 const NOTE_COLORS = [
   { name: 'white',  hex: '#ffffff' },
   { name: 'yellow', hex: '#fefce8' },
-  { name: 'purple', hex: '#f5f3ff' },
+  { name: 'grey',   hex: '#F5F5F5' },
   { name: 'blue',   hex: '#eff6ff' },
   { name: 'green',  hex: '#f0fdf4' },
   { name: 'pink',   hex: '#fdf2f8' }
@@ -198,7 +198,7 @@ export default function NoteEditor({ currentUser }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem' }}>
-        <div className="loading-spinner-inner" style={{ border: '3px solid rgba(139, 92, 246, 0.1)', borderTop: '3px solid var(--primary-purple)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite' }} />
+        <div className="loading-spinner-inner" style={{ border: '3px solid var(--border)', borderTop: '3px solid var(--accent-blue)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite' }} />
         <p className="color-muted">Loading note...</p>
       </div>
     );
@@ -284,8 +284,8 @@ export default function NoteEditor({ currentUser }) {
                         borderRadius: '6px',
                         border: 'none',
                         cursor: 'pointer',
-                        background: isActive ? 'rgba(139,92,246,0.15)' : 'transparent',
-                        color: isActive ? 'var(--primary-purple)' : 'var(--text-secondary)',
+                        background: isActive ? 'var(--bg-hover)' : 'transparent',
+                        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
                         fontSize: '0.82rem',
                         fontWeight: isActive ? 700 : 400,
                         display: 'flex',
@@ -386,7 +386,7 @@ export default function NoteEditor({ currentUser }) {
               </select>
             </div>
 
-            <button onClick={togglePin} className="btn btn-secondary btn-sm" style={{ color: editorPinned ? 'var(--primary-purple)' : 'var(--text-muted)' }}>
+            <button onClick={togglePin} className="btn btn-secondary btn-sm" style={{ color: editorPinned ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
               <Pin size={15} /> {editorPinned ? 'Pinned' : 'Pin'}
             </button>
 
@@ -397,7 +397,7 @@ export default function NoteEditor({ currentUser }) {
                   <button
                     key={c.hex}
                     onClick={() => setEditorColor(c.hex)}
-                    style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: c.hex, border: editorColor === c.hex ? '2px solid var(--primary-purple)' : '1px solid var(--border-color)', cursor: 'pointer', padding: 0 }}
+                    style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: c.hex, border: editorColor === c.hex ? '2px solid var(--accent-blue)' : '1px solid var(--border-color)', cursor: 'pointer', padding: 0 }}
                   />
                 ))}
               </div>

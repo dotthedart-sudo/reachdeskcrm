@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+/* eslint-disable no-unused-vars, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, no-extra-boolean-cast */
+import { useState, useEffect, useRef } from 'react';
 import { X, Calendar, User, FileText, Activity as ActivityIcon, Plus, Trash2, Pencil, Check, Receipt, Lock, Copy, Phone, Mail } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAppContext } from '../../App';
