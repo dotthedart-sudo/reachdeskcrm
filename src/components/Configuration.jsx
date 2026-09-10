@@ -1014,7 +1014,7 @@ export default function Configuration({
         throw new Error(data.error || 'Could not find an active Paddle subscription for this account');
       }
       setResumeSuccessMsg(
-        `Synced from Paddle — ${data?.plan || data?.profile?.plan || 'plan'} is now active.`,
+        `Synced from Paddle - ${data?.plan || data?.profile?.plan || 'plan'} is now active.`,
       );
       if (onRefreshProfile) {
         await onRefreshProfile();
