@@ -508,7 +508,14 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         <div className="card flex-col justify-between" style={{ minHeight: 140 }}>
           <div className="flex align-center justify-between" style={{ width: '100%' }}>
             <span className="card-title">Invoices Collected</span>
-            <DollarSign size={18} style={{ color: 'var(--success-color)' }} />
+            {(() => {
+              const userCurrency = CURRENCY_SYMBOLS[currentUser?.default_currency] || '$';
+              return (
+                <span style={{ color: 'var(--success-color)', fontSize: '1.1rem', fontWeight: 500, lineHeight: 1 }}>
+                  {userCurrency}
+                </span>
+              );
+            })()}
           </div>
 
           {(() => {
@@ -534,7 +541,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                       Set your monthly target to see progress here
                     </span>
                     <button 
-                      onClick={() => navigate('/configuration')} 
+                      onClick={() => navigate('/settings')} 
                       className="btn btn-secondary btn-sm" 
                       style={{ marginTop: 'var(--space-2)', width: '100%', justifyContent: 'center' }}
                     >
@@ -1174,7 +1181,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
                   <Lock size={14} style={{ color: 'var(--text-muted)' }} />
                   <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Analytics Locked</span>
-                  <button onClick={() => navigate('/configuration')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', marginTop: '0.2rem' }}>
+                  <button onClick={() => navigate('/settings')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', marginTop: '0.2rem' }}>
                     Upgrade
                   </button>
                 </div>

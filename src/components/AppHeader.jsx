@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { usePageHeaderContext } from '../context/PageHeaderContext';
 import AppHeaderActions from './AppHeaderActions';
@@ -32,9 +32,8 @@ export default function AppHeader({
   getInitials,
 }) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { header } = usePageHeaderContext();
-  const [globalQuery, setGlobalQuery] = useState('');
+
 
   const defaults = ROUTE_DEFAULTS[pathname] || { title: '' };
   const title = header.title || defaults.title;
@@ -47,11 +46,6 @@ export default function AppHeader({
     return breadcrumbs;
   }, [breadcrumbs, title]);
 
-  const handleGlobalSearch = (query) => {
-    const q = String(query || '').trim();
-    if (!q) return;
-    navigate(`/leads?search=${encodeURIComponent(q)}`);
-  };
 
   return (
     <header className="app-header">
@@ -89,9 +83,6 @@ export default function AppHeader({
 
         {!header.hideSearch && (
           <CompactSearch
-            value={globalQuery}
-            onChange={setGlobalQuery}
-            onSubmit={handleGlobalSearch}
             placeholder="Search leads…"
             width={280}
             className="app-header__search"

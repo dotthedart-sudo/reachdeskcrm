@@ -106,13 +106,13 @@
 
 /* ── Light mode — black / white / grey ── */
 :root.light {
-  --bg-page:         #FAFAFA;
+  --bg-page:         #FFFFFF;
   --bg-sidebar:      #FFFFFF;
-  --bg-card:         #FFFFFF;
+  --bg-card:         #F3F4F6;
   --bg-surface:      #FFFFFF;
-  --bg-card-hover:   #F5F5F5;
-  --bg-hover:        #F5F5F5;
-  --bg-selected:     rgba(10, 10, 10, 0.06);
+  --bg-card-hover:   #E5E7EB;
+  --bg-hover:        #E5E7EB;
+  --bg-selected:     rgba(10, 10, 10, 0.08);
   --border:          #E5E5E5;
   --border-subtle:   #EBEBEB;
   --border-strong:   #D4D4D4;
@@ -130,9 +130,9 @@
   --shadow-sm:       0 1px 2px rgba(10, 10, 10, 0.04);
 
   /* Legacy aliases */
-  --bg-primary:    #FAFAFA;
-  --bg-secondary:  #FFFFFF;
-  --bg-tertiary:   #F5F5F5;
+  --bg-primary:    #FFFFFF;
+  --bg-secondary:  #F3F4F6;
+  --bg-tertiary:   #E5E7EB;
   --border-color:  #E5E5E5;
   --border-hover:  #D4D4D4;
   --primary-purple:  #333338;
@@ -248,7 +248,7 @@ h3 { font-size: var(--text-md); }
 .app-header__right {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
@@ -780,7 +780,7 @@ h3 { font-size: var(--text-md); }
 
 .rd-compact-search__icon {
   position: absolute;
-  left: 0.55rem;
+  left: 10px;
   color: var(--text-muted);
   pointer-events: none;
 }
@@ -788,7 +788,7 @@ h3 { font-size: var(--text-md); }
 .rd-compact-search__input {
   width: 100%;
   height: 34px;
-  padding: 0 0.65rem 0 2rem;
+  padding: 0 10px 0 34px !important;
   border: 2px solid var(--border-strong);
   border-radius: 8px;
   background: var(--bg-card);
@@ -796,10 +796,83 @@ h3 { font-size: var(--text-md); }
   font-size: 0.82rem;
   font-family: var(--font-body);
   outline: none;
+  transition: border-color 0.15s ease;
 }
 
 .rd-compact-search__input:focus {
-  border-color: var(--accent-blue);
+  border-color: var(--border-hover);
+}
+
+.rd-compact-search__input.open {
+  border-radius: 8px 8px 0 0;
+  border-color: var(--border-hover);
+}
+
+/* Autocomplete dropdown */
+.rd-compact-search__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 2px solid var(--border-hover);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.rd-compact-search__dropdown-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border: none;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  font-family: var(--font-body);
+}
+
+.rd-compact-search__dropdown-item:hover,
+.rd-compact-search__dropdown-item.active {
+  background: var(--bg-hover);
+}
+
+.rd-compact-search__dropdown-item__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.rd-compact-search__dropdown-item__folder {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rd-compact-search__dropdown-empty {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.rd-compact-search__dropdown-loading {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* ── Shared dropdown / select menus (RdSelect + portal menus) ───────────── */
@@ -1318,9 +1391,8 @@ h3 { font-size: var(--text-md); }
 }
 
 .card:hover {
-  background-color: var(--bg-surface);
-  border-color: var(--border-subtle);
-  box-shadow: none;
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 1px var(--border-hover);
   transform: none;
 }
 
@@ -6089,6 +6161,10 @@ select option {
   background: var(--bg-hover);
   color: var(--text-muted);
   border: 1px solid var(--border);
+}
+
+.rd-pricing-card-header {
+  padding-top: 18px;
 }
 
 .rd-pricing-plan-name {

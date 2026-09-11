@@ -265,7 +265,7 @@ DECLARE
 BEGIN
   IF p_lead_id IS NULL THEN RETURN; END IF;
 
-  SELECT team_id INTO v_team_id FROM public.user_profiles WHERE id = v_uid;
+  SELECT team_id INTO v_team_id FROM public.user_profiles WHERE user_profiles.id = v_uid;
 
   RETURN QUERY
   SELECT

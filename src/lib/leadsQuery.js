@@ -253,3 +253,57 @@ export async function fetchReportsAdvancedStats({
     }
   };
 }
+
+/**
+ * Live autocomplete search: returns up to `limit` leads matching `query` by
+ * name or company, scoped to the user's ownership/team permissions.
+ * Each result includes: id, name, company, folder_id, and folder_name (joined).
+ *
+ * @param {string} query
+ * @param {{ userIds: string[], sharedFolderIds?: string[] | null }} scope
+ * @param {number} [limit=8]
+ * @returns {Promise<Array<{ id: string, name: string, company: string|null, folder_id: string|null, folder_name: string|null }>>}
+ */
+export async function searchLeads(query, { userIds, sharedFolderIds = null } = {}, limit = 8) {
+  if (!query || !userIds?.length) return [];
+
+  const term = `%${query.trim()}%`;
+
+  let q = supabase
+    .from('leads')
+    .select('id, full_name, company, folder_id')
+    .or(`full_name.ilike.${term},company.ilike.${term}`)
+    .limit(limit)
+    .order('full_name', { ascending: true });
+
+  if (sharedFolderIds?.length) {
+    q = q.or(
+      `user_id.in.(${userIds.join(',')}),folder_id.in.(${sharedFolderIds.join(',')})`,
+    );
+  } else {
+    q = q.in('user_id', userIds);
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const results = data || [];
+  
+  // Fetch folder names manually since there's no FK mapping in PostgREST cache
+  const folderIds = [...new Set(results.map(r => r.folder_id).filter(Boolean))];
+  const foldersMap = new Map();
+  if (folderIds.length > 0) {
+    const { data: fData } = await supabase.from('folders').select('id, name').in('id', folderIds);
+    if (fData) {
+      fData.forEach(f => foldersMap.set(f.id, f.name));
+    }
+  }
+
+  return results.map((row) => ({
+    id: row.id,
+    name: row.full_name,
+    company: row.company || null,
+    folder_id: row.folder_id || null,
+    folder_name: foldersMap.get(row.folder_id) || null,
+  }));
+}
