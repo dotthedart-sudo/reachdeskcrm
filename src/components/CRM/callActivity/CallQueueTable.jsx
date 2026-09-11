@@ -10,6 +10,8 @@ import OutcomeBadge from './OutcomeBadge';
 import ResizableTh from '../ResizableTh';
 import ResizableTr from '../ResizableTr';
 import GroupedTemplateDropdown from '../GroupedTemplateDropdown';
+import GroupedChannelDropdown from '../GroupedChannelDropdown';
+import ReachActionButtons from '../ReachActionButtons';
 import { TEMPLATE_KINDS } from '../../../lib/templateKinds';
 import { getTableColumns, CALL_QUEUE_DEFAULT_DEFS } from '../crmTableColumns';
 import { fetchMyCallAttempts } from '../../../lib/callActivity';
@@ -144,6 +146,27 @@ export default function CallQueueTable({
             editable
             onTimezoneChange={(tz) => onFieldChange?.(lead.id, 'timezone', tz || '')}
           />
+        );
+      case 'outreach_channel':
+        return (
+          <div className="flex gap-2 align-center" onClick={(e) => e.stopPropagation()}>
+            <CopyableCell value={lead.outreach_channel || ''} onCopied={onCopied} variant="inline">
+              <GroupedChannelDropdown
+                userId={userId}
+                value={lead.outreach_channel}
+                onChange={(val) => onFieldChange?.(lead.id, 'outreach_channel', val)}
+                isTableInline={true}
+                onUpdate={onRefresh}
+                channel="messaging"
+              />
+            </CopyableCell>
+            <ReachActionButtons
+              lead={lead}
+              templates={templates}
+              onLogInteraction={(dt) => onFieldChange?.(lead.id, 'last_contacted_at', dt)}
+              currentUser={currentUser}
+            />
+          </div>
         );
       case 'status':
         return (

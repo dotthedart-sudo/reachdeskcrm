@@ -170,7 +170,7 @@ export default function ColumnManager({
 
   const handleDragEnd = () => setDragRealIdx(null);
 
-  const canAddCustom = activeTab !== 'call_queue';
+  const canAddCustom = true;
 
   if (!isOpen) return null;
 
