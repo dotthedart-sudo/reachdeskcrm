@@ -6400,6 +6400,12 @@ select option {
   border-color: color-mix(in srgb, var(--accent-blue) 35%, var(--border));
 }
 
+.dark .rd-pricing-tag--save {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .rd-upgrade-region-block {
   font-size: 0.8125rem;
   color: var(--text-muted);

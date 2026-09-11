@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { CALL_OUTCOMES } from '../../../lib/outreachQueue';
+import { useCustomCallOutcomes } from '../../../lib/callOutcomes';
+import CustomOutcomeModal from './CustomOutcomeModal';
 import { updateCallAttempt, refreshLeadLastCalledAt } from '../../../lib/callActivity';
 
 function toLocalInputValue(iso) {
@@ -11,8 +12,10 @@ function toLocalInputValue(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function EditCallAttemptModal({ attempt, onClose, onSaved }) {
+export default function EditCallAttemptModal({ attempt, onClose, onSaved, profile, lead, isLatest }) {
+  const availableOutcomes = useCustomCallOutcomes();
   const [outcome, setOutcome] = useState(attempt?.outcome || 'No Answer');
+  const [showAddOutcome, setShowAddOutcome] = useState(false);
   const [note, setNote] = useState(attempt?.note || '');
   const [noteVisibility, setNoteVisibility] = useState(attempt?.note_visibility || 'team');
   const [occurredLocal, setOccurredLocal] = useState(
@@ -37,11 +40,21 @@ export default function EditCallAttemptModal({ attempt, onClose, onSaved }) {
     setError('');
     try {
       const occurredAt = occurredLocal ? new Date(occurredLocal).toISOString() : null;
+      
+      const selectedOutcomeObj = availableOutcomes.find(o => o.label === outcome);
+      const outcomeBase = selectedOutcomeObj ? (selectedOutcomeObj.based_on || selectedOutcomeObj.label) : outcome;
+
       const updated = await updateCallAttempt(attempt.id, {
         outcome,
+        outcome_base: outcomeBase,
         note,
         noteVisibility,
         occurredAt,
+      }, {
+        oldOutcome: attempt.outcome,
+        isLatest,
+        profile,
+        lead
       });
       if (attempt.user_id && attempt.lead_id) {
         await refreshLeadLastCalledAt(attempt.lead_id, attempt.user_id);
@@ -80,11 +93,26 @@ export default function EditCallAttemptModal({ attempt, onClose, onSaved }) {
           </div>
           <div className="form-group">
             <label className="form-label">Outcome</label>
-            <select className="form-input" value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-              {CALL_OUTCOMES.map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <select
+                className="form-input"
+                style={{ flex: 1 }}
+                value={outcome}
+                onChange={(e) => {
+                  if (e.target.value === 'ADD_NEW') {
+                    setShowAddOutcome(true);
+                  } else {
+                    setOutcome(e.target.value);
+                  }
+                }}
+                required
+              >
+                {availableOutcomes.map((o) => (
+                  <option key={o.label} value={o.label}>{o.label}</option>
+                ))}
+                <option value="ADD_NEW" style={{ fontWeight: 'bold' }}>+ Add custom outcome…</option>
+              </select>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Note</label>
@@ -105,6 +133,19 @@ export default function EditCallAttemptModal({ attempt, onClose, onSaved }) {
           </div>
         </form>
       </div>
+      
+      {showAddOutcome && (
+        <CustomOutcomeModal 
+          onClose={() => {
+            setShowAddOutcome(false);
+            if (outcome === 'ADD_NEW') setOutcome(attempt.outcome); // fallback
+          }}
+          onCreated={(newOutcome) => {
+            setShowAddOutcome(false);
+            setOutcome(newOutcome.label);
+          }}
+        />
+      )}
     </div>
   );
 }

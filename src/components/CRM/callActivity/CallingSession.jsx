@@ -6,7 +6,8 @@ import { displayCallStatus } from '../../../lib/callOutcomeRules';
 import CallWindowBadge from '../CallWindowBadge';
 import { getLeadLocalTimeLabel } from '../../../lib/leadTimezone';
 import LogCallModal from './LogCallModal';
-import QuickLogChips, { QUICK_LOG_OUTCOMES } from './QuickLogChips';
+import QuickLogChips from './QuickLogChips';
+import { QUICK_LOG_OUTCOMES } from '../../../lib/callOutcomes';
 
 export default function CallingSession({
   queue,

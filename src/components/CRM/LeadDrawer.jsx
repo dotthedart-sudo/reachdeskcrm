@@ -804,7 +804,8 @@ export default function LeadDrawer({
 
             {/* Custom non-default fields if any */}
             {contactCols.filter(c => !c.is_default).map(col => {
-              const val = formData.custom_fields?.[col.column_key] || '';
+              const valRaw = formData.custom_fields?.[col.column_key];
+              const val = col.column_type === 'link' && Array.isArray(valRaw) ? valRaw.join(', ') : (valRaw || '');
               return (
                 <div key={col.id} className="form-group" data-ph-mask>
                   <label className="form-label">{col.column_label}</label>
@@ -836,7 +837,7 @@ export default function LeadDrawer({
                     <input
                       type={col.column_type === 'number' ? 'number' : 'text'}
                       value={val}
-                      onChange={e => handleCustomFieldChange(col.column_key, e.target.value)}
+                      onChange={e => handleCustomFieldChange(col.column_key, col.column_type === 'link' ? e.target.value.split(',').map(s=>s.trim()).filter(Boolean) : e.target.value)}
                       onBlur={() => handleFieldBlur(col.column_key, true, col.column_key)}
                       className="form-input"
                       placeholder={col.column_type === 'link' ? 'https://...' : ''}
@@ -959,7 +960,8 @@ export default function LeadDrawer({
             {/* Priority Status Dropdowns */}
             {pipelineCols.map(col => {
               const isCustom = !col.is_default;
-              const val = isCustom ? formData.custom_fields?.[col.column_key] || '' : formData[col.column_key] || '';
+              const valRaw = isCustom ? formData.custom_fields?.[col.column_key] : formData[col.column_key];
+              const val = col.column_type === 'link' && Array.isArray(valRaw) ? valRaw.join(', ') : (valRaw || '');
               
               if (col.column_key === 'template_used') {
                 return (
@@ -1131,7 +1133,10 @@ export default function LeadDrawer({
                     <input
                       type={col.column_type === 'number' ? 'number' : 'text'}
                       value={val}
-                      onChange={e => isCustom ? handleCustomFieldChange(col.column_key, e.target.value) : handleFieldChange(col.column_key, e.target.value)}
+                      onChange={e => {
+                        const nextVal = col.column_type === 'link' ? e.target.value.split(',').map(s=>s.trim()).filter(Boolean) : e.target.value;
+                        isCustom ? handleCustomFieldChange(col.column_key, nextVal) : handleFieldChange(col.column_key, nextVal);
+                      }}
                       onBlur={() => handleFieldBlur(col.column_key, isCustom, col.column_key)}
                       className="form-input"
                     />

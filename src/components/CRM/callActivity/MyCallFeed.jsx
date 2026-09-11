@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronRight, Plus, Pencil, Trash2, List } from 'lucide-react';
 import {
-  CALL_OUTCOMES,
-  TERMINAL_OUTCOMES,
   leadDisplayName,
   computeNextFollowUp,
   startOfToday,
 } from '../../../lib/outreachQueue';
+import { CALL_OUTCOMES, TERMINAL_OUTCOMES } from '../../../lib/callOutcomes';
 import CallWindowBadge from '../CallWindowBadge';
 import OutcomeBadge from './OutcomeBadge';
 import EditCallAttemptModal from './EditCallAttemptModal';

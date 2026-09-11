@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { CALL_OUTCOMES, leadDisplayName, computeNextFollowUp } from '../../../lib/outreachQueue';
+import { leadDisplayName, computeNextFollowUp } from '../../../lib/outreachQueue';
+import { CALL_OUTCOMES } from '../../../lib/callOutcomes';
 import { formatActivityDateTime } from '../../../lib/dateTime';
 import OutcomeBadge from './OutcomeBadge';
 import MemberActivityFilter from './MemberActivityFilter';

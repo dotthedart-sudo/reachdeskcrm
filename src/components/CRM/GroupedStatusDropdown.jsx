@@ -34,7 +34,17 @@ export const DEFAULT_STATUSES = [
 
 export const DEFAULT_CALL_STATUSES = CALL_STATUS_DEFAULTS;
 
-const seedingPromises = {};
+export const statusCache = {};
+
+export function clearStatusCache(userId = null) {
+  if (userId) {
+    for (const k in statusCache) {
+      if (k.startsWith(`${userId}_`)) delete statusCache[k];
+    }
+  } else {
+    for (const k in statusCache) delete statusCache[k];
+  }
+}
 
 function channelDefaults(channel) {
   return channel === 'calls' ? DEFAULT_CALL_STATUSES : DEFAULT_STATUSES;
@@ -138,7 +148,30 @@ export default function GroupedStatusDropdown({
     return dedupeStatuses(data);
   };
 
-  // Load user session and custom statuses from Supabase
+  const dedupeAndSyncStatuses = async (data) => {
+    if (!data || data.length === 0) return [];
+    
+    const seenLabels = new Set();
+    const duplicateIds = [];
+    const uniqueData = [];
+
+    data.forEach(d => {
+      const lowerLabel = d.label.toLowerCase();
+      if (seenLabels.has(lowerLabel)) {
+        duplicateIds.push(d.id);
+      } else {
+        seenLabels.add(lowerLabel);
+        uniqueData.push(d);
+      }
+    });
+
+    if (duplicateIds.length > 0) {
+      await supabase.from('custom_statuses').delete().in('id', duplicateIds);
+    }
+    
+    return uniqueData;
+  };
+
   const loadStatuses = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -146,54 +179,17 @@ export default function GroupedStatusDropdown({
       const uid = session.user.id;
       setUserId(uid);
 
-      const key = seedKey(uid);
-
-      // Lock to prevent concurrent seedings
-      if (seedingPromises[key]) {
-        await seedingPromises[key];
-        const unique = await fetchChannelStatuses(uid);
-        if (unique.length > 0) setStatuses(unique);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('custom_statuses')
-        .select('*')
-        .eq('user_id', uid)
-        .eq('channel', channel)
-        .order('sort_order', { ascending: true });
-
-      if (error) {
-        console.warn('Error loading custom statuses:', error);
-        setStatuses(defaults);
-        return;
-      }
-
-      if (data) {
-        if (data.length > 0) {
-          const seenLabels = new Set();
-          const duplicateIds = [];
-          const uniqueData = [];
-
-          data.forEach(d => {
-            const lowerLabel = d.label.toLowerCase();
-            if (seenLabels.has(lowerLabel)) {
-              duplicateIds.push(d.id);
-            } else {
-              seenLabels.add(lowerLabel);
-              uniqueData.push(d);
-            }
-          });
-
-          if (duplicateIds.length > 0) {
-            await supabase.from('custom_statuses').delete().in('id', duplicateIds);
-          }
-
-          const existingLabels = new Set(uniqueData.map(d => d.label.toLowerCase()));
-          const missingDefaults = defaults.filter(d => !existingLabels.has(d.label.toLowerCase()));
+      const cacheKey = `${uid}_${channel}`;
+      
+      if (!statusCache[cacheKey]) {
+        statusCache[cacheKey] = (async () => {
+          let uniqueData = await fetchChannelStatuses(uid);
           
-          if (missingDefaults.length > 0) {
-            const performSeeding = async () => {
+          if (uniqueData.length > 0) {
+            const existingLabels = new Set(uniqueData.map(d => d.label.toLowerCase()));
+            const missingDefaults = defaults.filter(d => !existingLabels.has(d.label.toLowerCase()));
+            
+            if (missingDefaults.length > 0) {
               const seedMissing = missingDefaults.map((d, idx) => ({
                 user_id: uid,
                 channel,
@@ -208,20 +204,10 @@ export default function GroupedStatusDropdown({
                 .select();
                 
               if (!insertErr && insertedData) {
-                return [...uniqueData, ...insertedData];
+                uniqueData = [...uniqueData, ...insertedData];
               }
-              return uniqueData;
-            };
-
-            seedingPromises[key] = performSeeding();
-            const result = await seedingPromises[key];
-            delete seedingPromises[key];
-            setStatuses(result);
+            }
           } else {
-            setStatuses(uniqueData);
-          }
-        } else {
-          const performInitialSeeding = async () => {
             const seedData = defaults.map((d, idx) => ({
               user_id: uid,
               channel,
@@ -235,19 +221,25 @@ export default function GroupedStatusDropdown({
               .select();
             
             if (!insertErr && insertedData) {
-              return insertedData;
+              uniqueData = insertedData;
+            } else {
+              uniqueData = defaults;
             }
-            return defaults;
-          };
+          }
+          return uniqueData;
+        })();
+      }
 
-          seedingPromises[key] = performInitialSeeding();
-          const result = await seedingPromises[key];
-          delete seedingPromises[key];
-          setStatuses(result);
-        }
+      try {
+        const result = await statusCache[cacheKey];
+        setStatuses(result);
+      } catch (err) {
+        delete statusCache[cacheKey];
+        console.error('Error loading custom statuses:', err);
+        setStatuses(defaults);
       }
     } catch (err) {
-      console.error('Error loading custom statuses:', err);
+      console.error('Error in loadStatuses:', err);
       setStatuses(defaults);
     }
   };
@@ -284,6 +276,7 @@ export default function GroupedStatusDropdown({
         .single();
 
       if (!error && data) {
+        clearStatusCache(userId);
         setStatuses(prev => [...prev, data]);
         setNewLabel('');
         if (onUpdate) onUpdate();
@@ -318,6 +311,7 @@ export default function GroupedStatusDropdown({
         .single();
 
       if (!error && data) {
+        clearStatusCache(userId);
         const updated = [...statuses];
         updated[index] = data;
         setStatuses(updated);
@@ -406,6 +400,7 @@ export default function GroupedStatusDropdown({
         .eq('id', statuses[index].id);
 
       if (!deleteErr) {
+        clearStatusCache(userId);
         setStatuses(prev => prev.filter((_, idx) => idx !== index));
         if (onUpdate) onUpdate();
       }
@@ -441,8 +436,10 @@ export default function GroupedStatusDropdown({
       if (insertErr) throw insertErr;
 
       if (insertedData && insertedData.length > 0) {
+        clearStatusCache(userId);
         setStatuses(insertedData);
       } else {
+        clearStatusCache(userId);
         setStatuses(defaults);
       }
       

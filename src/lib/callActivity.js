@@ -7,11 +7,14 @@ import {
   displayCallStatus,
   outcomeForCallStatus,
   normalizeCallStatus,
+  getOutcomeMapping,
+  shouldAutoApplyCallSuggestions,
 } from './callOutcomeRules';
 import { captureDeviceTimestamp } from './dateTime';
 import { logLeadTimelineEvent } from './leadTimeline';
 
-export { CALL_OUTCOMES, computeNextFollowUp, leadDisplayName } from './outreachQueue';
+export { computeNextFollowUp, leadDisplayName } from './outreachQueue';
+export { CALL_OUTCOMES } from './callOutcomes';
 
 export function hasOutreachByPlan(profile) {
   if (!profile) return false;
@@ -60,6 +63,7 @@ export async function insertCallAttempt({
   userId,
   leadId,
   outcome,
+  outcome_base,
   note,
   noteVisibility = 'team',
   teamId = null,
@@ -74,6 +78,7 @@ export async function insertCallAttempt({
     lead_id: leadId,
     user_id: userId,
     outcome: outcomeText,
+    outcome_base: outcome_base || outcomeText,
     note: note?.trim() || null,
     note_visibility: noteVisibility === 'private' ? 'private' : 'team',
     occurred_at: occurredAt || new Date().toISOString(),
@@ -94,6 +99,7 @@ export async function logCallWithUpdates({
   userId,
   leadId,
   outcome,
+  outcomeBase,
   note = null,
   noteVisibility = 'team',
   teamId = null,
@@ -110,6 +116,7 @@ export async function logCallWithUpdates({
     userId,
     leadId,
     outcome,
+    outcome_base: outcomeBase,
     note,
     noteVisibility,
     teamId,
@@ -126,7 +133,7 @@ export async function logCallWithUpdates({
       .maybeSingle();
     prevCallStatus = before?.call_status ?? null;
 
-    leadUpdates = await applyOutcomeToLead(leadId, outcome, userId, profile, customOutcomeRules);
+    leadUpdates = await applyOutcomeToLead(leadId, outcomeBase, userId, profile, customOutcomeRules);
 
     // Stamp last_called_at (+ last_contacted_at) to the logged time (or device now)
     const timePatch = {
@@ -236,9 +243,19 @@ export async function logCallStatusChange({
   return { attempt, leadUpdates: mergedUpdates };
 }
 
-export async function updateCallAttempt(id, { outcome, note, noteVisibility, occurredAt }) {
+export async function updateCallAttempt(
+  attemptId,
+  { outcome, outcome_base, note, noteVisibility, occurredAt },
+  context = {}
+) {
   const updates = {};
-  if (outcome !== undefined) updates.outcome = outcome;
+  if (outcome !== undefined) {
+    updates.outcome = outcome;
+    updates.outcome_base = outcome_base || outcome;
+  }
+  if (outcome_base !== undefined) {
+    updates.outcome_base = outcome_base;
+  }
   if (note !== undefined) updates.note = note?.trim() || null;
   if (noteVisibility !== undefined) {
     updates.note_visibility = noteVisibility === 'private' ? 'private' : 'team';
@@ -249,10 +266,32 @@ export async function updateCallAttempt(id, { outcome, note, noteVisibility, occ
   const { data, error } = await supabase
     .from('lead_call_attempts')
     .update(updates)
-    .eq('id', id)
+    .eq('id', attemptId)
     .select('*')
     .single();
   if (error) throw error;
+
+  const { oldOutcome, isLatest, profile, lead } = context;
+  if (isLatest && outcome && oldOutcome && outcome !== oldOutcome && lead && profile && shouldAutoApplyCallSuggestions(profile)) {
+    const oldMapping = getOutcomeMapping(oldOutcome, lead.user_id, profile);
+    const newMapping = getOutcomeMapping(outcome, lead.user_id, profile);
+    const patch = {};
+    const oldStatus = oldMapping?.suggested_call_status ?? oldMapping?.suggested_status;
+    const newStatus = newMapping?.suggested_call_status ?? newMapping?.suggested_status;
+    if (newStatus && normalizeCallStatus(lead.call_status) === normalizeCallStatus(oldStatus)) {
+      patch.call_status = newStatus;
+    }
+    if (newMapping?.suggested_call_action && lead.call_action === oldMapping?.suggested_call_action) {
+      patch.call_action = newMapping.suggested_call_action;
+    }
+    if (newMapping?.suggested_priority && lead.priority === oldMapping?.suggested_priority) {
+      patch.priority = newMapping.suggested_priority;
+    }
+    if (Object.keys(patch).length > 0) {
+      await supabase.from('leads').update(patch).eq('id', lead.id);
+    }
+  }
+
   return data;
 }
 

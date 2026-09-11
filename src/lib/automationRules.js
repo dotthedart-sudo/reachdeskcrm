@@ -2,10 +2,8 @@
  * Per-user status → next step automation rules (messaging + calls).
  */
 
-import {
-  DEFAULT_CALL_OUTCOME_RULES,
-  DEFAULT_CALL_STATUS_RULES,
-} from './callOutcomeRules';
+import { DEFAULT_CALL_STATUS_RULES } from './callOutcomeRules';
+import { DEFAULT_OUTCOME_RULES as DEFAULT_CALL_OUTCOME_RULES } from './callOutcomes';
 
 const OUTCOME_RULES_KEY = (userId) => `crm_call_outcome_rules_${userId}`;
 const STATUS_RULES_KEY = (userId) => `crm_call_status_rules_${userId}`;

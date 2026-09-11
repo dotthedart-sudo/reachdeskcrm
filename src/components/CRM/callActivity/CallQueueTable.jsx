@@ -11,15 +11,17 @@ import ResizableTh from '../ResizableTh';
 import ResizableTr from '../ResizableTr';
 import GroupedTemplateDropdown from '../GroupedTemplateDropdown';
 import GroupedChannelDropdown from '../GroupedChannelDropdown';
-import ReachActionButtons from '../ReachActionButtons';
+import CustomFieldCell from '../CustomFieldCell';
+import { ReachIcons } from '../../icons/PlatformIcons';
 import { TEMPLATE_KINDS } from '../../../lib/templateKinds';
 import { getTableColumns, CALL_QUEUE_DEFAULT_DEFS } from '../crmTableColumns';
 import { fetchMyCallAttempts } from '../../../lib/callActivity';
 import { getCallActionForStatus, displayCallStatus } from '../../../lib/callOutcomeRules';
-import { attemptsByLeadMap, buildOutreachSessionQueue } from '../../../lib/outreachQueue';
+import { attemptsByLeadMap, allAttemptsByLeadMap, buildOutreachSessionQueue } from '../../../lib/outreachQueue';
 import { formatLocalTime, getEffectiveUserTimeZone } from '../../../lib/dateTime';
 import CallingSession from './CallingSession';
 import ManageCallAttemptsModal from './ManageCallAttemptsModal';
+import EditCallAttemptModal from './EditCallAttemptModal';
 
 export default function CallQueueTable({
   leads = [],
@@ -42,12 +44,14 @@ export default function CallQueueTable({
   showNoteSharing = false,
   suggestionRules = [],
   onUpdateColumnDef,
+  setColumnDefs,
   templates = [],
 }) {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [manageLead, setManageLead] = useState(null);
+  const [editLatest, setEditLatest] = useState(null);
 
   const userId = currentUser?.id;
   const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
@@ -97,7 +101,7 @@ export default function CallQueueTable({
     [attempts, leadIdSet],
   );
 
-  const byLead = useMemo(() => attemptsByLeadMap(scopedAttempts), [scopedAttempts]);
+  const byLead = useMemo(() => allAttemptsByLeadMap(scopedAttempts), [scopedAttempts]);
 
   const sessionQueue = useMemo(
     () => buildOutreachSessionQueue(leads, scopedAttempts, userTimeZone),
@@ -160,12 +164,6 @@ export default function CallQueueTable({
                 channel="messaging"
               />
             </CopyableCell>
-            <ReachActionButtons
-              lead={lead}
-              templates={templates}
-              onLogInteraction={(dt) => onFieldChange?.(lead.id, 'last_contacted_at', dt)}
-              currentUser={currentUser}
-            />
           </div>
         );
       case 'status':
@@ -243,7 +241,20 @@ export default function CallQueueTable({
           />
         );
       case 'outcome':
-        return last ? <OutcomeBadge outcome={last.outcome} /> : '—';
+        if (!last) return '—';
+        return (
+          <button
+            type="button"
+            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+            title="Edit latest call log"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditLatest({ attempt: last, lead });
+            }}
+          >
+            <OutcomeBadge outcome={last.outcome} />
+          </button>
+        );
       case 'attempts':
         return (
           <button
@@ -266,7 +277,27 @@ export default function CallQueueTable({
             onChange={(val) => onFieldChange?.(lead.id, 'priority', val)}
           />
         );
+      case 'platform':
+        return <ReachIcons lead={lead} onRefresh={onRefresh} />;
       default:
+        if (!col.is_default) {
+          return (
+            <CustomFieldCell
+              lead={lead}
+              col={col}
+              onChange={(val) => {
+                // val is either the new custom_fields object or a single value if handled internally.
+                // CustomFieldCell updates the DB and calls onRefresh, but if we need local state sync:
+                if (onRefresh) onRefresh();
+              }}
+              currentUser={currentUser}
+              templates={templates}
+              suggestionRules={[]} 
+              setColumnDefs={setColumnDefs}
+              onRefresh={onRefresh}
+            />
+          );
+        }
         return lead[col.column_key] ?? '—';
     }
   };
@@ -377,7 +408,7 @@ export default function CallQueueTable({
         open={!!manageLead}
         lead={manageLead}
         attempts={manageLead ? scopedAttempts.filter((a) => a.lead_id === manageLead.id) : []}
-        currentUserId={userId}
+        currentUser={currentUser}
         onClose={() => setManageLead(null)}
         onChanged={async () => {
           if (!userId) return;
@@ -386,6 +417,21 @@ export default function CallQueueTable({
           onRefresh?.();
         }}
       />
+
+      {editLatest && (
+        <EditCallAttemptModal
+          attempt={editLatest.attempt}
+          isLatest={true}
+          profile={currentUser}
+          lead={editLatest.lead}
+          onClose={() => setEditLatest(null)}
+          onSaved={(updated) => {
+            setEditLatest(null);
+            setAttempts((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+            onRefresh?.();
+          }}
+        />
+      )}
     </div>
   );
 }

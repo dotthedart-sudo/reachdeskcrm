@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import { AlertCircle, Check, Save, Plus, Trash2, Bell, MessageSquare, Phone } from 'lucide-react';
 import { DIALER_OPTIONS } from '../../lib/callDialer';
-import {
-  DEFAULT_CALL_OUTCOME_RULES,
-  DEFAULT_CALL_STATUS_RULES,
-} from '../../lib/callOutcomeRules';
+import { DEFAULT_CALL_STATUS_RULES } from '../../lib/callOutcomeRules';
 import { DEFAULT_MESSAGING_ACTION_RULES } from '../../lib/automationRules';
-import { CALL_OUTCOMES } from '../../lib/outreachQueue';
+import { CALL_OUTCOMES, DEFAULT_OUTCOME_RULES as DEFAULT_CALL_OUTCOME_RULES } from '../../lib/callOutcomes';
 import ToggleSwitch from '../ui/ToggleSwitch';
 
 const SECTIONS = [

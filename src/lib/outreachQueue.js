@@ -1,28 +1,7 @@
 /** Shared cold-outreach queue logic (Outreach Tracker + Calendar Plan picker). */
 
 import { todayDateKeyInZone } from './dateTime';
-
-export const CALL_OUTCOMES = [
-  'Answered',
-  'No Answer',
-  'Voicemail Left',
-  'Busy',
-  'Wrong Number',
-  'Callback Requested',
-  'Not Interested',
-];
-
-export const TERMINAL_OUTCOMES = new Set(['Wrong Number', 'Not Interested']);
-
-export const FOLLOW_UP_DAYS = {
-  Answered: 3,
-  'No Answer': 1,
-  'Voicemail Left': 1,
-  Busy: 1,
-  'Wrong Number': null,
-  'Callback Requested': 0,
-  'Not Interested': null,
-};
+import { TERMINAL_OUTCOMES, FOLLOW_UP_DAYS } from './callOutcomes';
 
 export function startOfToday(timeZone) {
   // Device/browser midnight by default; optional IANA zone via date key
@@ -63,6 +42,17 @@ export function attemptsByLeadMap(attempts) {
   const map = new Map();
   for (const row of attempts || []) {
     if (!map.has(row.lead_id)) map.set(row.lead_id, row);
+  }
+  return map;
+}
+
+/** Array of all attempts per lead_id from flat attempts list (assuming input is sorted newest first). */
+export function allAttemptsByLeadMap(attempts) {
+  const map = new Map();
+  for (const row of attempts || []) {
+    const list = map.get(row.lead_id) || [];
+    list.push(row);
+    map.set(row.lead_id, list);
   }
   return map;
 }

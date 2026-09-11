@@ -81,7 +81,7 @@ export function formatPlanPrimaryPrice(country, pricing) {
 /** USD reference for PK/BD (canonical Paddle USD, not FX conversion). */
 export function formatPlanUsdReference(country, pricing) {
   if (!pricing || (country !== 'PK' && country !== 'BD')) return null;
-  return `$${pricing.usdPerMonth}/mo reference`;
+  return `$${pricing.usdPerMonth} USD total`;
 }
 
 /** Billing cycle subline (local currency). */

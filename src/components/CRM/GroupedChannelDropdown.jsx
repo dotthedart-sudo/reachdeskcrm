@@ -10,7 +10,17 @@ const PRESET_COLORS = [
   '#7FB5A0', '#4ADE80', '#E05252', '#6B7280'
 ];
 
-const seedingPromises = {};
+export const channelCache = {};
+
+export function clearChannelCache(userId = null) {
+  if (userId) {
+    for (const k in channelCache) {
+      if (k.startsWith(`${userId}_`)) delete channelCache[k];
+    }
+  } else {
+    for (const k in channelCache) delete channelCache[k];
+  }
+}
 
 export default function GroupedChannelDropdown({
   value,
@@ -97,6 +107,31 @@ export default function GroupedChannelDropdown({
     return dedupeStatuses(data.map(d => ({ ...d, label: d.name })));
   };
 
+  const dedupeAndSyncChannels = async (data, uid) => {
+    if (!data || data.length === 0) return [];
+    
+    const seenLabels = new Set();
+    const duplicateIds = [];
+    const uniqueData = [];
+
+    data.forEach(item => {
+      const d = { ...item, label: item.name };
+      const lowerLabel = d.label.toLowerCase();
+      if (seenLabels.has(lowerLabel)) {
+        duplicateIds.push(d.id);
+      } else {
+        seenLabels.add(lowerLabel);
+        uniqueData.push(d);
+      }
+    });
+
+    if (duplicateIds.length > 0) {
+      await supabase.from('custom_channels').delete().in('id', duplicateIds);
+    }
+    
+    return uniqueData;
+  };
+
   const loadStatuses = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -104,53 +139,17 @@ export default function GroupedChannelDropdown({
       const uid = session.user.id;
       setUserId(uid);
 
-      const key = seedKey(uid);
-      if (seedingPromises[key]) {
-        await seedingPromises[key];
-        const unique = await fetchChannelStatuses(uid);
-        if (unique.length > 0) setStatuses(unique);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('custom_channels')
-        .select('*')
-        .eq('user_id', uid)
-        .eq('type', channel)
-        .order('sort_order', { ascending: true });
-
-      if (error) {
-        console.warn('Error loading custom channels:', error);
-        setStatuses(defaults);
-        return;
-      }
-
-      if (data) {
-        if (data.length > 0) {
-          const seenLabels = new Set();
-          const duplicateIds = [];
-          const uniqueData = [];
-
-          data.forEach(item => {
-            const d = { ...item, label: item.name };
-            const lowerLabel = d.label.toLowerCase();
-            if (seenLabels.has(lowerLabel)) {
-              duplicateIds.push(d.id);
-            } else {
-              seenLabels.add(lowerLabel);
-              uniqueData.push(d);
-            }
-          });
-
-          if (duplicateIds.length > 0) {
-            await supabase.from('custom_channels').delete().in('id', duplicateIds);
-          }
-
-          const existingLabels = new Set(uniqueData.map(d => d.label.toLowerCase()));
-          const missingDefaults = defaults.filter(d => !existingLabels.has(d.label.toLowerCase()));
+      const cacheKey = `${uid}_${channel}`;
+      
+      if (!channelCache[cacheKey]) {
+        channelCache[cacheKey] = (async () => {
+          let uniqueData = await fetchChannelStatuses(uid);
           
-          if (missingDefaults.length > 0) {
-            const performSeeding = async () => {
+          if (uniqueData.length > 0) {
+            const existingLabels = new Set(uniqueData.map(d => d.label.toLowerCase()));
+            const missingDefaults = defaults.filter(d => !existingLabels.has(d.label.toLowerCase()));
+            
+            if (missingDefaults.length > 0) {
               const seedMissing = missingDefaults.map((d, idx) => ({
                 user_id: uid,
                 type: channel,
@@ -165,20 +164,10 @@ export default function GroupedChannelDropdown({
                 .select();
                 
               if (!insertErr && insertedData) {
-                return [...uniqueData, ...insertedData.map(d => ({ ...d, label: d.name }))];
+                uniqueData = [...uniqueData, ...insertedData.map(d => ({ ...d, label: d.name }))];
               }
-              return uniqueData;
-            };
-
-            seedingPromises[key] = performSeeding();
-            const result = await seedingPromises[key];
-            delete seedingPromises[key];
-            setStatuses(result);
+            }
           } else {
-            setStatuses(uniqueData);
-          }
-        } else {
-          const performInitialSeeding = async () => {
             const seedData = defaults.map((d, idx) => ({
               user_id: uid,
               type: channel,
@@ -192,19 +181,25 @@ export default function GroupedChannelDropdown({
               .select();
             
             if (!insertErr && insertedData) {
-              return insertedData.map(d => ({ ...d, label: d.name }));
+              uniqueData = insertedData.map(d => ({ ...d, label: d.name }));
+            } else {
+              uniqueData = defaults;
             }
-            return defaults;
-          };
+          }
+          return uniqueData;
+        })();
+      }
 
-          seedingPromises[key] = performInitialSeeding();
-          const result = await seedingPromises[key];
-          delete seedingPromises[key];
-          setStatuses(result);
-        }
+      try {
+        const result = await channelCache[cacheKey];
+        setStatuses(result);
+      } catch (err) {
+        delete channelCache[cacheKey];
+        console.error('Error loading custom channels:', err);
+        setStatuses(defaults);
       }
     } catch (err) {
-      console.error('Error loading custom channels:', err);
+      console.error('Error in loadStatuses:', err);
       setStatuses(defaults);
     }
   };
@@ -246,6 +241,7 @@ export default function GroupedChannelDropdown({
         .single();
 
       if (!error && data) {
+        clearChannelCache(userId);
         setStatuses(prev => [...prev, { ...data, label: data.name }]);
         setNewLabel('');
         if (onUpdate) onUpdate();
@@ -280,6 +276,7 @@ export default function GroupedChannelDropdown({
         .single();
 
       if (!error && data) {
+        clearChannelCache(userId);
         const updated = [...statuses];
         updated[index] = { ...data, label: data.name };
         setStatuses(updated);
@@ -330,6 +327,7 @@ export default function GroupedChannelDropdown({
         .eq('id', statuses[index].id);
 
       if (!deleteErr) {
+        clearChannelCache(userId);
         setStatuses(prev => prev.filter((_, idx) => idx !== index));
         if (onUpdate) onUpdate();
       }
@@ -365,8 +363,10 @@ export default function GroupedChannelDropdown({
       if (insertErr) throw insertErr;
 
       if (insertedData && insertedData.length > 0) {
+        clearChannelCache(userId);
         setStatuses(insertedData.map(d => ({ ...d, label: d.name })));
       } else {
+        clearChannelCache(userId);
         setStatuses(defaults);
       }
       

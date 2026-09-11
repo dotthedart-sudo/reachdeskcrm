@@ -24,7 +24,7 @@ export default function ManageCallAttemptsModal({
   open,
   lead,
   attempts = [],
-  currentUserId,
+  currentUser,
   onClose,
   onChanged,
 }) {
@@ -33,6 +33,7 @@ export default function ManageCallAttemptsModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const currentUserId = currentUser?.id;
   const ownAttempts = useMemo(
     () => (attempts || []).filter((a) => a.user_id === currentUserId)
       .sort((a, b) => new Date(b.occurred_at || b.created_at) - new Date(a.occurred_at || a.created_at)),
@@ -180,6 +181,9 @@ export default function ManageCallAttemptsModal({
       {editAttempt && (
         <EditCallAttemptModal
           attempt={editAttempt}
+          isLatest={attempts[0]?.id === editAttempt.id}
+          profile={currentUser}
+          lead={lead}
           onClose={() => setEditAttempt(null)}
           onSaved={() => {
             setEditAttempt(null);

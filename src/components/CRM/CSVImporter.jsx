@@ -205,7 +205,12 @@ export default function CSVImporter({
 
           if (fieldKey.startsWith('custom_fields.')) {
             const customKey = fieldKey.replace('custom_fields.', '');
-            leadObj.custom_fields[customKey] = rawValue;
+            const colDef = columnDefs.find(c => c.column_key === customKey);
+            if (colDef && colDef.column_type === 'link') {
+              leadObj.custom_fields[customKey] = rawValue ? rawValue.split(',').map(s=>s.trim()).filter(Boolean) : [];
+            } else {
+              leadObj.custom_fields[customKey] = rawValue;
+            }
           } else {
             leadObj[fieldKey] = rawValue;
           }

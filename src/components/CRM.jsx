@@ -28,6 +28,7 @@ import CallWindowBadge from './CRM/CallWindowBadge';
 import ListSwitcher from './CRM/ListSwitcher';
 import CopyableCell from './CRM/CopyableCell';
 import ResizableTh from './CRM/ResizableTh';
+import CustomFieldCell from './CRM/CustomFieldCell';
 import ResizableTr from './CRM/ResizableTr';
 import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS, CALL_ACTION_DEFAULT_OPTIONS } from './CRM/crmTableColumns';
 import { useCrmTableLayout } from './CRM/useCrmTableLayout';
@@ -2342,7 +2343,13 @@ export default function CRM({
 
   const filteredLeads = leads.filter(l => {
     // Search
-    const fullSearch = `${l.first_name || ''} ${l.last_name || ''} ${l.company || ''} ${l.email || ''}`.toLowerCase();
+    let customFieldsStr = '';
+    if (l.custom_fields) {
+      customFieldsStr = Object.values(l.custom_fields)
+        .map(val => Array.isArray(val) ? val.join(' ') : String(val || ''))
+        .join(' ');
+    }
+    const fullSearch = `${l.first_name || ''} ${l.last_name || ''} ${l.company || ''} ${l.email || ''} ${customFieldsStr}`.toLowerCase();
     const searchMatch = fullSearch.includes(searchQuery.toLowerCase());
 
     // Folder filter — browse mode shows the list picker instead of the table
@@ -2852,6 +2859,7 @@ export default function CRM({
               showNoteSharing={!!currentUser?.team_id}
               suggestionRules={suggestionRules}
               templates={templates}
+              setColumnDefs={setColumnDefs}
               onUpdateColumnDef={(id, newOpts) => {
                 setColumnDefs((prev) => prev.map((c) => (c.id === id ? { ...c, dropdown_options: newOpts } : c)));
               }}
@@ -2862,6 +2870,7 @@ export default function CRM({
               currentUser={currentUser}
               leads={sortedLeads}
               onOpenLead={handleOpenLead}
+              onLeadUpdated={handleCallLeadUpdated}
               embedded
               leadIdSet={listLeadIdSet}
               hideSessionControls
@@ -2882,6 +2891,7 @@ export default function CRM({
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="form-input w-full"
+              style={{ paddingLeft: '2.5rem' }}
             />
           </div>
 
@@ -3577,6 +3587,23 @@ export default function CRM({
                           );
                         }
 
+                        if (isCustom) {
+                          return (
+                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
+                              <CustomFieldCell
+                                lead={lead}
+                                col={col}
+                                onChange={() => fetchData()}
+                                currentUser={currentUser}
+                                templates={templates}
+                                suggestionRules={suggestionRules}
+                                setColumnDefs={setColumnDefs}
+                                onRefresh={fetchData}
+                              />
+                            </td>
+                          );
+                        }
+
                         if (col.column_type === 'dropdown') {
                           const isActionToTake = col.column_key === 'action_to_take';
                           const expectedSuggestion = isActionToTake ? getSuggestionForStatus(lead.status, suggestionRules, currentUser) : null;
@@ -3594,21 +3621,7 @@ export default function CRM({
                                   value={cellValue}
                                   columnDef={col}
                                   onChange={(val) => {
-                                    if (isCustom) {
-                                      const custom = { ...(lead.custom_fields || {}) };
-                                      custom[col.column_key] = val;
-                                      supabase.from('leads').update({ custom_fields: custom }).eq('id', lead.id).then(() => {
-                                        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, custom_fields: custom } : l));
-                                        supabase.from('lead_activity').insert({
-                                          user_id: currentUser.id,
-                                          lead_id: lead.id,
-                                          action_type: 'Field Updated',
-                                          action_detail: { field: col.column_key, from: lead.custom_fields?.[col.column_key] || 'None', to: val }
-                                        });
-                                      });
-                                    } else {
-                                      handleDropdownChange(lead.id, col.column_key, val);
-                                    }
+                                    handleDropdownChange(lead.id, col.column_key, val);
                                   }}
                                   onUpdateColumnDef={(id, newOpts) => {
                                     setColumnDefs(prev => prev.map(c => c.id === id ? { ...c, dropdown_options: newOpts } : c));

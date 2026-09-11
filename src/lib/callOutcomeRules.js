@@ -1,12 +1,14 @@
 /** Default mappings from call outcome / call status → call_status + call_action + priority. */
 
 import { supabase } from './supabase';
-import { CALL_OUTCOMES } from './outreachQueue';
+import { CALL_OUTCOMES, DEFAULT_OUTCOME_RULES as DEFAULT_CALL_OUTCOME_RULES } from './callOutcomes';
 import {
   resolveCallOutcomeRules,
   resolveCallStatusRules,
   shouldAutoApplyCallSuggestions,
 } from './automationRules';
+
+export { shouldAutoApplyCallSuggestions };
 
 export const DEFAULT_CALL_STATUSES = [
   { label: 'Not called', color: '#3b82f6' },
@@ -21,15 +23,7 @@ export const DEFAULT_CALL_STATUSES = [
   { label: 'Not interested', color: '#64748b' },
 ];
 
-export const DEFAULT_CALL_OUTCOME_RULES = [
-  { outcome: 'Voicemail Left', suggested_call_status: 'Voicemail left', suggested_call_action: 'Try again tomorrow', suggested_priority: 'Cold' },
-  { outcome: 'No Answer', suggested_call_status: 'No answer', suggested_call_action: 'Try again tomorrow', suggested_priority: 'Cold' },
-  { outcome: 'Busy', suggested_call_status: 'Busy', suggested_call_action: 'Try again tomorrow', suggested_priority: 'Cold' },
-  { outcome: 'Answered', suggested_call_status: 'Answered', suggested_call_action: 'Callback scheduled', suggested_priority: 'Warm' },
-  { outcome: 'Callback Requested', suggested_call_status: 'Callback requested', suggested_call_action: 'Callback scheduled', suggested_priority: 'Warm' },
-  { outcome: 'Not Interested', suggested_call_status: 'Not interested', suggested_call_action: 'Not interested — close', suggested_priority: 'Cold' },
-  { outcome: 'Wrong Number', suggested_call_status: 'Wrong number', suggested_call_action: 'Wrong number — remove', suggested_priority: 'Cold' },
-];
+
 
 export const DEFAULT_CALL_STATUS_RULES = [
   { status: 'Not called', suggested_call_action: 'Call now', suggested_priority: 'Cold' },

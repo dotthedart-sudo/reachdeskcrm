@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Phone, PhoneCall, CheckCircle2, UserCheck, BarChart2 } from 'lucide-react';
+import { DEFAULT_OUTCOMES } from '../../lib/callOutcomes';
 
 export default function ReportsPipelineTab({
   totalLeads,
@@ -58,15 +59,7 @@ export default function ReportsPipelineTab({
   const avgAttempts = callActivity.avg_attempts_per_lead || 0;
   const distinctLeads = callActivity.distinct_leads || 0;
 
-  const outcomeList = [
-    { label: 'Answered', color: '#10b981' },
-    { label: 'No Answer', color: '#64748b' },
-    { label: 'Voicemail Left', color: '#3b82f6' },
-    { label: 'Busy', color: '#f59e0b' },
-    { label: 'Wrong Number', color: '#ef4444' },
-    { label: 'Callback Requested', color: '#8b5cf6' },
-    { label: 'Not Interested', color: '#dc2626' }
-  ];
+  const outcomeList = DEFAULT_OUTCOMES;
 
   return (
     <div className="reports-pipeline-tab flex-col gap-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

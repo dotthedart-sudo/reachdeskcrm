@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { CALL_OUTCOMES } from './callOutcomes';
 
 /** PostgREST default max-rows; fetch in pages so we never assume one response is complete. */
 export const LEADS_PAGE_SIZE = 1000;
@@ -124,15 +125,7 @@ export function emptyPipelineStats() {
       connect_rate: 0,
       distinct_leads: 0,
       avg_attempts_per_lead: 0,
-      outcomes: {
-        Answered: 0,
-        'No Answer': 0,
-        'Voicemail Left': 0,
-        Busy: 0,
-        'Wrong Number': 0,
-        'Callback Requested': 0,
-        'Not Interested': 0,
-      },
+      outcomes: Object.fromEntries(CALL_OUTCOMES.map(o => [o, 0])),
     },
     positive_by_template: {},
   };

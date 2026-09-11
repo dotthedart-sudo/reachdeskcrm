@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 
-/** Compact one-click call outcome buttons for queue rows and calling session. */
-export const QUICK_LOG_OUTCOMES = [
-  { label: 'Answered', outcome: 'Answered' },
-  { label: 'Voicemail', outcome: 'Voicemail Left' },
-  { label: 'No answer', outcome: 'No Answer' },
-  { label: 'Not interested', outcome: 'Not Interested' },
-];
+import { QUICK_LOG_OUTCOMES, useCustomCallOutcomes } from '../../../lib/callOutcomes';
+import CustomOutcomeModal from './CustomOutcomeModal';
 
 export default function QuickLogChips({ onLog, onMore, disabled = false, compact = false }) {
   const [logging, setLogging] = useState(null);
+  const [showAddOutcome, setShowAddOutcome] = useState(false);
+  const availableOutcomes = useCustomCallOutcomes();
+  
+  const customOutcomes = availableOutcomes.filter(o => o.is_custom && !o.is_archived);
 
   const handleClick = async (outcome) => {
     if (disabled || logging) return;
@@ -50,6 +49,27 @@ export default function QuickLogChips({ onLog, onMore, disabled = false, compact
           {logging === outcome ? '…' : label}
         </button>
       ))}
+      {customOutcomes.map(({ label, outcome }) => {
+        const out = outcome || label;
+        return (
+          <button
+            key={out}
+            type="button"
+            className="btn btn-sm btn-secondary quick-log-chip"
+            disabled={disabled || !!logging}
+            style={{
+              fontSize: compact ? '0.68rem' : '0.72rem',
+              padding: compact ? '0.15rem 0.4rem' : '0.2rem 0.5rem',
+              lineHeight: 1.2,
+              opacity: logging && logging !== out ? 0.5 : 1,
+            }}
+            onClick={() => handleClick(out)}
+            title={`Log: ${out}`}
+          >
+            {logging === out ? '…' : label}
+          </button>
+        );
+      })}
       {onMore && (
         <button
           type="button"
@@ -63,6 +83,28 @@ export default function QuickLogChips({ onLog, onMore, disabled = false, compact
         >
           More…
         </button>
+      )}
+      <button
+        type="button"
+        className="btn btn-sm btn-secondary quick-log-chip"
+        disabled={disabled || !!logging}
+        style={{ fontSize: compact ? '0.68rem' : '0.72rem', padding: compact ? '0.15rem 0.4rem' : '0.2rem 0.5rem', fontWeight: 600 }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowAddOutcome(true);
+        }}
+      >
+        + Add
+      </button>
+
+      {showAddOutcome && (
+        <CustomOutcomeModal 
+          onClose={() => setShowAddOutcome(false)}
+          onCreated={(newOutcome) => {
+            setShowAddOutcome(false);
+            handleClick(newOutcome.label);
+          }}
+        />
       )}
     </div>
   );

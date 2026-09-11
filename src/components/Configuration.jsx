@@ -18,10 +18,8 @@ import { BRAND_NAME } from '../config/brand';
 import { getDialerPrefs, setDialerPrefs } from '../lib/callDialer';
 import { getTeamIds } from '../lib/utils';
 import { fetchAllLeadsForScope } from '../lib/leadsQuery';
-import {
-  DEFAULT_CALL_OUTCOME_RULES,
-  DEFAULT_CALL_STATUS_RULES,
-} from '../lib/callOutcomeRules';
+import { DEFAULT_CALL_STATUS_RULES } from '../lib/callOutcomeRules';
+import { DEFAULT_OUTCOME_RULES as DEFAULT_CALL_OUTCOME_RULES } from '../lib/callOutcomes';
 import {
   buildCallRulesMigrationPatch,
   clearMigratedCallRulesLocalStorage,

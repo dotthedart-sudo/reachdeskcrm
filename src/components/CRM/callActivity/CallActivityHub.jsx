@@ -32,6 +32,7 @@ export default function CallActivityHub({
   leadIdSet = null,
   hideSessionControls = false,
   onGoToQueue = null,
+  onLeadUpdated = null,
 }) {
   const navigate = useNavigate();
   const { teamIds = [] } = useAppContext() || {};
@@ -162,8 +163,8 @@ export default function CallActivityHub({
   const handleLogged = (payload) => {
     const attempt = payload?.attempt || payload;
     if (attempt?.id) setAttempts((prev) => [attempt, ...prev]);
-    setLogLead(null);
-    onRefresh?.();
+    setLogOpen(false);
+    if (payload?.leadUpdates) onLeadUpdated?.(payload.leadUpdates);
   };
 
   const handleAttemptUpdated = (updated) => {
@@ -175,7 +176,6 @@ export default function CallActivityHub({
     if (id === 'refresh') {
       await loadMy();
       if (tab === 'team') loadTeam();
-      onRefresh?.();
       return;
     }
     await deleteCallAttempt(id);

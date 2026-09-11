@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { CALL_OUTCOMES, leadDisplayName } from '../../../lib/outreachQueue';
+import { leadDisplayName } from '../../../lib/outreachQueue';
+import { CALL_OUTCOMES } from '../../../lib/callOutcomes';
 import { logCallWithUpdates } from '../../../lib/callActivity';
 import { captureDeviceTimestamp } from '../../../lib/dateTime';
+import { useCustomCallOutcomes } from '../../../lib/callOutcomes';
+import CustomOutcomeModal from './CustomOutcomeModal';
 
 function toLocalInputValue(iso) {
   if (!iso) return '';
@@ -27,7 +30,9 @@ export default function LogCallModal({
   timeZone = null,
 }) {
   const [leadId, setLeadId] = useState(defaultLeadId || '');
-  const [outcome, setOutcome] = useState('No Answer');
+  const availableOutcomes = useCustomCallOutcomes();
+  const [outcome, setOutcome] = useState('Answered');
+  const [showAddOutcome, setShowAddOutcome] = useState(false);
   const [note, setNote] = useState('');
   const [noteVisibility, setNoteVisibility] = useState('team');
   const [applyStatusAction, setApplyStatusAction] = useState(true);
@@ -59,10 +64,15 @@ export default function LogCallModal({
     setError('');
     try {
       const occurredAt = occurredLocal ? new Date(occurredLocal).toISOString() : null;
+      
+      const selectedOutcomeObj = availableOutcomes.find(o => o.label === outcome);
+      const outcomeBase = selectedOutcomeObj ? (selectedOutcomeObj.based_on || selectedOutcomeObj.label) : outcome;
+
       const { attempt, leadUpdates } = await logCallWithUpdates({
         userId,
         leadId: resolvedLeadId,
         outcome,
+        outcomeBase,
         note,
         noteVisibility: showNoteSharing ? noteVisibility : 'team',
         teamId,
@@ -147,16 +157,26 @@ export default function LogCallModal({
 
           <div className="form-group">
             <label className="form-label">Outcome</label>
-            <select
-              className="form-input"
-              value={outcome}
-              onChange={(e) => setOutcome(e.target.value)}
-              required
-            >
-              {CALL_OUTCOMES.map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <select
+                className="form-input"
+                style={{ flex: 1 }}
+                value={outcome}
+                onChange={(e) => {
+                  if (e.target.value === 'ADD_NEW') {
+                    setShowAddOutcome(true);
+                  } else {
+                    setOutcome(e.target.value);
+                  }
+                }}
+                required
+              >
+                {availableOutcomes.map((o) => (
+                  <option key={o.label} value={o.label}>{o.label}</option>
+                ))}
+                <option value="ADD_NEW" style={{ fontWeight: 'bold' }}>+ Add custom outcome…</option>
+              </select>
+            </div>
           </div>
 
           <div className="form-group">
@@ -200,6 +220,19 @@ export default function LogCallModal({
           </div>
         </form>
       </div>
+
+      {showAddOutcome && (
+        <CustomOutcomeModal 
+          onClose={() => {
+            setShowAddOutcome(false);
+            if (outcome === 'ADD_NEW') setOutcome('Answered'); // fallback
+          }}
+          onCreated={(newOutcome) => {
+            setShowAddOutcome(false);
+            setOutcome(newOutcome.label);
+          }}
+        />
+      )}
     </div>
   );
 }
