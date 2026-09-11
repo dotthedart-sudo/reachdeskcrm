@@ -32,7 +32,7 @@ export default function EditCallAttemptModal({ attempt, onClose, onSaved, profil
     setError('');
   }, [attempt]);
 
-  if (!attempt) return null;
+  if (!attempt || !attempt.id) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

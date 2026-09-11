@@ -240,8 +240,9 @@ export default function CallQueueTable({
             placeholder="—"
           />
         );
-      case 'outcome':
-        if (!last) return '—';
+      case 'outcome': {
+        const latestAttempt = attemptList[0];
+        if (!latestAttempt) return '—';
         return (
           <button
             type="button"
@@ -249,12 +250,13 @@ export default function CallQueueTable({
             title="Edit latest call log"
             onClick={(e) => {
               e.stopPropagation();
-              setEditLatest({ attempt: last, lead });
+              setEditLatest({ attempt: latestAttempt, lead });
             }}
           >
-            <OutcomeBadge outcome={last.outcome} />
+            <OutcomeBadge outcome={latestAttempt.outcome} />
           </button>
         );
+      }
       case 'attempts':
         return (
           <button
