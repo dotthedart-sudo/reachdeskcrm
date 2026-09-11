@@ -24,7 +24,7 @@ export const CALL_QUEUE_DEFAULT_DEFS = [
   { table_view: 'call_queue', column_key: 'status', column_label: 'Status', column_type: 'status', is_visible: true, is_default: true, sort_order: 7, dropdown_options: [] },
   { table_view: 'call_queue', column_key: 'last_called', column_label: 'Last called', column_type: 'date', is_visible: true, is_default: true, sort_order: 8, dropdown_options: [] },
   { table_view: 'call_queue', column_key: 'last_contacted_at', column_label: 'Last contacted', column_type: 'date', is_visible: false, is_default: true, sort_order: 9, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'outcome', column_label: 'Outcome', column_type: 'text', is_visible: true, is_default: true, sort_order: 10, dropdown_options: [] },
+
   { table_view: 'call_queue', column_key: 'attempts', column_label: 'Attempts', column_type: 'number', is_visible: true, is_default: true, sort_order: 11, dropdown_options: [] },
   { table_view: 'call_queue', column_key: 'priority', column_label: 'Priority', column_type: 'priority', is_visible: false, is_default: true, sort_order: 12, dropdown_options: [] },
 ];
