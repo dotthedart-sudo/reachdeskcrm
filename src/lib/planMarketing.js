@@ -62,6 +62,14 @@ export function getPlanTagline(planId, billingCycle) {
 
 export { AI_BOT_CREDITS };
 
+const FREE_FEATURES_BASE = [
+  '3 templates',
+  '0 AI credits',
+  '1 List (folder)',
+  'CSV import & export',
+  'No integrations',
+];
+
 const STARTER_FEATURES_BASE = [
   '10 templates',
   `${AI_BOT_CREDITS.starter} AI credits / month`,
@@ -97,6 +105,10 @@ export function getPlanFeatures(planId, billingCycle) {
   const isYearly = (billingCycle ?? '').toLowerCase() === 'yearly';
   const hasYearlyBonus = isYearly && (key === 'starter' || key === 'pro');
 
+  if (key === 'free') {
+    return [leadLine, ...FREE_FEATURES_BASE];
+  }
+
   if (key === 'starter') {
     const features = [leadLine, ...STARTER_FEATURES_BASE];
     if (hasYearlyBonus) {
@@ -121,6 +133,15 @@ export function getPlanFeatures(planId, billingCycle) {
 }
 
 export const MARKETING_PLANS = [
+  {
+    id: 'free',
+    name: 'Free',
+    tagline: (billing) => getPlanTagline('free', billing),
+    getFeatures: (billing) => getPlanFeatures('free', billing),
+    comingSoon: false,
+    highlighted: false,
+    ctaLabel: 'Current Plan',
+  },
   {
     id: 'starter',
     name: 'Starter',

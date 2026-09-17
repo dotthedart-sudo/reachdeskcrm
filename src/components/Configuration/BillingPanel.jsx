@@ -34,7 +34,7 @@ export default function BillingPanel({
   onSyncSubscription,
 }) {
   const planKey = getEffectivePlan(currentUser);
-  const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.trial;
+  const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
   const maxLeads = getPlanLeadLimit(planKey, getEffectiveBillingCycle(currentUser)) ?? limits.leads;
   const maxTemplates = limits.templates;
   const maxAi = aiUsage.limit || getAiCreditLimit(planKey);
@@ -81,7 +81,7 @@ export default function BillingPanel({
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', minWidth: '100px' }}>Current Plan</span>
           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-            {currentUser?.plan || 'Trial'}
+            {currentUser?.plan || 'Free'}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -110,7 +110,9 @@ export default function BillingPanel({
                 ? 'Cancelling'
                 : currentUser?.plan === 'trial'
                   ? 'Trial'
-                  : 'Inactive'}
+                  : currentUser?.plan === 'free'
+                    ? 'Free'
+                    : 'Inactive'}
           </span>
         </div>
         {currentUser?.plan_status === 'cancelling' && (
@@ -161,7 +163,7 @@ export default function BillingPanel({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>AI credits {planKey === 'trial' ? '(trial)' : '(this month)'}</span>
+            <span style={{ color: 'var(--text-muted)' }}>AI credits {planKey === 'trial' || planKey === 'free' ? '(plan)' : '(this month)'}</span>
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
               {aiUsage.loading ? '…' : `${aiUsage.used} / ${maxAi}`}
             </span>

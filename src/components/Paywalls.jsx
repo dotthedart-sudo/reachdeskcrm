@@ -161,6 +161,7 @@ export function DeniedScreen({ handleLogout }) {
 
 // ─── Plan Card Component ──────────────────────────────────────────────────────
 const PLAN_LEVELS = {
+  free: 0,
   trial: 0,
   starter: 1,
   pro: 2,
@@ -197,7 +198,7 @@ function PlanCard({ plan, billing, onSelectPlan, profile, country, formatLocalPr
     isSelectable = true;
   }
 
-  const renderPrice = () => formatPlanHeroAmount(country, pricing, billing);
+  const renderPrice = () => formatPlanHeroAmount(country, pricing, billing, id);
   const renderPeriod = () => formatPlanHeroPeriod(billing);
   const renderDetailsSub = () => formatPlanHeroSub(country, pricing, billing, formatLocalPrice);
   const renderBillingNote = () => formatPlanHeroBillingNote(country, pricing, billing);
@@ -487,7 +488,7 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
     }
   };
 
-  const isTrialExpired = profile?.plan === 'trial';
+  const isFreeOrTrial = profile?.plan === 'free' || profile?.plan === 'trial';
 
   if (profile?.role === 'admin') {
     return <MemberBillingNotice profile={profile} variant="admin" />;
@@ -497,17 +498,13 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
     return <MemberBillingNotice profile={profile} variant="member" />;
   }
 
-  const headerTitle = isEmbedded
+  const headerTitle = isEmbedded || isFreeOrTrial
     ? 'Upgrade your workspace'
-    : isTrialExpired
-      ? 'Your free trial has ended'
-      : 'Renew your subscription';
+    : 'Renew your subscription';
 
-  const headerSub = isEmbedded
+  const headerSub = isEmbedded || isFreeOrTrial
     ? 'Pick Starter or Pro — billed monthly, quarterly, or yearly. Upgrade anytime.'
-    : isTrialExpired
-      ? 'Choose a plan to keep your leads, templates, and pipeline data.'
-      : `Your plan expired${profile?.plan_expires_at ? ` on ${new Date(profile.plan_expires_at).toLocaleDateString()}` : ''}. Renew below to unlock your workspace.`;
+    : `Your plan expired${profile?.plan_expires_at ? ` on ${new Date(profile.plan_expires_at).toLocaleDateString()}` : ''}. Renew below to unlock your workspace.`;
 
   const planName = (key) => PLANS.find((p) => p.id === key)?.name || String(key || '').toUpperCase();
 

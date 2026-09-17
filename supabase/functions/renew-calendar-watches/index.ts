@@ -6,43 +6,9 @@ import {
   requirePrivileged,
 } from '../_shared/auth.ts';
 
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
+import { refreshAccessToken, stopWatchChannel } from '../_shared/googleCalendar.ts';
+
 const SUPABASE_FUNCTIONS_URL = 'https://efxgwqfdstrhrnnvtynl.supabase.co/functions/v1';
-
-async function refreshAccessToken(
-  refreshToken: string,
-  clientId: string,
-  clientSecret: string
-): Promise<{ access_token: string; expires_in: number } | null> {
-  const resp = await fetch(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!resp.ok) return null;
-  return await resp.json();
-}
-
-async function stopWatchChannel(
-  channelId: string,
-  resourceId: string,
-  accessToken: string
-): Promise<void> {
-  await fetch(`${GOOGLE_CALENDAR_API}/channels/stop`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ id: channelId, resourceId }),
-  });
-}
 
 serve(async (req) => {
   const authError = requirePrivileged(req);
@@ -75,10 +41,23 @@ serve(async (req) => {
     console.log(`[renew-calendar-watches] Renewing ${expiring.length} watch(es)...`);
     const results: { userId: string; success: boolean; error?: string }[] = [];
 
-    for (const integration of expiring) {
+      for (const integration of expiring) {
       const userId = integration.user_id;
 
       try {
+        // Skip users whose plan does not allow calendar integrations
+        const { data: planCtx } = await supabase.rpc('get_user_plan_context', { p_user_id: userId });
+        const effectivePlan = (planCtx?.plan || 'free').toLowerCase();
+        const { data: planLimit } = await supabase
+          .from('plan_limits')
+          .select('calendar_integration')
+          .eq('plan', effectivePlan)
+          .maybeSingle();
+
+        if (planLimit && planLimit.calendar_integration === false) {
+           console.log(`[renew-calendar-watches] Skipping user ${userId} because plan does not allow calendar integration`);
+           continue;
+        }
         // ── Refresh token if needed ─────────────────────────────────────────
         let accessToken = integration.access_token;
         const isExpired = new Date(integration.token_expires_at) <= new Date(Date.now() + 60_000);

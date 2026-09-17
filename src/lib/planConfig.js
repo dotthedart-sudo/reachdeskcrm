@@ -29,73 +29,54 @@ export const EXTRA_TEAMS_SEAT_PRICE_ID = 'pri_01kzhm4mb02kxwged2bqfyqxhx';
 /** Max extra seats selectable in one checkout or purchase action. */
 export const MAX_EXTRA_SEATS_PER_ACTION = 50;
 
-export function normalizePlan(plan) {
-  const p = (plan || 'trial').toLowerCase();
-  if (p === 'enterprise') return 'lifetime';
-  if (p in PLAN_LIMITS) return p;
-  return 'trial';
-}
-
-export const PLAN_LIMITS = {
-  trial: {
-    leads: 50,
-    templates: 5,
-    users: 5,
-    folders: true,
-    notes: true,
-    bulkImport: true,
-    copyAnalytics: true,
-    cumulativeReports: true,
-    calendarIntegration: true,
-    sheetsIntegration: true,
-    projectColumn: true,
-    coldOutreach: true,
-  },
-  starter: {
-    leads: 750,
-    templates: 10,
-    users: 1,
-    folders: true,
-    notes: true,
-    bulkImport: false,
-    copyAnalytics: true,
-    cumulativeReports: false,
-    calendarIntegration: false,
-    sheetsIntegration: true,
-    projectColumn: true,
-    coldOutreach: true,
-  },
-  pro: {
-    leads: 5000,
-    templates: 50,
-    users: 1,
-    folders: true,
-    notes: true,
-    bulkImport: true,
-    copyAnalytics: true,
-    cumulativeReports: true,
-    calendarIntegration: true,
-    sheetsIntegration: true,
-    projectColumn: true,
-    coldOutreach: true,
-  },
-  teams: {
-    leads: null,
-    templates: null,
-    users: 5,
-    folders: true,
-    notes: true,
-    bulkImport: true,
-    copyAnalytics: true,
-    cumulativeReports: true,
-    calendarIntegration: true,
-    sheetsIntegration: true,
-    projectColumn: true,
-    coldOutreach: true,
-  },
+export let PLAN_LIMITS = {
+  free: { leads: 100, templates: 3, folders: 1, users: 1, aiCredits: 0, calendarIntegration: false, sheetsIntegration: false, bulkImport: true, autoLists: false, extensionCaptures: 25 },
+  trial: { leads: 100, templates: 3, folders: 1, users: 1, aiCredits: 20, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25 },
+  starter: { leads: 750, templates: null, folders: null, users: 1, aiCredits: 0, calendarIntegration: false, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25 },
+  pro: { leads: 5000, templates: null, folders: null, users: 1, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25 },
+  teams: { leads: null, templates: null, folders: null, users: null, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25 },
+  lifetime: { leads: null, templates: null, folders: null, users: null, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25 },
 };
 
+export function normalizePlan(plan) {
+  const p = (plan || 'free').toLowerCase();
+  if (p === 'enterprise') return 'lifetime';
+  if (p in PLAN_LIMITS) return p;
+  return 'free';
+}
+
+let limitsFetched = false;
+let limitsPromise = null;
+
+export async function fetchPlanLimits(supabase) {
+  if (limitsFetched) return PLAN_LIMITS;
+  if (limitsPromise) return limitsPromise;
+  
+  limitsPromise = supabase.from('plan_limits').select('*').then(({ data, error }) => {
+    if (!error && data) {
+      data.forEach((row) => {
+        PLAN_LIMITS[row.plan] = {
+          leads: row.max_leads,
+          templates: row.max_templates,
+          folders: row.max_folders,
+          users: row.max_users,
+          aiCredits: row.ai_credits,
+          calendarIntegration: row.calendar_integration,
+          sheetsIntegration: row.sheets_integration,
+          bulkImport: row.bulk_import,
+          autoLists: row.auto_lists,
+          extensionCaptures: row.max_extension_captures,
+        };
+      });
+      limitsFetched = true;
+    }
+    return PLAN_LIMITS;
+  });
+  return limitsPromise;
+}
+
 export const NEXT_PLAN = {
+  free: 'Starter',
   trial: 'Starter',
   starter: 'Pro',
   pro: 'Teams',
@@ -103,6 +84,7 @@ export const NEXT_PLAN = {
 };
 
 export const NEXT_PLAN_ID = {
+  free: 'starter',
   trial: 'starter',
   starter: 'pro',
   pro: 'teams',
@@ -124,7 +106,7 @@ export function getPlanLeadLimit(plan, billingCycle) {
 
 /** Plan used for limits and feature gates (team members inherit workspace owner plan). */
 export function getEffectivePlan(profile) {
-  if (!profile) return 'trial';
+  if (!profile) return 'free';
   return normalizePlan(profile.effective_plan ?? profile.plan);
 }
 

@@ -15,7 +15,7 @@ export function isPaddlePaidCustomer(user) {
   return isRealPaddleSubscriptionId(user.paddle_subscription_id);
 }
 
-export const BILLING_PLAN_TABS = ['all', 'trial', 'starter', 'pro', 'teams'];
+export const BILLING_PLAN_TABS = ['all', 'trial', 'free', 'starter', 'pro', 'teams'];
 
 export function matchesBillingPlanTab(user, tab) {
   const plan = (user?.plan ?? 'trial').toLowerCase();

@@ -110,7 +110,8 @@ export function formatPlanUsdTotalReference(country, pricing) {
 }
 
 /** Card hero amount — total when quarterly/yearly, monthly rate when monthly. */
-export function formatPlanHeroAmount(country, pricing, billingKey) {
+export function formatPlanHeroAmount(country, pricing, billingKey, planId) {
+  if (planId === 'free') return '$0';
   if (!pricing) return '—';
   const monthly = billingKey === 'monthly';
   if (country === 'PK') {

@@ -93,14 +93,27 @@ serve(async (req) => {
   const userId = user.id;
 
   // ── Plan Access Check ───────────────────────────────────────────────────
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
   const { data: userProfile } = await supabaseUserClient
     .from('user_profiles')
-    .select('plan, created_at')
+    .select('created_at')
     .eq('id', userId)
     .maybeSingle();
 
-  const userPlan = normalizePlan(userProfile?.plan);
-  const creditLimit = getAiCreditLimit(userPlan);
+  const { data: planCtx } = await supabaseAdmin.rpc('get_user_plan_context', { p_user_id: userId });
+  const effectivePlan = (planCtx?.plan || 'free').toLowerCase();
+
+  const { data: planLimit } = await supabaseAdmin
+    .from('plan_limits')
+    .select('ai_credits')
+    .eq('plan', effectivePlan)
+    .maybeSingle();
+
+  const creditLimit = planLimit?.ai_credits || 0;
 
   if (creditLimit <= 0) {
     return jsonResponse(
@@ -147,12 +160,7 @@ serve(async (req) => {
   }
 
   // ── Plan-based AI credit limit ──────────────────────────────────────────
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-
-  const periodStart = getAiCreditPeriodStart(userPlan, userProfile?.created_at);
+  const periodStart = getAiCreditPeriodStart(effectivePlan, userProfile?.created_at);
 
   const { count: requestCount, error: countError } = await supabaseAdmin
     .from('ai_usage_log')

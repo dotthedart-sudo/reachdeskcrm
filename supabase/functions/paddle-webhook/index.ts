@@ -10,6 +10,7 @@ import {
   resolveProfileForPaddleEvent,
   sendBillingEmail,
 } from '../_shared/billing.ts';
+import { refreshAccessToken, stopWatchChannel } from '../_shared/googleCalendar.ts';
 import {
   extractCustomerId,
   extractCustomerEmail,
@@ -262,7 +263,7 @@ serve(async (req) => {
         const { error: updateError } = await supabaseAdmin
           .from('user_profiles')
           .update({
-            plan: 'trial',
+            plan: 'free',
             plan_status: 'inactive',
             plan_cancels_at: null,
             paddle_subscription_status: 'canceled',
@@ -270,6 +271,40 @@ serve(async (req) => {
           .eq('id', target.id);
 
         if (updateError) throw new Error(`Failed to update user profile: ${updateError.message}`);
+
+        // Stop Calendar watch and mark Sheets sync inactive
+        const { data: calInt } = await supabaseAdmin
+          .from('calendar_integrations')
+          .select('*')
+          .eq('user_id', target.id)
+          .eq('provider', 'google')
+          .maybeSingle();
+
+        if (calInt?.watch_channel_id && calInt?.watch_resource_id) {
+          try {
+            const clientId = Deno.env.get('GOOGLE_CLIENT_ID')!;
+            const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
+            let accessToken = calInt.access_token;
+            const isExpired = new Date(calInt.token_expires_at) <= new Date(Date.now() + 60_000);
+            if (isExpired) {
+              const refreshed = await refreshAccessToken(calInt.refresh_token, clientId, clientSecret);
+              if (refreshed) accessToken = refreshed.access_token;
+            }
+            await stopWatchChannel(calInt.watch_channel_id, calInt.watch_resource_id, accessToken);
+          } catch (e) {
+            console.warn('Failed to stop google calendar watch on downgrade', e);
+          }
+        }
+
+        await supabaseAdmin
+          .from('calendar_integrations')
+          .update({ watch_channel_id: null, watch_resource_id: null, watch_expiration: null })
+          .eq('user_id', target.id);
+
+        await supabaseAdmin
+          .from('sheets_integrations')
+          .update({ is_active: false })
+          .eq('user_id', target.id);
 
         await logBillingEvent(supabaseAdmin, {
           userId: target.id,

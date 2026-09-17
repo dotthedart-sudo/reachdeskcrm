@@ -68,7 +68,6 @@ export default function UpgradeLockModal({ profile, handleLogout, theme }) {
   }, []);
 
   if (profile?.plan_status === 'active') return null;
-  const isTrial = profile?.plan === 'trial';
   const memberLocked = isTeamMember(profile);
 
   // ── Export Leads ────────────────────────────────────────────────────────────
@@ -176,16 +175,14 @@ export default function UpgradeLockModal({ profile, handleLogout, theme }) {
           color: 'var(--text-primary)',
           fontWeight: 'normal'
         }}>
-          {isTrial ? 'Trial Expired' : 'Subscription Expired'}
+          Subscription Expired
         </h2>
 
         {/* Description */}
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6 }}>
           {memberLocked
             ? 'Your workspace owner\'s plan is no longer active. Ask them to renew the team subscription, or leave the workspace in Settings → Team workspace to subscribe on your own.'
-            : isTrial
-              ? 'Your free trial has ended. Upgrade your plan to continue accessing your ReachDesk CRM workspace.'
-              : 'Your subscription has expired. Renew your plan to unlock client data.'}
+            : 'Your subscription has expired. Renew your plan to unlock client data.'}
         </p>
 
         {!memberLocked && (

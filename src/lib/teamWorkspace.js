@@ -431,20 +431,29 @@ export async function enrichProfileWithEffectivePlan(profile) {
   if (!profile?.id) return profile;
   let next = profile;
 
-  if ((profile.team_role || 'owner').toLowerCase() === 'member' && profile.team_id) {
-    try {
-      const { data, error } = await supabase.rpc('get_my_plan_context');
-      if (!error && data) {
-        next = {
-          ...next,
-          effective_plan: data.plan ?? next.plan,
-          effective_billing_cycle: data.billing_cycle ?? next.billing_cycle,
-          inherits_team_plan: !!data.inherits_workspace,
-        };
-      }
-    } catch (err) {
-      console.warn('[teamWorkspace] get_my_plan_context failed:', err);
+  try {
+    const { data, error } = await supabase.rpc('get_my_plan_context');
+    if (!error && data) {
+      next = {
+        ...next,
+        effective_plan: data.plan ?? next.plan,
+        effective_billing_cycle: data.billing_cycle ?? next.billing_cycle,
+        inherits_team_plan: !!data.inherits_workspace,
+      };
     }
+    
+    // Fetch plan limits
+    const { data: limits } = await supabase
+      .from('plan_limits')
+      .select('*')
+      .eq('plan', next.effective_plan ?? next.plan)
+      .maybeSingle();
+      
+    if (limits) {
+      next = { ...next, limits };
+    }
+  } catch (err) {
+    console.warn('[teamWorkspace] get_my_plan_context or limits failed:', err);
   }
 
   // Teams: overlay workspace automation rules so CRM suggestions use team settings

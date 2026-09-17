@@ -126,7 +126,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   });
 
   const plan = getEffectivePlan(currentUser);
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
   const isOwner = isTeamOwner(currentUser);
   const hasTeam = hasTeammates(teamIds);
   const suggestionsEnabled = currentUser?.suggestions_enabled !== false;

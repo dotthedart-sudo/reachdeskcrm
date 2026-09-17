@@ -200,11 +200,20 @@ export default function AppLayout({
                       <strong>Free Trial Active</strong>
                       {' '}— Your trial ends in{' '}
                       <span className="rd-info-banner-accent">{label}</span>
-                      {' '}({new Date(profile.trial_ends_at).toLocaleDateString()}). Choose a plan in settings to avoid lock.
+                      {' '}({new Date(profile.trial_ends_at).toLocaleDateString()}). Upgrade to avoid losing access to premium features.
                     </span>
                   </div>
                 );
               })()}
+              {profile?.plan === 'free' && (
+                <div className="rd-info-banner">
+                  <Clock size={16} style={{ color: 'var(--status-warm)', flexShrink: 0, marginTop: '2px' }} />
+                  <span>
+                    <strong>Free Plan</strong>
+                    {' '}— You are on the free plan. Upgrade to unlock AI, unlimited leads, and more.
+                  </span>
+                </div>
+              )}
               {children}
             </div>
           </div>

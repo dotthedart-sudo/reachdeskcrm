@@ -596,6 +596,9 @@ function AppProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      
+      // Fetch dynamic plan limits in the background
+      import('./lib/planConfig').then(({ fetchPlanLimits }) => fetchPlanLimits(supabase));
 
       if (event === 'PASSWORD_RECOVERY') {
         sessionStorage.setItem('is_recovering_password', 'true');
@@ -644,9 +647,7 @@ function AppProvider({ children }) {
     if (await isActiveTeamMember(p)) return 'active';
 
     if (p.plan === 'trial') {
-      if (isValidTrialEndDate(p.trial_ends_at) && new Date(p.trial_ends_at) < new Date()) {
-        return 'trial_expired';
-      }
+      // Trial expiry is handled dynamically (downgrades to free). No lock.
     } else {
       if (p.plan_expires_at && new Date(p.plan_expires_at) < new Date()) {
         return 'subscription_expired';
@@ -792,18 +793,16 @@ function AppProvider({ children }) {
           const trialEnds = isValidTrialEndDate(profileToSet.trial_ends_at)
             ? new Date(profileToSet.trial_ends_at)
             : null;
-          let isTrialExpired = false;
-          if (!onActiveTeam && profileToSet.plan === 'trial') {
-            isTrialExpired = !!(trialEnds && now > trialEnds && profileToSet.status !== 'approved');
-          }
 
           let isSubscriptionExpired = false;
-          if (!onActiveTeam && profileToSet.plan !== 'trial' && !isLifetimeOrLegacy) {
-            const planExpires = profileToSet.plan_expires_at ? new Date(profileToSet.plan_expires_at) : null;
-            isSubscriptionExpired = planExpires && now > planExpires;
+          if (!onActiveTeam && profileToSet.plan !== 'trial' && profileToSet.plan !== 'free') {
+            isSubscriptionExpired = !!(
+              profileToSet.plan_expires_at &&
+              now > new Date(profileToSet.plan_expires_at)
+            );
           }
 
-          const shouldLock = !onActiveTeam && !isAdminUser && !isLifetimeOrLegacy && (isTrialExpired || isSubscriptionExpired);
+          const shouldLock = !onActiveTeam && !isAdminUser && !isLifetimeOrLegacy && isSubscriptionExpired;
 
           if (onActiveTeam && profileToSet.account_locked && !isModerationLock(profileToSet)) {
             const { data: unlockedProfile, error: unlockError } = await supabase
