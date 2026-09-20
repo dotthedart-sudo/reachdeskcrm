@@ -14,6 +14,21 @@ export default function MemberBillingNotice({
   leaveLoading = false,
 }) {
   const navigate = useNavigate();
+  const [fetchedOwner, setFetchedOwner] = React.useState(null);
+
+  React.useEffect(() => {
+    if (variant === 'member' && profile && !ownerLabel) {
+      import('../lib/teamWorkspace').then(({ getTeamOwnerProfileForMember }) => {
+        getTeamOwnerProfileForMember(profile).then((ownerProfile) => {
+          if (ownerProfile) {
+            setFetchedOwner(ownerProfile.email || ownerProfile.full_name);
+          }
+        });
+      });
+    }
+  }, [profile, variant, ownerLabel]);
+
+  const displayOwner = ownerLabel || fetchedOwner;
 
   if (variant === 'admin') {
     return (
@@ -50,13 +65,8 @@ export default function MemberBillingNotice({
             <Users size={22} />
           </div>
           <h1 className="rd-upgrade-title">Workspace billing</h1>
-          <p className="rd-upgrade-sub">
-            Your access is included in{' '}
-            {ownerLabel ? <strong>{ownerLabel}&apos;s</strong> : 'your workspace owner&apos;s'}{' '}
-            team plan. You cannot change subscription or payment here.
-          </p>
-          <p className="rd-upgrade-sub" style={{ marginTop: '0.75rem' }}>
-            To subscribe on your own, leave the workspace first — then use Billing in Settings.
+          <p className="rd-upgrade-sub" style={{ fontSize: '1.1rem', fontWeight: 500 }}>
+            Your plan is managed by your team owner{displayOwner ? ` (${displayOwner})` : ''}.
           </p>
         </header>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'center' }}>

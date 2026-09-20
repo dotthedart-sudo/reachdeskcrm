@@ -59,6 +59,9 @@ serve(async (req) => {
       .update({
         team_id: null,
         team_role: 'owner',
+        plan: 'free',
+        plan_status: 'inactive',
+        trial_ends_at: null
       })
       .eq('id', user.id)
       .eq('team_role', 'member');

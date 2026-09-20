@@ -762,6 +762,30 @@ export default function CRM({
 
   const plan = getEffectivePlan(currentUser);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
+  const maxLeadsLimit = getPlanLeadLimit(plan, getEffectiveBillingCycle(currentUser)) ?? limits.leads;
+
+  const lockedLeadCutoff = useMemo(() => {
+    if (maxLeadsLimit === null) return null;
+    if (leads.length <= maxLeadsLimit) return null;
+    const sorted = [...leads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return new Date(sorted[maxLeadsLimit - 1].created_at).getTime();
+  }, [leads, maxLeadsLimit]);
+
+  const lockedFolderCutoff = useMemo(() => {
+    const limit = limits.folders;
+    if (limit === null) return null;
+    const manualFolders = folders.filter(f => f.user_id === currentUser?.id);
+    if (manualFolders.length <= limit) return null;
+    const sorted = [...manualFolders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return new Date(sorted[limit - 1].created_at).getTime();
+  }, [folders, limits.folders, currentUser?.id]);
+
+  const isActiveFolderLocked = useMemo(() => {
+    if (!activeManualFolderId || lockedFolderCutoff === null) return false;
+    const f = folders.find(x => x.id === activeManualFolderId);
+    if (!f) return false;
+    return new Date(f.created_at).getTime() < lockedFolderCutoff;
+  }, [activeManualFolderId, lockedFolderCutoff, folders]);
 
   // 1. Fetch CRM Data
   const fetchData = async () => {
@@ -2712,6 +2736,29 @@ export default function CRM({
           )}
         </nav>
 
+          {isActiveFolderLocked && (
+            <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderRadius: '8px' }}>
+              <div className="flex align-center gap-3">
+                <div style={{ color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.5rem', borderRadius: '50%', display: 'flex' }}>
+                  <Lock size={18} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>List is locked</h4>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Your current plan is limited to {limits.folders ?? 1} list{(limits.folders ?? 1) === 1 ? '' : 's'}. You can still view and export leads here, but you cannot edit them.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => document.dispatchEvent(new CustomEvent('openUpgradeLockModal'))}
+              >
+                Upgrade to unlock
+              </button>
+            </div>
+          )}
+
         {/* Outreach mode switcher */}
         <div
           className="flex gap-2"
@@ -3387,8 +3434,7 @@ export default function CRM({
                 )}
                 {tableCols.map(col => {
                   const isProject = col.column_key === 'project';
-                  const userPlan = plan;
-                  const isProjectUnlocked = !['trial', 'starter'].includes(userPlan);
+                  const isProjectUnlocked = !!PLAN_LIMITS[getEffectivePlan(currentUser)]?.custom_columns;
                   return (
                     <ResizableTh
                       key={col.id}
@@ -3456,6 +3502,7 @@ export default function CRM({
                 paginatedList.map((lead, rowIndex) => {
                   const isSelected = selectedIds.includes(lead.id);
                   const addedByEmail = teamMemberEmail(teamProfilesMap[lead.user_id]);
+                  const isLocked = lockedLeadCutoff !== null && new Date(lead.created_at).getTime() < lockedLeadCutoff;
 
                   return (
                     <ResizableTr
@@ -3464,11 +3511,18 @@ export default function CRM({
                       height={getRowHeight(lead.id)}
                       onResize={setRowHeight}
                       onReset={resetRowHeight}
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => {
+                        if (isLocked) {
+                          window.openUpgradeLockModal?.();
+                        } else {
+                          setSelectedLead(lead);
+                        }
+                      }}
                       style={{
                         borderBottom: '1px solid var(--border-color)',
                         background: isSelected ? 'rgba(91, 143, 185, 0.06)' : 'transparent',
                         cursor: 'pointer',
+                        opacity: isLocked ? 0.6 : 1,
                       }}
                     >
                       <td onClick={(e) => e.stopPropagation()}>
@@ -3496,7 +3550,20 @@ export default function CRM({
                           return (
                             <td key={tdKey} {...tdProps}>
                               <CopyableCell value={copyValue} onCopied={handleCopyCell}>
-                                <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
+                                  {isLocked && (
+                                    <span 
+                                      className="badge" 
+                                      style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'pointer', padding: '2px 6px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                      onClick={(e) => { e.stopPropagation(); window.openUpgradeLockModal?.(); }}
+                                      title="Locked: Limit exceeded"
+                                    >
+                                      <Lock size={10} />
+                                      Upgrade to unlock
+                                    </span>
+                                  )}
+                                </div>
                               </CopyableCell>
                             </td>
                           );

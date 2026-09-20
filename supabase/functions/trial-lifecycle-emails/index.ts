@@ -18,7 +18,8 @@ serve(async (req) => {
       .from('user_profiles')
       .select('id, email, full_name, plan, trial_ends_at, trial_reminder_2day_sent, trial_reminder_sent, trial_ended_email_sent')
       .eq('plan', 'trial')
-      .or('account_locked.is.null,account_locked.eq.false');
+      .or('account_locked.is.null,account_locked.eq.false')
+      .or('team_role.neq.member,team_id.is.null');
 
     if (usersErr) throw usersErr;
 

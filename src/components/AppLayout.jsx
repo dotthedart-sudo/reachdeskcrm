@@ -189,7 +189,7 @@ export default function AppLayout({
             />
 
             <div className="main-content">
-              {profile?.plan === 'trial' && subStatus === 'active' && isValidTrialEndDate(profile.trial_ends_at) && (() => {
+              {profile?.plan === 'trial' && subStatus === 'active' && !isTeamMember(profile) && isValidTrialEndDate(profile.trial_ends_at) && (() => {
                 const msLeft = new Date(profile.trial_ends_at) - Date.now();
                 const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
                 const label = daysLeft === 0 ? 'less than a day' : daysLeft === 1 ? '1 day' : `${daysLeft} days`;

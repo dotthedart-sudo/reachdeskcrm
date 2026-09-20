@@ -20,7 +20,7 @@ export function hasOutreachByPlan(profile) {
   if (!profile) return false;
   if (profile.role === 'admin') return true;
   const key = getEffectivePlan(profile);
-  return !!PLAN_LIMITS[key]?.coldOutreach;
+  return !!PLAN_LIMITS[key]?.cold_calls;
 }
 
 /** Trial/Pro/Teams plan OR active Teams workspace member. */
@@ -42,7 +42,7 @@ export function hasReportsAccess(profile) {
   if (!profile) return false;
   if (profile.role === 'admin') return true;
   const key = getEffectivePlan(profile);
-  return !!PLAN_LIMITS[key]?.cumulativeReports;
+  return !!PLAN_LIMITS[key]?.reports;
 }
 
 /** Trial/Pro/Teams plan OR active Teams workspace member on a Reports-enabled workspace. */
