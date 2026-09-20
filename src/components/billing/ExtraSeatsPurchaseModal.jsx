@@ -5,7 +5,10 @@ import {
   MAX_EXTRA_SEATS_PER_ACTION,
   TEAMS_INCLUDED_SEATS,
   getExtraSeats,
+  EXTRA_TEAMS_SEAT_PRICE_ID
 } from '../../lib/planConfig';
+import { useLocalCurrency } from '../../utils/useLocalCurrency';
+import { usePaddlePrices } from '../../hooks/usePaddlePrices';
 
 /**
  * Self-serve extra Teams seats for existing subscribers (Configuration / Teams page).
@@ -23,6 +26,11 @@ export default function ExtraSeatsPurchaseModal({
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+
+  const { country } = useLocalCurrency();
+  const { prices: livePrices, loading: liveLoading } = usePaddlePrices(country, 'monthly');
+  const extraSeatPrice = livePrices?.[EXTRA_TEAMS_SEAT_PRICE_ID];
+  const formattedSeatPrice = liveLoading ? '...' : (extraSeatPrice ? extraSeatPrice.formatted : `$${EXTRA_SEAT_USD_MONTHLY}`);
 
   const currentExtra = getExtraSeats(profile);
 
@@ -124,7 +132,7 @@ export default function ExtraSeatsPurchaseModal({
         </div>
 
         <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          {description}
+          Each extra seat beyond your 5 included members is billed at {formattedSeatPrice}/month. New members get full Teams access.
         </p>
 
         <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -144,7 +152,7 @@ export default function ExtraSeatsPurchaseModal({
               disabled={confirming}
             />
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              × ${EXTRA_SEAT_USD_MONTHLY}/mo each
+              × {formattedSeatPrice}/mo each
             </span>
           </div>
           {currentExtra > 0 && (
@@ -172,7 +180,7 @@ export default function ExtraSeatsPurchaseModal({
               ${Number(preview.newTotalMonthlyUsd).toFixed(2)}/mo
             </div>
             <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-              Teams ${Number(preview.teamsPlanMonthlyUsd).toFixed(2)}/mo + {preview.newExtraSeats} extra seat{preview.newExtraSeats === 1 ? '' : 's'} × ${EXTRA_SEAT_USD_MONTHLY}/mo
+              Teams ${Number(preview.teamsPlanMonthlyUsd).toFixed(2)}/mo + {preview.newExtraSeats} extra seat{preview.newExtraSeats === 1 ? '' : 's'} × {formattedSeatPrice}/mo
             </p>
             <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>

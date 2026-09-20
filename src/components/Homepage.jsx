@@ -4,6 +4,7 @@ import { Sun, Moon, Check, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../App';
 import { BILLING } from './Paywalls';
 import { formatPlanHeroAmount, formatPlanHeroPeriod, formatPlanHeroSub, formatPlanHeroBillingNote } from '../lib/regionalPricing';
+import { usePaddlePrices } from '../hooks/usePaddlePrices';
 import {
   MARKETING_PLANS,
   TRIAL_MARKETING,
@@ -27,6 +28,8 @@ export default function Homepage({ currentUserEmail }) {
   const navigate = useNavigate();
   const { theme: appTheme, toggleTheme: toggleAppTheme } = useAppContext() || {};
   const { formatLocalPrice, country } = useLocalCurrency();
+  const [billing, setBilling] = useState('monthly');
+  const { prices: livePrices, loading: liveLoading } = usePaddlePrices(country, billing);
 
   const [theme, setTheme] = useState(() => {
     const appSaved = localStorage.getItem('reachdesk_theme');
@@ -38,7 +41,6 @@ export default function Homepage({ currentUserEmail }) {
   });
 
   const [heroReady, setHeroReady] = useState(false);
-  const [billing, setBilling] = useState('monthly');
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setHeroReady(true));
@@ -106,19 +108,22 @@ export default function Homepage({ currentUserEmail }) {
 
   const renderPlanPrice = (planId) => {
     const tier = BILLING[billing]?.[planId];
-    return formatPlanHeroAmount(country, tier, billing);
+    const livePrice = tier ? livePrices?.[tier.priceId] : null;
+    return formatPlanHeroAmount(country, tier, billing, planId, livePrice);
   };
 
-  const renderPlanPeriod = () => formatPlanHeroPeriod(billing);
+  const renderPlanPeriod = (planId) => formatPlanHeroPeriod(billing, planId);
 
   const renderPlanDetailsSub = (planId) => {
     const tier = BILLING[billing]?.[planId];
-    return formatPlanHeroSub(country, tier, billing, formatLocalPrice);
+    const liveMonthlyPrice = BILLING.monthly[planId] ? livePrices?.[BILLING.monthly[planId].priceId] : null;
+    return formatPlanHeroSub(country, tier, billing, formatLocalPrice, liveMonthlyPrice, planId);
   };
 
   const renderPlanBillingNote = (planId) => {
     const tier = BILLING[billing]?.[planId];
-    return formatPlanHeroBillingNote(country, tier, billing);
+    const livePrice = tier ? livePrices?.[tier.priceId] : null;
+    return formatPlanHeroBillingNote(country, tier, billing, livePrice, planId);
   };
 
   return (
@@ -349,15 +354,24 @@ export default function Homepage({ currentUserEmail }) {
                     {typeof plan.tagline === 'function' ? plan.tagline(billing) : plan.tagline}
                   </p>
                   <div className="rd-pricing-price-main">
-                    <span className="rd-pricing-price-amount">{renderPlanPrice(plan.id)}</span>
-                    {renderPlanPeriod() && (
-                      <span className="rd-pricing-price-period">{renderPlanPeriod()}</span>
+                    {liveLoading ? (
+                      <div style={{ width: '120px', height: '40px', background: 'var(--bg-hover)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+                    ) : (
+                      <>
+                        <span className="rd-pricing-price-amount">{renderPlanPrice(plan.id)}</span>
+                        {renderPlanPeriod(plan.id) && (
+                          <span className="rd-pricing-price-period">{renderPlanPeriod(plan.id)}</span>
+                        )}
+                      </>
                     )}
                   </div>
-                  {renderPlanDetailsSub(plan.id) && (
+                  {plan.id !== 'free' && !liveLoading && (
+                    <span className="rd-pricing-price-sub" style={{ fontSize: '0.75rem', marginTop: '4px' }}>+ tax if applicable</span>
+                  )}
+                  {!liveLoading && renderPlanDetailsSub(plan.id) && (
                     <span className="rd-pricing-price-sub">{renderPlanDetailsSub(plan.id)}</span>
                   )}
-                  {renderPlanBillingNote(plan.id) && (
+                  {!liveLoading && renderPlanBillingNote(plan.id) && (
                     <div className="rd-pricing-price-billing">
                       <span className="rd-pricing-price-sub">{renderPlanBillingNote(plan.id)}</span>
                     </div>

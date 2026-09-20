@@ -225,6 +225,8 @@ export default function Configuration({
   const timezoneOptions = useMemo(() => getSupportedTimeZones(), []);
 
   const [exporting, setExporting] = useState(null); // 'leads' | 'notes' | null
+  const [defaultPaymentLink, setDefaultPaymentLink] = useState(currentUser?.default_payment_link || '');
+  const [defaultPaymentInstructions, setDefaultPaymentInstructions] = useState(currentUser?.default_payment_instructions || '');
 
   // ── Google Calendar Integration State ────────────────────────────────────
   const [calIntegration, setCalIntegration] = useState(null); // row from calendar_integrations
@@ -467,6 +469,8 @@ export default function Configuration({
       setProfileAvatarFile(null);
       setProfileAvatarPreview('');
       setProfileDefaultCurrency(currentUser.default_currency || 'PKR');
+      setDefaultPaymentLink(currentUser.default_payment_link || '');
+      setDefaultPaymentInstructions(currentUser.default_payment_instructions || '');
       setProfileTimezone(currentUser.timezone || '');
       setRemindersEnabled(currentUser.reminders_enabled !== false);
       setReminderNotificationMode(
@@ -770,6 +774,8 @@ export default function Configuration({
           full_name: trimmedName,
           avatar_url: finalAvatarUrl,
           default_currency: profileDefaultCurrency || 'PKR',
+          default_payment_link: defaultPaymentLink.trim() || null,
+          default_payment_instructions: defaultPaymentInstructions.trim() || null,
           monthly_revenue_target: monthlyRevenueTarget ? Number(monthlyRevenueTarget) : null,
           timezone: profileTimezone.trim() || null,
         })
@@ -1047,6 +1053,10 @@ export default function Configuration({
             profileAvatarFile={profileAvatarFile}
             profileDefaultCurrency={profileDefaultCurrency}
             setProfileDefaultCurrency={setProfileDefaultCurrency}
+            defaultPaymentLink={defaultPaymentLink}
+            setDefaultPaymentLink={setDefaultPaymentLink}
+            defaultPaymentInstructions={defaultPaymentInstructions}
+            setDefaultPaymentInstructions={setDefaultPaymentInstructions}
             monthlyRevenueTarget={monthlyRevenueTarget}
             setMonthlyRevenueTarget={setMonthlyRevenueTarget}
             profileTimezone={profileTimezone}

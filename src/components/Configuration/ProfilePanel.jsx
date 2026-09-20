@@ -13,6 +13,10 @@ export default function ProfilePanel({
   profileAvatarFile,
   profileDefaultCurrency,
   setProfileDefaultCurrency,
+  defaultPaymentLink,
+  setDefaultPaymentLink,
+  defaultPaymentInstructions,
+  setDefaultPaymentInstructions,
   monthlyRevenueTarget,
   setMonthlyRevenueTarget,
   profileTimezone,
@@ -199,6 +203,35 @@ export default function ProfilePanel({
                 required
                 disabled={profileSaving}
               />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Default Payment Link</label>
+              <input
+                type="url"
+                className="form-input"
+                value={defaultPaymentLink}
+                onChange={(e) => setDefaultPaymentLink(e.target.value)}
+                placeholder="e.g. https://buy.stripe.com/... or PayPal.Me/..."
+                disabled={profileSaving}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>Automatically added to new invoices</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Default Payment Instructions</label>
+              <textarea
+                className="form-input"
+                value={defaultPaymentInstructions}
+                onChange={(e) => setDefaultPaymentInstructions(e.target.value)}
+                placeholder="e.g. Bank transfer details, wise account..."
+                disabled={profileSaving}
+                rows={3}
+                style={{ resize: 'vertical' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>Shown on invoices when paid manually</span>
             </div>
           </div>
 

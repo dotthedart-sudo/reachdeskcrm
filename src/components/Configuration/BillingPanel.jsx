@@ -8,7 +8,9 @@ import {
   formatPlanCancelsAt,
   hasCancellableSubscription,
 } from '../../lib/billing';
-import { TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY, getExtraSeats } from '../../lib/planConfig';
+import { TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY, getExtraSeats, EXTRA_TEAMS_SEAT_PRICE_ID } from '../../lib/planConfig';
+import { useLocalCurrency } from '../../utils/useLocalCurrency';
+import { usePaddlePrices } from '../../hooks/usePaddlePrices';
 
 export default function BillingPanel({
   currentUser,
@@ -41,6 +43,10 @@ export default function BillingPanel({
   const canCancel = hasCancellableSubscription(currentUser);
   const canResume = canResumeSubscription(currentUser);
   const accessEndsLabel = formatPlanCancelsAt(currentUser?.plan_cancels_at);
+
+  const { country } = useLocalCurrency();
+  const { prices: livePrices, loading: liveLoading } = usePaddlePrices(country, 'monthly');
+  const extraSeatPrice = livePrices?.[EXTRA_TEAMS_SEAT_PRICE_ID];
 
   return (
     <div className="card flex-col gap-3">
@@ -216,7 +222,7 @@ export default function BillingPanel({
           }}
           >
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-              Need more teammates? Add paid seats anytime — ${EXTRA_SEAT_USD_MONTHLY}/month each beyond your {TEAMS_INCLUDED_SEATS} included members.
+              Need more teammates? Add paid seats anytime — {liveLoading ? '...' : (extraSeatPrice ? extraSeatPrice.formatted : `$${EXTRA_SEAT_USD_MONTHLY}`)}/month each beyond your {TEAMS_INCLUDED_SEATS} included members.
             </div>
             <button
               type="button"

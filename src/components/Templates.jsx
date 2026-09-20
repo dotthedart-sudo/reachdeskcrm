@@ -132,6 +132,13 @@ export default function Templates({
   const userTemplates = templates.filter((t) => t.user_id === currentUser.id && !t.is_starter);
   const isTemplateLimitReached = templateLimit !== Infinity && userTemplates.length >= templateLimit;
 
+  const lockedTemplateCutoff = React.useMemo(() => {
+    if (templateLimit === Infinity || templateLimit === null) return null;
+    if (userTemplates.length <= templateLimit) return null;
+    const sorted = [...userTemplates].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    return new Date(sorted[templateLimit - 1].created_at).getTime();
+  }, [userTemplates, templateLimit]);
+
   const switchLibraryTab = (tab) => {
     if (tab === 'scripts' && !outreachUnlocked) {
       navigate('/upgrade');
@@ -789,6 +796,7 @@ export default function Templates({
               >
                 {filteredMyTemplates.map(template => {
                   const addedByEmail = teamMemberEmail(teamProfilesMap[template.user_id]);
+                  const isLocked = lockedTemplateCutoff !== null && new Date(template.created_at).getTime() < lockedTemplateCutoff && !template.is_starter;
                   return (
                     <div 
                       key={template.id}
@@ -798,7 +806,8 @@ export default function Templates({
                         border: '1px solid var(--border)', 
                         borderRadius: '3px',
                         padding: '1.25rem',
-                        textAlign: 'left'
+                        textAlign: 'left',
+                        opacity: isLocked ? 0.6 : 1
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
@@ -898,19 +907,37 @@ export default function Templates({
                           {copiedTemplateId === template.id ? 'Copied!' : 'Copy Body'}
                         </button>
                         
-                        <button 
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleOpenEdit(template)}
-                          style={{ 
-                            borderRadius: '3px', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '4px',
-                            fontSize: '0.8rem' 
-                          }}
-                        >
-                          <Edit3 size={12} /> Edit
-                        </button>
+                        {isLocked ? (
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => window.openUpgradeLockModal?.()}
+                            style={{ 
+                              borderRadius: '3px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              fontSize: '0.8rem',
+                              color: 'var(--text-muted)'
+                            }}
+                            title="Locked: Limit exceeded"
+                          >
+                            <Lock size={12} /> Unlock
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleOpenEdit(template)}
+                            style={{ 
+                              borderRadius: '3px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              fontSize: '0.8rem' 
+                            }}
+                          >
+                            <Edit3 size={12} /> Edit
+                          </button>
+                        )}
                         <button 
                           className="btn btn-danger btn-sm"
                           onClick={() => {

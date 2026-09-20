@@ -1593,12 +1593,12 @@ function RevenuePage() {
 function NotesPage() {
   const { profile } = useAppContext();
   const limits = PLAN_LIMITS[getEffectivePlan(profile)] || PLAN_LIMITS.trial;
-  if (!limits.notes) {
+  if (limits.max_notes === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem', color: 'var(--text-muted)' }}>
         <Lock size={36} style={{ color: 'var(--text-muted)' }} />
-        <h3>Notes are a Pro feature</h3>
-        <p>Upgrade to Pro, Teams, or Enterprise to access drawing boards and text notes.</p>
+        <h3>Notes are locked</h3>
+        <p>Upgrade to Starter or Pro to access drawing boards and text notes.</p>
       </div>
     );
   }
@@ -1608,12 +1608,12 @@ function NotesPage() {
 function NoteEditorPage() {
   const { profile } = useAppContext();
   const limits = PLAN_LIMITS[getEffectivePlan(profile)] || PLAN_LIMITS.trial;
-  if (!limits.notes) {
+  if (limits.max_notes === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem', color: 'var(--text-muted)' }}>
         <Lock size={36} style={{ color: 'var(--text-muted)' }} />
-        <h3>Notes are a Pro feature</h3>
-        <p>Upgrade to Pro, Teams, or Enterprise to access drawing boards and text notes.</p>
+        <h3>Notes are locked</h3>
+        <p>Upgrade to Starter or Pro to access drawing boards and text notes.</p>
       </div>
     );
   }

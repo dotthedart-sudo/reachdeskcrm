@@ -171,6 +171,7 @@ export default function Reports({ currentUser }) {
   const exportRef = useRef(null);
 
   const plan = getEffectivePlan(currentUser);
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
   const canUseTeamScope = plan === 'teams' && isTeamOwner(currentUser);
 
   const [loading, setLoading] = useState(true);
@@ -439,9 +440,10 @@ export default function Reports({ currentUser }) {
 
   usePageHeader({ title: 'Reports', actions: headerActions });
 
-  if (!allowed) {
+  if (!limits.reports) {
     return (
-      <div
+      <div 
+        className="card"
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -455,7 +457,7 @@ export default function Reports({ currentUser }) {
         }}
       >
         <Lock size={32} />
-        <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Reports are on Trial, Pro, and Teams</h3>
+        <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Reports are a Pro feature</h3>
         <p style={{ margin: 0, maxWidth: 420 }}>
           See how many leads reached each pipeline stage — cumulative counts that stay accurate even when deals move forward.
         </p>

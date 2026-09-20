@@ -25,16 +25,24 @@ export default function RevenueTracker({
   const [service, setService] = useState('');
   const [notes, setNotes] = useState('');
 
+  const [filter, setFilter] = useState('all');
+
   // Filter logs for active user
   if (!currentUser) {
     return <div className="loading-container">Loading profile...</div>;
   }
 
-  const userLogs = revenueLogs;
-  const showAttribution = userLogs.some((log) => log.userEmail && log.userEmail !== currentUser.email);
+  const userLogs = revenueLogs || [];
+  const filteredLogs = userLogs.filter(log => {
+    if (filter === 'invoices') return log.invoice_id != null;
+    if (filter === 'manual') return log.invoice_id == null;
+    return true;
+  });
+
+  const showAttribution = filteredLogs.some((log) => log.userEmail && log.userEmail !== currentUser.email);
 
   // Group and calculate totals by currency
-  const currencyTotals = userLogs.reduce((acc, log) => {
+  const currencyTotals = filteredLogs.reduce((acc, log) => {
     acc[log.currency] = (acc[log.currency] || 0) + log.amount;
     return acc;
   }, {});
@@ -216,13 +224,28 @@ export default function RevenueTracker({
       ) : (
         /* Logs Table */
         <div className="table-container">
-          <div className="table-header-bar">
-            <h3>Earnings Log</h3>
-            <span className="badge badge-pro">{userLogs.length} Transaction(s)</span>
+          <div className="table-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div className="flex gap-2 align-center">
+              <h3>Earnings Log</h3>
+              <span className="badge badge-pro">{filteredLogs.length} Transaction(s)</span>
+            </div>
+            
+            <div className="flex gap-2">
+              <select 
+                className="form-select" 
+                style={{ padding: '0.2rem 0.6rem', fontSize: '0.85rem', width: 'auto' }}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="all">All Revenue</option>
+                <option value="invoices">From Invoices</option>
+                <option value="manual">Manual Entries</option>
+              </select>
+            </div>
           </div>
 
           <div className="table-wrapper">
-            {userLogs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                 No earnings logged yet. Click "Log Earnings" to record your first payout!
               </div>
@@ -241,7 +264,7 @@ export default function RevenueTracker({
                   </tr>
                 </thead>
                 <tbody>
-                  {userLogs.map(log => (
+                  {filteredLogs.map(log => (
                     <tr key={log.id}>
                       <td style={{ fontWeight: 600 }}>{log.date}</td>
                       <td data-ph-mask>
@@ -264,13 +287,17 @@ export default function RevenueTracker({
                       </td>
                       <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{log.dateAdded}</td>
                       <td>
-                        <button 
-                          className="btn btn-danger btn-sm"
-                          onClick={() => onDeleteRevenueLog(log.id)}
-                          title="Delete Entry"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {log.invoice_id ? (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Auto-synced</span>
+                        ) : (
+                          <button 
+                            className="btn btn-danger btn-sm"
+                            onClick={() => onDeleteRevenueLog(log.id)}
+                            title="Delete Entry"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

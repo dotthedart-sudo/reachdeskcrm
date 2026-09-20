@@ -5,11 +5,12 @@ import { useLocalCurrency } from '../utils/useLocalCurrency';
 import { APP_DOMAIN, isLocalDev } from '../utils/domain';
 import { PLANS, getPlanFeatures } from '../lib/planMarketing';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
-import { isRegionExcluded, formatPlanHeroAmount, formatPlanHeroPeriod, formatPlanHeroSub, formatPlanHeroBillingNote } from '../lib/regionalPricing';
+import { isRegionExcluded, formatPlanHeroAmount, formatPlanHeroPeriod, formatPlanHeroSub, formatPlanHeroBillingNote, getRegionalPlanPrice, resolvePricingRegion } from '../lib/regionalPricing';
 import { normalizePlan, EXTRA_TEAMS_SEAT_PRICE_ID, EXTRA_SEAT_USD_MONTHLY, TEAMS_INCLUDED_SEATS, MAX_EXTRA_SEATS_PER_ACTION } from '../lib/planConfig';
 import { isTeamMember } from '../lib/teamWorkspace';
 import MemberBillingNotice from './MemberBillingNotice';
 import AuthLogo from './AuthLogo';
+import { usePaddlePrices } from '../hooks/usePaddlePrices';
 
 // ─── Unified Pricing Data ──────────────────────────────────────────────────
 // ⚠️  SYNC WARNING: Mirrored in supabase/functions/_shared/prices.ts
@@ -168,13 +169,16 @@ const PLAN_LEVELS = {
   teams: 3,
 };
 
-function PlanCard({ plan, billing, onSelectPlan, profile, country, formatLocalPrice }) {
+function PlanCard({ plan, billing, onSelectPlan, profile, country, formatLocalPrice, livePrices, liveLoading }) {
   const { id, name, tagline, comingSoon, highlighted, ctaLabel } = plan;
   const features = getPlanFeatures(id, billing);
   const checkoutBlocked = isRegionExcluded(country);
 
   const hasPricing = BILLING[billing] && BILLING[billing][id];
   const pricing = hasPricing ? BILLING[billing][id] : null;
+
+  const livePrice = pricing ? livePrices?.[pricing.priceId] : null;
+  const liveMonthlyPrice = BILLING.monthly[id] ? livePrices?.[BILLING.monthly[id].priceId] : null;
 
   const currentUserPlan = normalizePlan(profile?.plan);
   const isPlanActive = profile?.plan_status === 'active' || profile?.plan_status === 'cancelling';
@@ -198,27 +202,39 @@ function PlanCard({ plan, billing, onSelectPlan, profile, country, formatLocalPr
     isSelectable = true;
   }
 
-  const renderPrice = () => formatPlanHeroAmount(country, pricing, billing, id);
-  const renderPeriod = () => formatPlanHeroPeriod(billing);
-  const renderDetailsSub = () => formatPlanHeroSub(country, pricing, billing, formatLocalPrice);
-  const renderBillingNote = () => formatPlanHeroBillingNote(country, pricing, billing);
+  const renderPrice = () => formatPlanHeroAmount(country, pricing, billing, id, livePrice);
+  const renderPeriod = () => formatPlanHeroPeriod(billing, id);
+  const renderDetailsSub = () => formatPlanHeroSub(country, pricing, billing, formatLocalPrice, liveMonthlyPrice, id);
+  const renderBillingNote = () => formatPlanHeroBillingNote(country, pricing, billing, livePrice, id);
 
   const savingsLabel = (() => {
-    if (billing === 'monthly' || !pricing || cardStatus === 'current') return null;
+    if (liveLoading) return null;
+    if (billing === 'monthly' || cardStatus === 'current' || id === 'free') return null;
+    
+    if (livePrice && liveMonthlyPrice) {
+      const monthlyAmount = liveMonthlyPrice.amount;
+      const currentEffectiveAmount = livePrice.amount / BILLING[billing].months;
+      const savings = monthlyAmount - currentEffectiveAmount;
+      if (savings > 0) return `Save ${liveMonthlyPrice.currency === 'USD' ? '$' : ''}${savings.toFixed(2)}/mo`;
+      return null; // fallback to badge if savings <= 0, handled below
+    }
+
+    if (!pricing) return null;
+
     const monthlyPrice = parseFloat(BILLING.monthly[id].usdPerMonth);
     const currentPrice = parseFloat(pricing.usdPerMonth);
     const savings = monthlyPrice - currentPrice;
     if (country === 'BD' && BILLING.monthly[id].bdtPerMonth && pricing.bdtPerMonth) {
       const bdtSavings = BILLING.monthly[id].bdtPerMonth - pricing.bdtPerMonth;
-      if (bdtSavings > 0) return `Save ৳${bdtSavings}/mo`;
+      if (bdtSavings > 0) return `Save ৳${bdtSavings}/mo approx`;
     }
     if (country === 'PK' && BILLING.monthly[id].pkrPerMonth && pricing.pkrPerMonth) {
       const pkrSavings = BILLING.monthly[id].pkrPerMonth - pricing.pkrPerMonth;
-      if (pkrSavings > 0) return `Save Rs ${pkrSavings}/mo`;
+      if (pkrSavings > 0) return `Save Rs ${pkrSavings}/mo approx`;
     }
     const formatted = formatLocalPrice(savings);
-    if (formatted) return `Save ${formatted}/mo`;
-    if (savings > 0) return `Save $${savings.toFixed(2)}/mo`;
+    if (formatted) return `Save ${formatted}/mo approx`;
+    if (savings > 0) return `Save $${savings.toFixed(2)}/mo approx`;
     return pricing.badge;
   })();
 
@@ -251,15 +267,24 @@ function PlanCard({ plan, billing, onSelectPlan, profile, country, formatLocalPr
           {typeof tagline === 'function' ? tagline(billing) : tagline}
         </p>
         <div className="rd-pricing-price-main">
-          <span className="rd-pricing-price-amount">{renderPrice()}</span>
-          {renderPeriod() && (
-            <span className="rd-pricing-price-period">{renderPeriod()}</span>
+          {liveLoading ? (
+            <div style={{ width: '120px', height: '40px', background: 'var(--bg-hover)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+          ) : (
+            <>
+              <span className="rd-pricing-price-amount">{renderPrice()}</span>
+              {renderPeriod() && (
+                <span className="rd-pricing-price-period">{renderPeriod()}</span>
+              )}
+            </>
           )}
         </div>
-        {renderDetailsSub() && (
+        {id !== 'free' && !liveLoading && (
+          <span className="rd-pricing-price-sub" style={{ fontSize: '0.75rem', marginTop: '4px' }}>+ tax if applicable</span>
+        )}
+        {!liveLoading && renderDetailsSub() && (
           <span className="rd-pricing-price-sub">{renderDetailsSub()}</span>
         )}
-        {renderBillingNote() && (
+        {!liveLoading && renderBillingNote() && (
           <div className="rd-pricing-price-billing">
             <span className="rd-pricing-price-sub">{renderBillingNote()}</span>
           </div>
@@ -328,6 +353,8 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
   const profileCycle = normalizeBillingCycle(profile?.billing_cycle) || 'monthly';
   const [billing, setBilling] = useState(profileCycle);
   const { formatLocalPrice, country } = useLocalCurrency();
+  const { prices: livePrices, loading: liveLoading } = usePaddlePrices(country, billing);
+  
   const [upgradeModal, setUpgradeModal] = useState(null); // { planKey, charge, loading, error, confirming, extraSeats }
   const [teamsCheckoutModal, setTeamsCheckoutModal] = useState(null); // { priceId, extraSeats }
   const [actionError, setActionError] = useState('');
@@ -570,6 +597,13 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
         )}
 
         <div className="rd-pricing-grid" data-cols="3">
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes pulse {
+              0% { opacity: 0.6; }
+              50% { opacity: 1; }
+              100% { opacity: 0.6; }
+            }
+          `}} />
           {PLANS.map((plan) => (
             <PlanCard
               key={plan.id}
@@ -579,6 +613,8 @@ export function UpgradePage({ profile, handleLogout, onRefreshProfile, bankAccou
               profile={profile}
               country={country}
               formatLocalPrice={formatLocalPrice}
+              livePrices={livePrices}
+              liveLoading={liveLoading}
             />
           ))}
         </div>

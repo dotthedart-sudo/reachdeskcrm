@@ -16,10 +16,12 @@ import {
   updateTeamSettings,
   defaultTeamSettings,
 } from '../lib/teamWorkspace';
-import { getExtraSeats, TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY } from '../lib/planConfig';
+import { getExtraSeats, TEAMS_INCLUDED_SEATS, EXTRA_SEAT_USD_MONTHLY, EXTRA_TEAMS_SEAT_PRICE_ID } from '../lib/planConfig';
 import ExtraSeatsPurchaseModal from './billing/ExtraSeatsPurchaseModal';
 import SegmentedControl from './ui/SegmentedControl';
 import ToggleSwitch from './ui/ToggleSwitch';
+import { useLocalCurrency } from '../utils/useLocalCurrency';
+import { usePaddlePrices } from '../hooks/usePaddlePrices';
 import {
   fetchTeamCallPermissions,
   updateTeamCallSettings,
@@ -65,6 +67,11 @@ export default function Teams({ currentUser, onRefreshProfile }) {
   const extraSeats = getExtraSeats(currentUser);
   const canManageExtraSeats = canPurchaseExtraSeats(currentUser);
   const canBuyExtraSeat = canManageExtraSeats && seatsAtCap;
+
+  const { country } = useLocalCurrency();
+  const { prices: livePrices, loading: liveLoading } = usePaddlePrices(country, 'monthly');
+  const extraSeatPrice = livePrices?.[EXTRA_TEAMS_SEAT_PRICE_ID];
+  const formattedSeatPrice = liveLoading ? '...' : (extraSeatPrice ? extraSeatPrice.formatted : `$${EXTRA_SEAT_USD_MONTHLY}`);
 
   const loadTeam = async () => {
     if (!hasTeamsPageAccess(currentUser)) {
@@ -620,7 +627,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
                 onClick={() => setExtraSeatsModalOpen(true)}
                 style={{ alignSelf: 'flex-start' }}
               >
-                Add more members — ${EXTRA_SEAT_USD_MONTHLY}/mo each
+                Add more members — {formattedSeatPrice}/mo each
               </button>
             </div>
           ) : seatsAtCap ? (

@@ -392,6 +392,12 @@ verify_jwt = false
 [functions.send-reminder-notifications]
 verify_jwt = false
 
+[functions.renew-calendar-watches]
+verify_jwt = false
+
+[functions.cleanup-draft-invoices]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

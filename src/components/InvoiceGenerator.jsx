@@ -62,9 +62,12 @@ export default function InvoiceGenerator({
     let details = [];
     if (currentUser?.bank_account || bankAccount) details.push(`Bank Account: ${currentUser?.bank_account || bankAccount}`);
     if (currentUser?.bank_iban || bankIban) details.push(`IBAN: ${currentUser?.bank_iban || bankIban}`);
+    if (currentUser?.default_payment_instructions) details.push(currentUser.default_payment_instructions);
     return details.join('\n');
   });
   const [notes, setNotes] = useState('Payment due on receipt.');
+  const [paymentLink, setPaymentLink] = useState(currentUser?.default_payment_link || '');
+  const [paidAt, setPaidAt] = useState('');
 
   const [dbLeads, setDbLeads] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -73,13 +76,14 @@ export default function InvoiceGenerator({
 
   // Update payment instructions default when bank details change
   useEffect(() => {
-    if (!paymentDetails && (resolvedBankAccount || resolvedBankIban)) {
+    if (!paymentDetails && (resolvedBankAccount || resolvedBankIban || currentUser?.default_payment_instructions)) {
       let details = [];
       if (resolvedBankAccount) details.push(`Bank Account: ${resolvedBankAccount}`);
       if (resolvedBankIban) details.push(`IBAN: ${resolvedBankIban}`);
+      if (currentUser?.default_payment_instructions) details.push(currentUser.default_payment_instructions);
       setPaymentDetails(details.join('\n'));
     }
-  }, [resolvedBankAccount, resolvedBankIban]);
+  }, [resolvedBankAccount, resolvedBankIban, currentUser?.default_payment_instructions]);
 
   // Fetch leads and folders for client autocomplete (workspace-scoped when on a team)
   useEffect(() => {
@@ -199,8 +203,11 @@ export default function InvoiceGenerator({
     let details = [];
     if (resolvedBankAccount) details.push(`Bank Account: ${resolvedBankAccount}`);
     if (resolvedBankIban) details.push(`IBAN: ${resolvedBankIban}`);
+    if (currentUser?.default_payment_instructions) details.push(currentUser.default_payment_instructions);
     setPaymentDetails(details.join('\n'));
     setNotes('Payment due on receipt.');
+    setPaymentLink(currentUser?.default_payment_link || '');
+    setPaidAt('');
   };
 
   // ── Pre-populate form fields from an existing invoice ─────────────────────
@@ -220,6 +227,8 @@ export default function InvoiceGenerator({
     setItems(invoice.items?.length > 0 ? invoice.items : [{ description: '', quantity: 1, rate: 0 }]);
     setPaymentDetails(invoice.paymentDetails || '');
     setNotes(invoice.notes || '');
+    setPaymentLink(invoice.payment_link || '');
+    setPaidAt(invoice.paid_at ? new Date(invoice.paid_at).toISOString().split('T')[0] : '');
     setShowCreateForm(true);
   };
 
@@ -253,6 +262,11 @@ export default function InvoiceGenerator({
       }
     }
 
+    if (paymentLink && !paymentLink.startsWith('https://')) {
+      setEditError('Payment link must be a valid https:// URL.');
+      return;
+    }
+
     setIsSaving(true);
 
     const subtotal = calculateSubtotal();
@@ -261,7 +275,7 @@ export default function InvoiceGenerator({
 
     if (editingInvoice) {
       // ── EDIT MODE ──────────────────────────────────────────────────────────
-      const newStatus = publishIntent ? 'Sent' : editingInvoice.status;
+      const newStatus = publishIntent ? 'sent' : editingInvoice.status;
       const result = await onUpdateInvoice(editingInvoice.id, {
         invoiceNumber,
         clientName,
@@ -273,7 +287,9 @@ export default function InvoiceGenerator({
         paymentDetails,
         notes,
         taxPercent,
-        status: newStatus
+        status: newStatus,
+        payment_link: paymentLink || null,
+        paid_at: paidAt ? new Date(paidAt).toISOString() : null,
       });
 
       setIsSaving(false);
@@ -305,7 +321,9 @@ export default function InvoiceGenerator({
         subtotal,
         tax: taxAmount,
         total,
-        status: 'Sent',
+        status: 'sent',
+        payment_link: paymentLink || null,
+        paid_at: paidAt ? new Date(paidAt).toISOString() : null,
         userEmail: currentUser.email,
         dateAdded: new Date().toLocaleDateString()
       };
@@ -600,6 +618,17 @@ export default function InvoiceGenerator({
             <section className="rd-form-section">
               <h4 className="rd-form-section-title">Payment</h4>
             <div className="rd-form-group">
+              <label className="form-label">Payment Link (URL)</label>
+              <input 
+                type="url" 
+                className="form-input"
+                placeholder="https://buy.stripe.com/..."
+                value={paymentLink}
+                onChange={(e) => setPaymentLink(e.target.value)}
+              />
+            </div>
+            
+            <div className="rd-form-group">
               <label className="form-label">Payment instructions</label>
               <textarea 
                 className="form-textarea"
@@ -619,6 +648,18 @@ export default function InvoiceGenerator({
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+            
+            {editingInvoice && (
+              <div className="rd-form-group">
+                <label className="form-label">Paid Date (if manually marked paid)</label>
+                <input 
+                  type="date" 
+                  className="form-input"
+                  value={paidAt}
+                  onChange={(e) => setPaidAt(e.target.value)}
+                />
+              </div>
+            )}
             </section>
 
             {editError && (
@@ -785,13 +826,13 @@ export default function InvoiceGenerator({
                         <select 
                           className="form-select"
                           style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem', width: '100px' }}
-                          value={invoice.status}
+                          value={invoice.status?.toLowerCase() || 'sent'}
                           onChange={(e) => onUpdateInvoiceStatus(invoice.id, e.target.value)}
                         >
                           {isDraft && <option value="draft">Draft</option>}
-                          <option value="Sent">Sent</option>
-                          <option value="Paid">Paid</option>
-                          <option value="Overdue">Overdue</option>
+                          <option value="sent">Sent</option>
+                          <option value="paid">Paid</option>
+                          <option value="overdue">Overdue</option>
                         </select>
                       </td>
                       <td>
@@ -884,12 +925,24 @@ export function PublicInvoiceView({ invoiceId, invoices }) {
           <FileText size={18} style={{ color: '#3b82f6' }} />
           <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>ReachDesk CRM Client Invoice System</span>
         </div>
-        <button 
-          onClick={handlePrint}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.8rem', background: '#3b82f6', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-        >
-          <Printer size={14} /> Print / Save PDF
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {invoice.payment_link && invoice.status?.toLowerCase() !== 'paid' && (
+            <a
+              href={invoice.payment_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.8rem', background: 'var(--primary-purple)', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}
+            >
+              Pay now
+            </a>
+          )}
+          <button 
+            onClick={handlePrint}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.8rem', background: '#3b82f6', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+          >
+            <Printer size={14} /> Print / Save PDF
+          </button>
+        </div>
       </div>
 
       {/* Invoice Card */}
@@ -946,7 +999,7 @@ export function PublicInvoiceView({ invoiceId, invoices }) {
                 color: invoice.status?.toLowerCase() === 'paid' ? '#065f46' : '#991b1b',
                 border: `1px solid ${invoice.status?.toLowerCase() === 'paid' ? '#a7f3d0' : '#fecaca'}`
               }}>
-                {invoice.status.toUpperCase()}
+                {invoice.status?.toUpperCase() || 'SENT'}
               </span>
             </p>
           </div>

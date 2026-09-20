@@ -77,7 +77,10 @@ export default function UpgradeLockModal({ profile, handleLogout, theme }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { alert('Not logged in.'); return; }
-      await exportLeads(session.user.id);
+      const result = await exportLeads(session.user.id);
+      if (result && result.count !== undefined) {
+        alert(`Exported all ${result.count.toLocaleString()} leads, including those hidden on your plan.`);
+      }
     } catch (err) {
       console.error('Export leads error:', err);
       alert('Failed to export leads: ' + err.message);

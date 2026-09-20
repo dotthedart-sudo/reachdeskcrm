@@ -4,6 +4,7 @@ import {
   getExtraSeats,
   getTeamWorkspaceSeatLimit,
   normalizePlan,
+  getEffectivePlan,
 } from './planConfig';
 
 export { PLAN_SEATS as TEAM_SEAT_LIMIT } from './planConfig';

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getTeamIds } from '../lib/utils';
+import { getTeamIds, PLAN_LIMITS, getEffectivePlan } from '../lib/utils';
 import { 
   Plus, Search, Pin, Trash2, Paintbrush,
   Folder, FolderPlus, Lock, ArrowUpDown, X, PenLine,
@@ -40,7 +40,8 @@ export default function NotesList({ currentUser }) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   
   // RLS / Plan check
-  const isPremiumUser = ['pro', 'teams', 'trial'].includes(currentUser?.plan?.toLowerCase());
+  const limits = PLAN_LIMITS[getEffectivePlan(currentUser)] || PLAN_LIMITS.trial;
+  const isPremiumUser = limits.max_notes === null;
 
   // Load Notes and Folders
   const fetchData = async () => {
@@ -98,6 +99,11 @@ export default function NotesList({ currentUser }) {
       navigate(`/notes/${data.id}`);
     } catch (err) {
       console.error('Error creating note:', err);
+      if (err.message && err.message.toLowerCase().includes('note limit')) {
+        alert('Note limit reached (20 on Starter, 40 on yearly). Upgrade to Pro for unlimited.');
+      } else {
+        alert('Failed to create note: ' + err.message);
+      }
     }
   };
 
@@ -380,6 +386,11 @@ export default function NotesList({ currentUser }) {
             <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
               Store templates, outreach scripts, canvas layouts, and drawings.
             </p>
+            {limits.max_notes > 0 && (
+              <p style={{ fontSize: '0.85rem', margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
+                <strong>{notes.length} of {limits.max_notes_yearly > limits.max_notes ? limits.max_notes_yearly : limits.max_notes}</strong> notes used.
+              </p>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>

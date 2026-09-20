@@ -26,11 +26,12 @@ export function stripHTML(html = '') {
 
 export async function exportLeads(userId, leadsData = null, filename = 'reachdesk-leads.csv', options = {}) {
   let leads = leadsData;
+  let totalCount = null;
   if (!leads) {
-    leads = await fetchAllLeadsForScope({
-      userIds: [userId],
-      orderBy: [{ column: 'created_at', ascending: true }],
-    });
+    const { data, error } = await supabase.rpc('export_my_leads');
+    if (error) throw error;
+    leads = data || [];
+    totalCount = leads.length;
   }
   if (!leads || leads.length === 0) {
     throw new Error('No leads found.');
@@ -40,14 +41,12 @@ export async function exportLeads(userId, leadsData = null, filename = 'reachdes
 
   const csv = [toCSVRow(headers), ...rows.map((row) => toCSVRow(row))].join('\r\n');
   triggerDownload(csv, filename, 'text/csv;charset=utf-8;');
+  
+  return { count: totalCount ?? leads.length };
 }
 
 export async function exportNotes(userId) {
-  const { data: notes, error } = await supabase
-    .from('notes')
-    .select('title,content,updated_at')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+  const { data: notes, error } = await supabase.rpc('export_my_notes');
 
   if (error) throw error;
   if (!notes || notes.length === 0) {
@@ -62,5 +61,7 @@ export async function exportNotes(userId) {
   });
 
   const txt = lines.join('\n' + '─'.repeat(60) + '\n\n');
-  triggerDownload(txt, 'reachdesk-notes.txt', 'text/plain;charset=utf-8;');
+  const header = `Includes all ${notes.length} notes, including those hidden on your current plan.\n\n`;
+  triggerDownload(header + txt, 'reachdesk-notes.txt', 'text/plain;charset=utf-8;');
+  return { count: notes.length };
 }

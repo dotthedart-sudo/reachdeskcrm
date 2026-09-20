@@ -36,6 +36,7 @@ export default function PublicInvoice() {
             tax: data.tax || 0,
             total: data.total || 0,
             paymentDetails: data.payment_instructions,
+            payment_link: data.payment_link,
             userEmail: ''
           };
           setInvoice(mapped);
