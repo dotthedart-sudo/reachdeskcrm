@@ -19,7 +19,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { generateAIDraft } from '../utils/aiDraft';
-import { PLAN_LIMITS, getEffectivePlan } from '../lib/utils';
+import { isPlanLimitError } from '../lib/supabase';
+import { getEffectivePlan } from '../lib/utils';
 import { NEXT_PLAN, PLAN_LIMITS as LIMITS_NEW } from '../lib/leadLimits';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
 import {
@@ -280,6 +281,7 @@ export default function Templates({
           is_starter: false
         });
       } catch (err) {
+        if (isPlanLimitError(err)) return;
         if (err?.message?.includes('Template limit reached')) {
           setShowTemplateLimitBlockModal(true);
           return;
@@ -321,6 +323,7 @@ export default function Templates({
         handleOpenEdit(newTemplate);
       }
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       if (err?.message?.includes('Template limit reached')) {
         setShowTemplateLimitBlockModal(true);
       } else {
@@ -415,6 +418,7 @@ export default function Templates({
       setNewSnippetValue('');
       setSnippetError('');
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       setSnippetError(err.message || 'Failed to save');
     }
   };

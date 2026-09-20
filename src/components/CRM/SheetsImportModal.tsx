@@ -254,6 +254,35 @@ export default function SheetsImportModal({ onClose, onImportComplete, currentUs
     setErrorMsg('');
 
     try {
+      const { data: profile } = await supabase.from('user_profiles').select('plan, billing_cycle').eq('id', currentUserId).single();
+      const { data: planCtx } = await supabase.rpc('get_my_plan_context');
+      
+      const effectivePlan = planCtx?.plan || profile?.plan || 'free';
+      const effectiveCycle = planCtx?.billing_cycle || profile?.billing_cycle;
+      
+      const { data: planLimits } = await supabase.from('plan_limits').select('max_leads').eq('plan', effectivePlan).single();
+      
+      if (planLimits && planLimits.max_leads !== null) {
+        let actualLimit = planLimits.max_leads;
+        if (effectivePlan === 'starter' && effectiveCycle === 'yearly') actualLimit = 2000;
+        else if (effectivePlan === 'pro' && effectiveCycle === 'yearly') actualLimit *= 2;
+
+        const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', currentUserId);
+        const incomingCount = previewTotalRows || 0;
+        if (count !== null && (count + incomingCount > actualLimit)) {
+          setStep(4);
+          setLoading(false);
+          window.dispatchEvent(new CustomEvent('reachdesk:limit-error', { 
+            detail: { msg: `Lead limit reached for your plan (${actualLimit} leads).`, table: 'leads' } 
+          }));
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('Failed to pre-check limits:', e);
+    }
+
+    try {
       let targetFolderId: string | null = null;
 
       if (listDestination === 'auto') {

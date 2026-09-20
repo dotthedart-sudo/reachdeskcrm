@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, react-hooks/purity, react-hooks/preserve-manual-memoization, no-empty, no-extra-boolean-cast */
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isPlanLimitError } from '../lib/supabase';
 import { useAppContext } from '../App';
 import { getTeamIds, PLAN_LIMITS, getEffectivePlan, getEffectiveBillingCycle, getEffectiveUserTimeZone } from '../lib/utils';
 import { LeadLimitModal, LeadLimitToast, getRemainingLeadQuota, shouldShowCountdownToast, prepareBulkImport, BulkImportLimitModal, getPlanLeadLimit } from '../lib/leadLimits';
@@ -733,6 +733,7 @@ export default function CRM({
     try {
       await exportLeads(currentUser.id, leads);
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Export leads error:', err);
       alert('Failed to export leads: ' + err.message);
     } finally {
@@ -1418,6 +1419,7 @@ export default function CRM({
         console.error('Error fetching remaining lead quota:', quotaErr);
       }
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       if (err?.message?.includes('Lead limit reached')) {
         setShowLeadLimitBlockModal(true);
       } else {
@@ -1484,6 +1486,7 @@ export default function CRM({
         console.error('Error fetching remaining lead quota:', quotaErr);
       }
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       if (err?.message?.includes('Lead limit reached')) {
         setShowLeadLimitBlockModal(true);
       } else {
@@ -1512,6 +1515,7 @@ export default function CRM({
       if (error) throw error;
       setColumnDefs(prev => [...prev, data]);
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Error adding custom field:', err);
       alert('Failed to add custom field: ' + err.message);
     }
@@ -2232,6 +2236,7 @@ export default function CRM({
       setLeads((prev) => prev.map((l) => (ids.includes(l.id) ? { ...l, folder_id: folderId } : l)));
       setSelectedIds([]);
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Error assigning all leads in view:', err);
       alert(err.message || 'Failed to assign leads to list.');
     }
@@ -2335,6 +2340,7 @@ export default function CRM({
         alert(`Imported ${data.length} leads successfully!`);
       }
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Error importing leads:', err);
     }
   };
@@ -2580,6 +2586,7 @@ export default function CRM({
         : `reachdesk-leads-${slugifyExportLabel(label)}.csv`;
       await exportLeads(currentUser.id, subset, filename, options);
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Export leads error:', err);
       alert('Failed to export leads: ' + err.message);
     } finally {
@@ -2682,6 +2689,7 @@ export default function CRM({
                 setShareListShares(shares);
                 setShareListTarget(folder);
               } catch (err) {
+                if (isPlanLimitError(err)) return;
                 alert(err.message || 'Could not load list sharing');
               }
             }}
@@ -4736,6 +4744,7 @@ export default function CRM({
                 setSmartFolderForm({ name: '', rules: [{ field: 'Status', operator: 'is', value: '' }] });
                 handleSelectFolder(data.id);
               } catch (err) {
+                if (isPlanLimitError(err)) return;
                 console.error('Error creating smart folder:', err);
                 alert('Failed to create smart folder: ' + err.message);
               }

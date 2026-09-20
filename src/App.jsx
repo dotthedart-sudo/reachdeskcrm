@@ -26,6 +26,8 @@ import { CALL_SCRIPT_SECTIONS, TEMPLATE_KINDS } from './lib/templateKinds';
 import { countDueCheckpointLeads } from './lib/checkpointNotifications';
 import { fetchAllLeadsForScope } from './lib/leadsQuery';
 import PaidInviteJoinModal from './components/PaidInviteJoinModal';
+import PlanLimitModal from './components/PlanLimitModal';
+import PlanLimitBanner from './components/PlanLimitBanner';
 
 // Helper for lazy loading components with automatic retry on dynamic import / chunk load failures (e.g. after new deployments)
 const LAZY_IMPORT_RETRIES = 3;
@@ -1538,22 +1540,30 @@ function DashboardPage() {
 
 function CRMPage() {
   const { profile, teamProfilesMap, teamIds } = useAppContext();
-  return <CRM currentUser={profile} teamProfilesMap={teamProfilesMap} teamIds={teamIds} isTeamView={teamIds.length > 1} />;
+  return (
+    <>
+      <PlanLimitBanner featureType="leads" />
+      <CRM currentUser={profile} teamProfilesMap={teamProfilesMap} teamIds={teamIds} isTeamView={teamIds.length > 1} />
+    </>
+  );
 }
 
 function TemplatesPage() {
   const { profile, templates, teamProfilesMap, teamIds, outreachUnlocked, handleAddTemplate, handleDeleteTemplate, handleUpdateTemplate } = useAppContext();
   return (
-    <Templates
-      currentUser={profile}
-      templates={templates}
-      onAddTemplate={handleAddTemplate}
-      onDeleteTemplate={handleDeleteTemplate}
-      onUpdateTemplate={handleUpdateTemplate}
-      teamProfilesMap={teamProfilesMap}
-      isTeamView={teamIds.length > 1}
-      outreachUnlocked={outreachUnlocked}
-    />
+    <>
+      <PlanLimitBanner featureType="templates" />
+      <Templates
+        currentUser={profile}
+        templates={templates}
+        onAddTemplate={handleAddTemplate}
+        onDeleteTemplate={handleDeleteTemplate}
+        onUpdateTemplate={handleUpdateTemplate}
+        teamProfilesMap={teamProfilesMap}
+        isTeamView={teamIds.length > 1}
+        outreachUnlocked={outreachUnlocked}
+      />
+    </>
   );
 }
 
@@ -1598,11 +1608,17 @@ function NotesPage() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem', color: 'var(--text-muted)' }}>
         <Lock size={36} style={{ color: 'var(--text-muted)' }} />
         <h3>Notes are locked</h3>
-        <p>Upgrade to Starter or Pro to access drawing boards and text notes.</p>
+        <p>Notes are available from Starter.</p>
+        <Link to="/upgrade" className="btn btn-primary">Upgrade Plan</Link>
       </div>
     );
   }
-  return <NotesList currentUser={profile} />;
+  return (
+    <>
+      <PlanLimitBanner featureType="notes" />
+      <NotesList currentUser={profile} />
+    </>
+  );
 }
 
 function NoteEditorPage() {
@@ -1812,10 +1828,17 @@ export default function App() {
               <AppRoutes />
             </GlobalErrorBoundary>
           </div>
+          <PlanLimitModalWrapper />
         </AppProvider>
       </BrowserRouter>
     </HelmetProvider>
   );
+}
+
+function PlanLimitModalWrapper() {
+  const { profile, subStatus } = useAppContext();
+  const isSubscriptionActive = subStatus === 'subscription_active';
+  return <PlanLimitModal currentUser={profile} isSubscriptionActive={isSubscriptionActive} />;
 }
 
 function AppRoutes() {

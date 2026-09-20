@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isPlanLimitError } from '../lib/supabase';
 import { getTeamIds, PLAN_LIMITS, getEffectivePlan } from '../lib/utils';
 import { 
   Plus, Search, Pin, Trash2, Paintbrush,
@@ -98,6 +98,7 @@ export default function NotesList({ currentUser }) {
       if (error) throw error;
       navigate(`/notes/${data.id}`);
     } catch (err) {
+      if (isPlanLimitError(err)) return;
       console.error('Error creating note:', err);
       if (err.message && err.message.toLowerCase().includes('note limit')) {
         alert('Note limit reached (20 on Starter, 40 on yearly). Upgrade to Pro for unlimited.');
