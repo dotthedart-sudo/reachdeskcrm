@@ -39,6 +39,7 @@ import { getBrowserTimeZone, getSupportedTimeZones } from '../lib/dateTime';
 import SettingsNav from './Configuration/SettingsNav';
 import ProfilePanel from './Configuration/ProfilePanel';
 import AutomationsPanel from './Configuration/AutomationsPanel';
+import PasswordPanel from './Configuration/PasswordPanel';
 import SnippetsPanel from './Configuration/SnippetsPanel';
 import TeamPanel from './Configuration/TeamPanel';
 import BillingPanel from './Configuration/BillingPanel';
@@ -1045,37 +1046,40 @@ export default function Configuration({
     switch (activeTab) {
       case 'profile':
         return (
-          <ProfilePanel
-            profileName={profileName}
-            setProfileName={setProfileName}
-            profileAvatarUrl={profileAvatarUrl}
-            profileAvatarPreview={profileAvatarPreview}
-            profileAvatarFile={profileAvatarFile}
-            profileDefaultCurrency={profileDefaultCurrency}
-            setProfileDefaultCurrency={setProfileDefaultCurrency}
-            defaultPaymentLink={defaultPaymentLink}
-            setDefaultPaymentLink={setDefaultPaymentLink}
-            defaultPaymentInstructions={defaultPaymentInstructions}
-            setDefaultPaymentInstructions={setDefaultPaymentInstructions}
-            monthlyRevenueTarget={monthlyRevenueTarget}
-            setMonthlyRevenueTarget={setMonthlyRevenueTarget}
-            profileTimezone={profileTimezone}
-            setProfileTimezone={setProfileTimezone}
-            browserTimezone={browserTimezone}
-            timezoneOptions={timezoneOptions}
-            profileError={profileError}
-            profileSuccess={profileSuccess}
-            profileSaving={profileSaving}
-            onAvatarChange={handleProfileAvatarChange}
-            onSubmit={handleSaveProfile}
-            localBrand={localBrand}
-            setLocalBrand={setLocalBrand}
-            localCurrency={localCurrency}
-            setLocalCurrency={setLocalCurrency}
-            localWebhook={localWebhook}
-            setLocalWebhook={setLocalWebhook}
-            currentUser={currentUser}
-          />
+          <>
+            <ProfilePanel
+              profileName={profileName}
+              setProfileName={setProfileName}
+              profileAvatarUrl={profileAvatarUrl}
+              profileAvatarPreview={profileAvatarPreview}
+              profileAvatarFile={profileAvatarFile}
+              profileDefaultCurrency={profileDefaultCurrency}
+              setProfileDefaultCurrency={setProfileDefaultCurrency}
+              defaultPaymentLink={defaultPaymentLink}
+              setDefaultPaymentLink={setDefaultPaymentLink}
+              defaultPaymentInstructions={defaultPaymentInstructions}
+              setDefaultPaymentInstructions={setDefaultPaymentInstructions}
+              monthlyRevenueTarget={monthlyRevenueTarget}
+              setMonthlyRevenueTarget={setMonthlyRevenueTarget}
+              profileTimezone={profileTimezone}
+              setProfileTimezone={setProfileTimezone}
+              browserTimezone={browserTimezone}
+              timezoneOptions={timezoneOptions}
+              profileError={profileError}
+              profileSuccess={profileSuccess}
+              profileSaving={profileSaving}
+              onAvatarChange={handleProfileAvatarChange}
+              onSubmit={handleSaveProfile}
+              localBrand={localBrand}
+              setLocalBrand={setLocalBrand}
+              localCurrency={localCurrency}
+              setLocalCurrency={setLocalCurrency}
+              localWebhook={localWebhook}
+              setLocalWebhook={setLocalWebhook}
+              currentUser={currentUser}
+            />
+            <PasswordPanel />
+          </>
         );
       case 'automations':
         return (

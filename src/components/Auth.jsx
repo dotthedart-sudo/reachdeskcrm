@@ -54,6 +54,7 @@ export default function Auth({ mode = 'login' }) {
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pendingInvite, setPendingInvite] = useState(false);
+  const [usePasswordForLogin, setUsePasswordForLogin] = useState(false);
 
   useEffect(() => {
     const inviteToken = searchParams.get('invite');
@@ -125,7 +126,7 @@ export default function Auth({ mode = 'login' }) {
     }
 
     // Local/dev: password auth so OTP inbox isn't required
-    if (LOCAL_PASSWORD_AUTH) {
+    if (isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin) {
       if (!password.trim() || password.trim().length < 6) {
         setError('Enter a password (at least 6 characters).');
         return;
@@ -156,7 +157,7 @@ export default function Auth({ mode = 'login' }) {
         let msg = err.message || (isSignup ? 'Sign up failed.' : 'Login failed.');
         const lower = msg.toLowerCase();
         if (lower.includes('invalid login') || lower.includes('invalid credentials')) {
-          msg = 'Wrong email or password. If this account was created with OTP only, sign up a new local test user or set a password in Supabase Auth.';
+          msg = 'Wrong email or password. If no password is set for this account, use the code we emailed you instead.';
         } else if (lower.includes('already') || lower.includes('exists') || lower.includes('registered')) {
           msg = 'An account with this email already exists. Log in instead.';
         }
@@ -263,7 +264,7 @@ export default function Auth({ mode = 'login' }) {
     step === 'otp'
       ? `Enter the 6-digit code we sent to ${email.trim()}`
       : step === 'email'
-        ? (LOCAL_PASSWORD_AUTH
+        ? ((isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin)
           ? (isSignup
             ? `${TRIAL_MARKETING.headline}.`
             : `Log in to your ${BRAND_NAME} workspace.`)
@@ -354,7 +355,19 @@ export default function Auth({ mode = 'login' }) {
               />
             </label>
 
-            {LOCAL_PASSWORD_AUTH && (
+            {!isSignup && !usePasswordForLogin && (
+              <button
+                type="button"
+                className="auth-text-btn"
+                style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
+                onClick={() => setUsePasswordForLogin(true)}
+                disabled={loading}
+              >
+                Use a password instead
+              </button>
+            )}
+
+            {(isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin) && (
               <label className="auth-field">
                 <span className="auth-field-label">Password</span>
                 <div className="rd-password-wrap">
@@ -383,19 +396,26 @@ export default function Auth({ mode = 'login' }) {
 
             <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
               {loading
-                ? (LOCAL_PASSWORD_AUTH
+                ? ((isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin)
                   ? (isSignup ? 'Creating…' : 'Logging in…')
                   : 'Sending code…')
-                : (LOCAL_PASSWORD_AUTH
+                : ((isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin)
                   ? (isSignup ? 'Create account' : 'Log in')
                   : 'Continue')}
             </button>
 
-            {LOCAL_PASSWORD_AUTH && (
+            {(isSignup ? LOCAL_PASSWORD_AUTH : usePasswordForLogin) && (
               <button
                 type="button"
                 className="auth-text-btn"
-                onClick={handleSendOtpInstead}
+                onClick={() => {
+                  if (!isSignup) {
+                    setUsePasswordForLogin(false);
+                    setPassword('');
+                  } else {
+                    handleSendOtpInstead();
+                  }
+                }}
                 disabled={loading}
               >
                 Email me a code instead
