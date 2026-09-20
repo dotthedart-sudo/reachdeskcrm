@@ -6,6 +6,7 @@ import {
   canInviteTeammates,
   getEffectivePlan,
   getEffectiveBillingCycle,
+  getLimit
 } from './planConfig';
 import { getEffectiveUserTimeZone } from './dateTime';
 
@@ -17,6 +18,7 @@ export {
   getEffectivePlan,
   getEffectiveBillingCycle,
   getEffectiveUserTimeZone,
+  getLimit
 };
 
 /**

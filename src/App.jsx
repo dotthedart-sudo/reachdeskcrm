@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, createContext, useContext, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import { getTeamIds, PLAN_LIMITS, normalizePlan, getEffectivePlan } from './lib/utils';
+import { getTeamIds, PLAN_LIMITS, normalizePlan, getEffectivePlan, getLimit } from './lib/utils';
 import { registerLifetimeSession, validateLifetimeSession, clearLifetimeSession } from './lib/sessionManager';
 import { getEffectiveOutreachAccess, getEffectiveCalendarAccess, getEffectiveReportsAccess } from './lib/callActivity';
 import { isValidTrialEndDate } from './lib/billing';
@@ -1603,7 +1603,7 @@ function RevenuePage() {
 function NotesPage() {
   const { profile } = useAppContext();
   const limits = PLAN_LIMITS[getEffectivePlan(profile)] || PLAN_LIMITS.trial;
-  if (limits.max_notes === 0) {
+  if (getLimit(limits, 'max_notes') === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem', color: 'var(--text-muted)' }}>
         <Lock size={36} style={{ color: 'var(--text-muted)' }} />
@@ -1624,7 +1624,7 @@ function NotesPage() {
 function NoteEditorPage() {
   const { profile } = useAppContext();
   const limits = PLAN_LIMITS[getEffectivePlan(profile)] || PLAN_LIMITS.trial;
-  if (limits.max_notes === 0) {
+  if (getLimit(limits, 'max_notes') === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem', color: 'var(--text-muted)' }}>
         <Lock size={36} style={{ color: 'var(--text-muted)' }} />

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { PLAN_LIMITS, normalizePlan, getEffectivePlan } from './planConfig';
+import { PLAN_LIMITS, normalizePlan, getEffectivePlan , getLimit } from './planConfig';
 import { isActiveTeamMember } from './teamWorkspace';
 import {
   applyOutcomeToLead,
@@ -20,7 +20,7 @@ export function hasOutreachByPlan(profile) {
   if (!profile) return false;
   if (profile.role === 'admin') return true;
   const key = getEffectivePlan(profile);
-  return !!PLAN_LIMITS[key]?.cold_calls;
+  return !!getLimit(PLAN_LIMITS[key], 'cold_calls');
 }
 
 /** Trial/Pro/Teams plan OR active Teams workspace member. */
@@ -34,7 +34,7 @@ export async function getEffectiveCalendarAccess(profile) {
   if (!profile) return false;
   if (profile.role === 'admin') return true;
   const key = getEffectivePlan(profile);
-  if (PLAN_LIMITS[key]?.calendarIntegration) return true;
+  if (getLimit(PLAN_LIMITS[key], 'calendarIntegration')) return true;
   return isActiveTeamMember(profile);
 }
 
@@ -42,7 +42,7 @@ export function hasReportsAccess(profile) {
   if (!profile) return false;
   if (profile.role === 'admin') return true;
   const key = getEffectivePlan(profile);
-  return !!PLAN_LIMITS[key]?.reports;
+  return !!getLimit(PLAN_LIMITS[key], 'reports');
 }
 
 /** Trial/Pro/Teams plan OR active Teams workspace member on a Reports-enabled workspace. */

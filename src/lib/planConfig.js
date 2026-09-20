@@ -7,13 +7,13 @@ export const LEGACY_PRO_TEAM_SEATS = 3;
 
 export const AI_BOT_CREDITS = {
   trial: 20,
-  starter: 100,
+  starter: 25,
   pro: 500,
-  teams: 500,
+  teams: 300,
 };
 
 export const PLAN_SEATS = {
-  trial: 5,
+  trial: 1,
   starter: 1,
   pro: 1,
   teams: 5,
@@ -30,19 +30,30 @@ export const EXTRA_TEAMS_SEAT_PRICE_ID = 'pri_01kzhm4mb02kxwged2bqfyqxhx';
 export const MAX_EXTRA_SEATS_PER_ACTION = 50;
 
 export let PLAN_LIMITS = {
-  free: { leads: 100, templates: 3, folders: 1, users: 1, aiCredits: 0, calendarIntegration: false, sheetsIntegration: false, bulkImport: true, autoLists: false, extensionCaptures: 25, max_notes: 0, max_notes_yearly: 0, reports: false, invoices: false, revenue_tracker: false, cold_calls: false, custom_columns: false, snippets: false, data_export: true },
-  trial: { leads: 100, templates: 3, folders: 1, users: 1, aiCredits: 20, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25, max_notes: null, max_notes_yearly: null, reports: true, invoices: true, revenue_tracker: true, cold_calls: true, custom_columns: true, snippets: true, data_export: true },
-  starter: { leads: 750, templates: null, folders: null, users: 1, aiCredits: 0, calendarIntegration: false, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25, max_notes: 20, max_notes_yearly: 40, reports: false, invoices: true, revenue_tracker: true, cold_calls: true, custom_columns: false, snippets: true, data_export: true },
-  pro: { leads: 5000, templates: null, folders: null, users: 1, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25, max_notes: null, max_notes_yearly: null, reports: true, invoices: true, revenue_tracker: true, cold_calls: true, custom_columns: true, snippets: true, data_export: true },
-  teams: { leads: null, templates: null, folders: null, users: null, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25, max_notes: null, max_notes_yearly: null, reports: true, invoices: true, revenue_tracker: true, cold_calls: true, custom_columns: true, snippets: true, data_export: true },
-  lifetime: { leads: null, templates: null, folders: null, users: null, aiCredits: 500, calendarIntegration: true, sheetsIntegration: true, bulkImport: true, autoLists: true, extensionCaptures: 25, max_notes: null, max_notes_yearly: null, reports: true, invoices: true, revenue_tracker: true, cold_calls: true, custom_columns: true, snippets: true, data_export: true },
+  free: { leads: 100, templates: 3, folders: 1, max_notes: 20, max_notes_yearly: 20, aiCredits: 0, users: 1, invoices: false, sheetsIntegration: false, calendarIntegration: false, reports: false, cold_calls: true, revenue_tracker: true, custom_columns: true, snippets: true, autoLists: true, bulkImport: true, data_export: true },
+  trial: { leads: 500, templates: 3, folders: 2, max_notes: 20, max_notes_yearly: 20, aiCredits: 10, users: 1, invoices: true, sheetsIntegration: true, calendarIntegration: true, reports: true, cold_calls: true, revenue_tracker: true, custom_columns: true, snippets: true, autoLists: true, bulkImport: true, data_export: true },
+  starter: { leads: 750, templates: 10, folders: null, max_notes: 500, max_notes_yearly: 500, aiCredits: 25, users: 1, invoices: true, sheetsIntegration: true, calendarIntegration: false, reports: false, cold_calls: true, revenue_tracker: true, custom_columns: true, snippets: true, autoLists: true, bulkImport: true, data_export: true },
+  pro: { leads: 5000, templates: 50, folders: null, max_notes: null, max_notes_yearly: null, aiCredits: 500, users: 1, invoices: true, sheetsIntegration: true, calendarIntegration: true, reports: true, cold_calls: true, revenue_tracker: true, custom_columns: true, snippets: true, autoLists: true, bulkImport: true, data_export: true },
+  teams: { leads: null, templates: null, folders: null, max_notes: null, max_notes_yearly: null, aiCredits: 300, users: 5, invoices: true, sheetsIntegration: true, calendarIntegration: true, reports: true, cold_calls: true, revenue_tracker: true, custom_columns: true, snippets: true, autoLists: true, bulkImport: true, data_export: true },
 };
 
 export function normalizePlan(plan) {
   const p = (plan || 'free').toLowerCase();
-  if (p === 'enterprise') return 'lifetime';
+  if (p === 'enterprise' || p === 'lifetime') return 'pro'; // removed enterprise and lifetime
   if (p in PLAN_LIMITS) return p;
   return 'free';
+}
+
+export function getLimit(limitsObj, key) {
+  if (!limitsObj) {
+    console.warn(`[getLimit] Missing limits object. Fail-open for key: ${key}`);
+    return Infinity;
+  }
+  if (key in limitsObj) {
+    return limitsObj[key];
+  }
+  console.warn(`[getLimit] Unknown limit key: ${key}. Defaulting to ALLOWED (Infinity).`);
+  return Infinity;
 }
 
 let limitsFetched = false;
@@ -55,9 +66,8 @@ export async function fetchPlanLimits(supabase) {
   limitsPromise = supabase.from('plan_limits').select('*').then(({ data, error }) => {
     if (!error && data) {
       data.forEach((row) => {
-        if (row.reports === undefined) {
-          console.warn(`[planConfig] missing new columns in plan_limits for plan '${row.plan}'. Defaulting to ALLOWED (fail-open).`);
-        }
+        if (!['free', 'trial', 'starter', 'pro', 'teams'].includes(row.plan)) return;
+        
         PLAN_LIMITS[row.plan] = {
           leads: row.max_leads,
           templates: row.max_templates,
@@ -68,20 +78,24 @@ export async function fetchPlanLimits(supabase) {
           sheetsIntegration: row.sheets_integration,
           bulkImport: row.bulk_import,
           autoLists: row.auto_lists,
-          extensionCaptures: row.max_extension_captures,
-          max_notes: row.max_notes ?? null, // null = unlimited
-          max_notes_yearly: row.max_notes_yearly ?? null,
-          reports: row.reports ?? true,
-          invoices: row.invoices ?? true,
-          revenue_tracker: row.revenue_tracker ?? true,
-          cold_calls: row.cold_calls ?? true,
-          custom_columns: row.custom_columns ?? true,
-          snippets: row.snippets ?? true,
+          max_notes: row.max_notes,
+          max_notes_yearly: row.max_notes_yearly,
+          reports: row.reports,
+          invoices: row.invoices,
+          revenue_tracker: row.revenue_tracker,
+          cold_calls: row.cold_calls,
+          custom_columns: row.custom_columns,
+          snippets: row.snippets,
           data_export: row.data_export ?? true,
         };
       });
       limitsFetched = true;
+    } else {
+      console.warn('[fetchPlanLimits] Failed to fetch limits from DB, using hardcoded fallbacks', error);
     }
+    return PLAN_LIMITS;
+  }).catch((err) => {
+    console.warn('[fetchPlanLimits] Exception fetching limits, using hardcoded fallbacks', err);
     return PLAN_LIMITS;
   });
   return limitsPromise;
@@ -103,16 +117,17 @@ export const NEXT_PLAN_ID = {
   teams: null,
 };
 
-/** Starter yearly lead cap (not a flat 2× of monthly 750). */
-export const STARTER_YEARLY_LEADS = 2000;
+/** Starter yearly lead cap (not a flat 2x of monthly 750). */
+export const STARTER_YEARLY_LEADS = 1500;
+export const PRO_YEARLY_LEADS = 10000;
 
 export function getPlanLeadLimit(plan, billingCycle) {
   const key = normalizePlan(plan);
-  const base = PLAN_LIMITS[key]?.leads ?? null;
-  if (base === null) return null;
+  const base = getLimit(PLAN_LIMITS[key], 'leads');
+  if (base === null || base === Infinity) return null;
   if ((billingCycle ?? '').toLowerCase() !== 'yearly') return base;
   if (key === 'starter') return STARTER_YEARLY_LEADS;
-  if (key === 'pro') return base * 2;
+  if (key === 'pro') return PRO_YEARLY_LEADS;
   return base;
 }
 

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Plug, Calendar, CheckCircle, Check, Unlink, Lock, RefreshCw,
 } from 'lucide-react';
-import { PLAN_LIMITS, getEffectivePlan } from '../../lib/utils';
+import { PLAN_LIMITS, getEffectivePlan , getLimit } from '../../lib/utils';
 import { BRAND_NAME } from '../../config/brand';
 import { needsSheetsReconnect } from '../../lib/googleSheetsOAuth';
 import { needsCalendarReconnect } from '../../lib/googleCalendarOAuth';
@@ -120,7 +120,7 @@ export default function IntegrationsPanel({
           </span>
         </div>
         <div className="rd-integration-actions">
-          {!PLAN_LIMITS[getEffectivePlan(currentUser)]?.calendarIntegration ? (
+          {!getLimit(PLAN_LIMITS[getEffectivePlan(currentUser)], 'calendarIntegration') ? (
             <button
               type="button"
               onClick={onUpgrade}

@@ -41,7 +41,7 @@ export default function NotesList({ currentUser }) {
   
   // RLS / Plan check
   const limits = PLAN_LIMITS[getEffectivePlan(currentUser)] || PLAN_LIMITS.trial;
-  const isPremiumUser = limits.max_notes === null;
+  const isPremiumUser = getLimit(limits, 'max_notes') === null;
 
   // Load Notes and Folders
   const fetchData = async () => {
@@ -387,9 +387,9 @@ export default function NotesList({ currentUser }) {
             <p className="color-muted" style={{ fontSize: '0.9rem', margin: 0 }}>
               Store templates, outreach scripts, canvas layouts, and drawings.
             </p>
-            {limits.max_notes > 0 && (
+            {getLimit(limits, 'max_notes') > 0 && (
               <p style={{ fontSize: '0.85rem', margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
-                <strong>{notes.length} of {limits.max_notes_yearly > limits.max_notes ? limits.max_notes_yearly : limits.max_notes}</strong> notes used.
+                <strong>{notes.length} of {getLimit(limits, 'max_notes_yearly') > getLimit(limits, 'max_notes') ? getLimit(limits, 'max_notes_yearly') : getLimit(limits, 'max_notes')}</strong> notes used.
               </p>
             )}
           </div>

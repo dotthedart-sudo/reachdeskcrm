@@ -5,7 +5,7 @@ import { supabase, isPlanLimitError } from '../lib/supabase';
 import { useAppContext } from '../App';
 import { getTeamIds, PLAN_LIMITS, getEffectivePlan, getEffectiveBillingCycle, getEffectiveUserTimeZone } from '../lib/utils';
 import { LeadLimitModal, LeadLimitToast, getRemainingLeadQuota, shouldShowCountdownToast, prepareBulkImport, BulkImportLimitModal, getPlanLeadLimit } from '../lib/leadLimits';
-import { PLAN_LIMITS as PLAN_FEATURE_FLAGS, normalizePlan } from '../lib/planConfig';
+import { PLAN_LIMITS as PLAN_FEATURE_FLAGS, normalizePlan , getLimit } from '../lib/planConfig';
 import {
   Search, Plus, Download, Upload, Trash2, Edit3, X,
   Filter, CheckSquare, Square, Folder, FolderPlus, LayoutGrid, ChevronRight,
@@ -763,7 +763,7 @@ export default function CRM({
 
   const plan = getEffectivePlan(currentUser);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.trial;
-  const maxLeadsLimit = getPlanLeadLimit(plan, getEffectiveBillingCycle(currentUser)) ?? limits.leads;
+  const maxLeadsLimit = getPlanLeadLimit(plan, getEffectiveBillingCycle(currentUser)) ?? getLimit(limits, 'leads');
 
   const lockedLeadCutoff = useMemo(() => {
     if (maxLeadsLimit === null) return null;
@@ -773,13 +773,13 @@ export default function CRM({
   }, [leads, maxLeadsLimit]);
 
   const lockedFolderCutoff = useMemo(() => {
-    const limit = limits.folders;
+    const limit = getLimit(limits, 'folders');
     if (limit === null) return null;
     const manualFolders = folders.filter(f => f.user_id === currentUser?.id);
     if (manualFolders.length <= limit) return null;
     const sorted = [...manualFolders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return new Date(sorted[limit - 1].created_at).getTime();
-  }, [folders, limits.folders, currentUser?.id]);
+  }, [folders, getLimit(limits, 'folders'), currentUser?.id]);
 
   const isActiveFolderLocked = useMemo(() => {
     if (!activeManualFolderId || lockedFolderCutoff === null) return false;
@@ -2753,7 +2753,7 @@ export default function CRM({
                 <div>
                   <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>List is locked</h4>
                   <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Your current plan is limited to {limits.folders ?? 1} list{(limits.folders ?? 1) === 1 ? '' : 's'}. You can still view and export leads here, but you cannot edit them.
+                    Your current plan is limited to {getLimit(limits, 'folders') ?? 1} list{(getLimit(limits, 'folders') ?? 1) === 1 ? '' : 's'}. You can still view and export leads here, but you cannot edit them.
                   </p>
                 </div>
               </div>
@@ -3442,7 +3442,7 @@ export default function CRM({
                 )}
                 {tableCols.map(col => {
                   const isProject = col.column_key === 'project';
-                  const isProjectUnlocked = !!PLAN_LIMITS[getEffectivePlan(currentUser)]?.custom_columns;
+                  const isProjectUnlocked = !!getLimit(PLAN_LIMITS[getEffectivePlan(currentUser)], 'custom_columns');
                   return (
                     <ResizableTh
                       key={col.id}

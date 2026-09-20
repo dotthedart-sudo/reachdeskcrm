@@ -1,10 +1,10 @@
-import { PLAN_LIMITS, AI_BOT_CREDITS, normalizePlan } from './planConfig';
+import { PLAN_LIMITS, AI_BOT_CREDITS, normalizePlan , getLimit } from './planConfig';
 import { getPlanLeadLimit } from './leadLimits';
 
 /** Format lead/template counts from PLAN_LIMITS for marketing copy. */
 export function formatLeadCount(planId) {
   const key = normalizePlan(planId);
-  const count = PLAN_LIMITS[key]?.leads;
+  const count = getLimit(PLAN_LIMITS[key], 'leads');
   if (count == null) return 'Unlimited leads';
   return `${count.toLocaleString()} leads`;
 }
@@ -43,14 +43,14 @@ function formatLeadForTagline(planId, billingCycle) {
 
 export function formatTemplateCount(planId) {
   const key = normalizePlan(planId);
-  const count = PLAN_LIMITS[key]?.templates;
+  const count = getLimit(PLAN_LIMITS[key], 'templates');
   if (count == null) return 'Unlimited templates';
   return `${count} templates`;
 }
 
 export function formatUserCount(planId) {
   const key = normalizePlan(planId);
-  const count = PLAN_LIMITS[key]?.users;
+  const count = getLimit(PLAN_LIMITS[key], 'users');
   if (count == null || count === Infinity) return 'Unlimited users';
   if (count === 1) return '1 user';
   return `${count} users`;

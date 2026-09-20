@@ -1,6 +1,6 @@
 import React from 'react';
 import { CreditCard, Check, AlertCircle } from 'lucide-react';
-import { PLAN_LIMITS, getEffectivePlan, getEffectiveBillingCycle } from '../../lib/utils';
+import { PLAN_LIMITS, getEffectivePlan, getEffectiveBillingCycle , getLimit } from '../../lib/utils';
 import { getPlanLeadLimit } from '../../lib/leadLimits';
 import { getAiCreditLimit } from '../../lib/aiCredits';
 import {
@@ -37,8 +37,8 @@ export default function BillingPanel({
 }) {
   const planKey = getEffectivePlan(currentUser);
   const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
-  const maxLeads = getPlanLeadLimit(planKey, getEffectiveBillingCycle(currentUser)) ?? limits.leads;
-  const maxTemplates = limits.templates;
+  const maxLeads = getPlanLeadLimit(planKey, getEffectiveBillingCycle(currentUser)) ?? getLimit(limits, 'leads');
+  const maxTemplates = getLimit(limits, 'templates');
   const maxAi = aiUsage.limit || getAiCreditLimit(planKey);
   const canCancel = hasCancellableSubscription(currentUser);
   const canResume = canResumeSubscription(currentUser);

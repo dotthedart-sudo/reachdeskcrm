@@ -225,7 +225,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         days: 7,
       });
 
-      if (limits.copyAnalytics) {
+      if (getLimit(limits, 'copyAnalytics')) {
         const { data: templatesData } = await supabase
           .from('templates')
           .select('id, title')
@@ -1168,7 +1168,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               <Trophy size={18} style={{ color: '#f59e0b' }} /> Template Stats
             </h3>
 
-            {!limits.copyAnalytics ? (
+            {!getLimit(limits, 'copyAnalytics') ? (
               <div style={{ position: 'relative', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 <div style={{ filter: 'blur(3px)', width: '100%', opacity: 0.25, pointerEvents: 'none' }}>
                   <table style={{ width: '100%', fontSize: '0.75rem' }}>

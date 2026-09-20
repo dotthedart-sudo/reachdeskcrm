@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
 import { X } from 'lucide-react';
 import UpgradeLockModal from './UpgradeLockModal';
-import { getEffectivePlan, getEffectiveBillingCycle } from '../lib/planConfig';
+import { getEffectivePlan, getEffectiveBillingCycle, getLimit } from '../lib/planConfig';
 
 export default function PlanLimitBanner({ featureType }) {
   const { profile, subStatus } = useAppContext();
@@ -25,21 +25,21 @@ export default function PlanLimitBanner({ featureType }) {
         let count = 0;
 
         if (featureType === 'leads') {
-          limit = limits.max_leads;
+          limit = getLimit(limits, 'max_leads');
           if (effectivePlan === 'starter' && cycle === 'yearly') limit = 2000;
           else if (effectivePlan === 'pro' && cycle === 'yearly') limit *= 2;
           const { count: c } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
           count = c || 0;
         } else if (featureType === 'templates') {
-          limit = limits.max_templates;
+          limit = getLimit(limits, 'max_templates');
           const { count: c } = await supabase.from('email_templates').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
           count = c || 0;
         } else if (featureType === 'notes') {
-          limit = cycle === 'yearly' ? limits.max_notes_yearly : limits.max_notes;
+          limit = cycle === 'yearly' ? getLimit(limits, 'max_notes_yearly') : getLimit(limits, 'max_notes');
           const { count: c } = await supabase.from('notes').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
           count = c || 0;
         } else if (featureType === 'folders') {
-          limit = limits.max_folders;
+          limit = getLimit(limits, 'max_folders');
           const { count: c } = await supabase.from('folders').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
           count = c || 0;
         }

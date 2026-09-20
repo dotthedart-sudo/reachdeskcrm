@@ -440,7 +440,7 @@ export default function Reports({ currentUser }) {
 
   usePageHeader({ title: 'Reports', actions: headerActions });
 
-  if (!limits.reports) {
+  if (!getLimit(limits, 'reports')) {
     return (
       <div 
         className="card"
