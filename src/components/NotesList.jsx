@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, isPlanLimitError } from '../lib/supabase';
-import { getTeamIds, PLAN_LIMITS, getEffectivePlan } from '../lib/utils';
+import { getTeamIds, PLAN_LIMITS, getLimit, getEffectivePlan } from '../lib/utils';
 import { 
   Plus, Search, Pin, Trash2, Paintbrush,
   Folder, FolderPlus, Lock, ArrowUpDown, X, PenLine,

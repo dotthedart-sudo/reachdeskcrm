@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
-import { getTeamIds, getEffectivePlan } from '../lib/utils';
+import { getTeamIds, getEffectivePlan, PLAN_LIMITS, getLimit } from '../lib/utils';
 import { isTeamOwner } from '../lib/teamWorkspace';
 import { fetchSharesForUser } from '../lib/folderShares';
 import { BRAND_NAME } from '../config/brand';

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CURRENCY_MAP } from './CurrencySelector';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../App';
-import { getTeamIds, PLAN_LIMITS, getEffectivePlan } from '../lib/utils';
+import { getTeamIds, PLAN_LIMITS, getLimit, getEffectivePlan } from '../lib/utils';
 import { isTeamOwner, hasTeammates } from '../lib/teamWorkspace';
 import {
   buildPersonalUpNextFeed,
