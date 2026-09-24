@@ -1,113 +1,84 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useAppContext } from "../../App";
-import { searchLeads } from "../../lib/leadsQuery";
-import { useDebounce } from "../../hooks/useDebounce";
+const fs = require('fs');
 
-export default function CompactSearch({ placeholder = "Search leads\u2026", className = "", width }) {
-  // teamIds is already the resolved array of user IDs scoped to the workspace
-  const { teamIds, session } = useAppContext() || {};
-  const navigate = useNavigate();
+// 1. Update index.css
+let css = fs.readFileSync('c:/Users/T15/reachdesk/src/index.css', 'utf8');
+if (!css.includes('.desktop-only')) {
+  css += `
+/* MOBILE HEADER OVERRIDES */
+.desktop-only { display: block; }
+.mobile-only { display: none; }
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+  
+  .mobile-search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-page);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+  }
+  .mobile-search-overlay-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .mobile-search-overlay-input-wrap {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .mobile-search-overlay-input-wrap svg {
+    position: absolute;
+    left: 12px;
+    color: var(--text-muted);
+  }
+  .mobile-search-overlay-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 1rem;
+    color: var(--text-primary);
+  }
+  .mobile-search-overlay-close {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 0.5rem;
+  }
+  .mobile-search-overlay-results {
+    flex: 1;
+    overflow-y: auto;
+  }
+}
+`;
+  fs.writeFileSync('c:/Users/T15/reachdesk/src/index.css', css);
+}
 
-  const debouncedQuery = useDebounce(query, 250);
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-        setActiveIdx(-1);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Fetch results when debounced query changes
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      setIsOpen(false);
-      return;
-    }
-
-    const userId = session?.user?.id;
-    const ids = teamIds?.length ? teamIds : userId ? [userId] : [];
-    if (!ids.length) return;
-
-    let cancelled = false;
-
-    const run = async () => {
-      setLoading(true);
-      try {
-        const data = await searchLeads(debouncedQuery, { userIds: ids }, 8);
-        if (!cancelled) {
-          setResults(data);
-          setIsOpen(true);
-          setActiveIdx(-1);
-        }
-      } catch (err) {
-        console.error("[GlobalSearch] error:", err);
-        if (!cancelled) setResults([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    run();
-    return () => { cancelled = true; };
-  }, [debouncedQuery, teamIds, session]);
-
-  const handleSelect = useCallback((result) => {
-    setQuery("");
-    setIsOpen(false);
-    setActiveIdx(-1);
-    const params = new URLSearchParams();
-    if (result.folder_id) params.set("folder", result.folder_id);
-    params.set("lead", result.id);
-    navigate("/leads?" + params.toString());
-  }, [navigate]);
-
-  const handleKeyDown = (e) => {
-    if (!isOpen || results.length === 0) {
-      if (e.key === "Enter" && query.trim()) {
-        navigate("/leads?search=" + encodeURIComponent(query.trim()));
-        setIsOpen(false);
-      }
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((prev) => Math.min(prev + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (activeIdx >= 0 && results[activeIdx]) {
-        handleSelect(results[activeIdx]);
-      } else if (results[0]) {
-        handleSelect(results[0]);
-      }
-    } else if (e.key === "Escape") {
-      setIsOpen(false);
-      setActiveIdx(-1);
-    }
-  };
-
-  const showDropdown = isOpen && (loading || results.length > 0 || (debouncedQuery.trim() && !loading));
-
-  return (
+// 2. Update CompactSearch.jsx
+let compactSearch = fs.readFileSync('c:/Users/T15/reachdesk/src/components/ui/CompactSearch.jsx', 'utf8');
+if (!compactSearch.includes('isMobileSearchOpen')) {
+  compactSearch = compactSearch.replace(
+    'import { Search } from "lucide-react";', 
+    'import { Search, X } from "lucide-react";'
+  );
+  compactSearch = compactSearch.replace(
+    'const [isOpen, setIsOpen] = useState(false);',
+    'const [isOpen, setIsOpen] = useState(false);\n  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);'
+  );
+  
+  const returnIdx = compactSearch.indexOf('return (');
+  const replacement = `  return (
     <>
       <button 
         type="button" 
@@ -206,3 +177,29 @@ export default function CompactSearch({ placeholder = "Search leads\u2026", clas
     </>
   );
 }
+`;
+  compactSearch = compactSearch.substring(0, returnIdx) + replacement;
+  fs.writeFileSync('c:/Users/T15/reachdesk/src/components/ui/CompactSearch.jsx', compactSearch);
+}
+
+// 3. Update AppHeader.jsx
+let appHeader = fs.readFileSync('c:/Users/T15/reachdesk/src/components/AppHeader.jsx', 'utf8');
+if (!appHeader.includes('app-header__title desktop-only')) {
+  appHeader = appHeader.replace(
+    '<h1 className="app-header__title">{title || \'ReachDesk CRM\'}</h1>',
+    '<h1 className="app-header__title desktop-only">{title || \'ReachDesk CRM\'}</h1>'
+  );
+  fs.writeFileSync('c:/Users/T15/reachdesk/src/components/AppHeader.jsx', appHeader);
+}
+
+// 4. Update AppHeaderActions.jsx
+let appHeaderActions = fs.readFileSync('c:/Users/T15/reachdesk/src/components/AppHeaderActions.jsx', 'utf8');
+if (!appHeaderActions.includes('<div className="desktop-only">')) {
+  appHeaderActions = appHeaderActions.replace(
+    '<ChatWidget profile={profile} />',
+    '<div className="desktop-only"><ChatWidget profile={profile} /></div>'
+  );
+  fs.writeFileSync('c:/Users/T15/reachdesk/src/components/AppHeaderActions.jsx', appHeaderActions);
+}
+
+console.log('Patch complete.');

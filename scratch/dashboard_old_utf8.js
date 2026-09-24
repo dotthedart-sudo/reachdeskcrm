@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CURRENCY_MAP } from './CurrencySelector';
 import { supabase } from '../lib/supabase';
@@ -99,7 +99,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const [copyAnalytics, setCopyAnalytics] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [debugError, setDebugError] = useState(null);
 
   // New States
   const [invoices, setInvoices] = useState([]);
@@ -116,14 +115,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const [messageStageCounts, setMessageStageCounts] = useState({});
   const [callStageCounts, setCallStageCounts] = useState({});
   const [weeklyPitchCount, setWeeklyPitchCount] = useState(0);
-  const [dashboardScope, setDashboardScope] = useState(() => {
-    const saved = localStorage.getItem('reachdesk_dashboard_scope');
-    if (saved) return saved;
-    return isTeamOwner(currentUser) ? 'team' : 'mine';
-  });
   const { reveal, rootClass, blockClass, blockProp } = useFirstVisitReveal();
-  const [templateStatsPage, setTemplateStatsPage] = useState(1);
-  const [upcomingNextPage, setUpcomingNextPage] = useState(1);
 
   // Rules of Hooks: must run before any conditional return (including loading guards).
   const headerFirstName = currentUser?.full_name
@@ -149,24 +141,21 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         return;
       }
 
-      const activeScopeIds = (isOwner && hasTeam) ? teamIds : [currentUser.id];
-      console.log('DASHBOARD DEBUG:', { dashboardScope, isOwner, hasTeam, teamIds, currentUser_id: currentUser.id, activeScopeIds });
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ dashboardScope, isOwner, hasTeam, teamIds, activeScopeIds, currentUser_id: currentUser.id }) }).catch(() => {});
       const remindersEnabled = currentUser?.reminders_enabled !== false;
       const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
 
       const settled = await Promise.allSettled([
-        supabase.from('invoices').select('*').in('user_id', activeScopeIds),
+        supabase.from('invoices').select('*').eq('user_id', currentUser.id),
         supabase.from('action_suggestion_rules').select('*'),
-        fetchLeadPipelineStats({ userIds: activeScopeIds }),
+        fetchLeadPipelineStats({ userIds: teamIds }),
         remindersEnabled
-          ? fetchDueCheckpointLeads({ userIds: activeScopeIds, limit: 5 })
+          ? fetchDueCheckpointLeads({ userIds: [currentUser.id], limit: 5 })
           : Promise.resolve([]),
         hasOutreachByPlan(currentUser)
           ? fetchMyCallAttempts(currentUser.id)
           : Promise.resolve([]),
-        // Thin columns for Up Next / team overview — paged so we never stop at 1000.
-        fetchAllLeadsForScope({ userIds: activeScopeIds, columns: feedColumns }),
+        // Thin columns for Up Next / team overview ΓÇö paged so we never stop at 1000.
+        fetchAllLeadsForScope({ userIds: teamIds, columns: feedColumns }),
       ]);
 
       const [
@@ -219,7 +208,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       setReminders(dueCheckpoints);
 
       setMetrics(computeLeadsOverviewFromStats(pipelineStats));
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ pipelineStats, metrics: computeLeadsOverviewFromStats(pipelineStats), feedLeadsCount: loadedLeads.length }) }).catch(() => {});
       setMessageStageCounts(pipelineStats.message_current || {});
       setCallStageCounts(pipelineStats.call_current || {});
       setWeeklyPitchCount(pipelineStats.velocity_7d || 0);
@@ -240,23 +228,18 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       if (getLimit(limits, 'copyAnalytics')) {
         const { data: templatesData } = await supabase
           .from('templates')
-          .select('id, name')
+          .select('id, title')
           .or(`user_id.eq.${currentUser.id},user_id.is.null`);
 
         const counts = pipelineStats.positive_by_template || {};
-        const sentCounts = pipelineStats.sent_by_template || {}; // we don't have this in pipelineStats from SQL yet, wait, we need reply-rate view (name, sent, replies, rate %)
-        const sortedAnalytics = [];
-        for (const [templateName, count] of Object.entries(counts)) {
-          const matchedTemplate = (templatesData || []).find((t) => t.name === templateName);
-          if (matchedTemplate) {
-            sortedAnalytics.push({
-              id: matchedTemplate.id,
-              title: matchedTemplate.name,
-              count: Number(count) || 0,
-            });
-          }
-        }
-        sortedAnalytics.sort((a, b) => b.count - a.count);
+        const sortedAnalytics = Object.entries(counts).map(([templateId, count]) => {
+          const matchedTemplate = (templatesData || []).find((t) => t.id === templateId);
+          return {
+            id: templateId,
+            title: matchedTemplate ? matchedTemplate.title : 'Unknown Template',
+            count: Number(count) || 0,
+          };
+        }).sort((a, b) => b.count - a.count);
 
         setCopyAnalytics(sortedAnalytics);
       }
@@ -300,7 +283,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
 
     } catch (err) {
       console.error('Error loading dashboard analytics:', err);
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ error: err.message, name: err.name, code: err.code, details: err.details }) }).catch(()=>{});
     } finally {
       setLoading(false);
     }
@@ -310,7 +292,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     if (currentUser) {
       loadDashboardData();
     }
-  }, [currentUser, windowDays, teamProfilesMap, dashboardScope]); // added dashboardScope
+  }, [currentUser, windowDays, teamProfilesMap]);
 
   // Digest push deep-link: scroll to Due Follow-ups
   useEffect(() => {
@@ -322,11 +304,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       }
     }
   }, [loading, reminders]);
-
-  const handleScopeChange = (scope) => {
-    setDashboardScope(scope);
-    localStorage.setItem('reachdesk_dashboard_scope', scope);
-  };
 
   // Unified Handler: Suggestion mismatch apply
   const handleApplyMismatchSuggestion = async (lead, suggestion) => {
@@ -343,7 +320,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     }
   };
 
-  // Unified Handler: Checkpoint outcome — uses same object signature as CheckpointPopover
+  // Unified Handler: Checkpoint outcome ΓÇö uses same object signature as CheckpointPopover
   const handleLogCheckpointOutcome = async (lead, targetStatus, extraUpdates = {}) => {
     try {
       const updatedLead = await updateLeadStatusAndCheckpoint({
@@ -445,7 +422,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revenueTarget = Number(currentUser.monthly_revenue_target) || 0;
   const targetPct = revenueTarget > 0 ? Math.min(100, Math.round((totalRevenueCollected / revenueTarget) * 100)) : 0;
 
-  // Calculate Pitching Velocity (exact count from RPC — not capped at max-rows)
+  // Calculate Pitching Velocity (exact count from RPC ΓÇö not capped at max-rows)
   let velocityLevel = 'low';
   let velocityColor = 'var(--danger-color)';
   let velocityMsg = 'Pipeline is cooling down. Increase pitching velocity.';
@@ -476,30 +453,9 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revealBlock = blockClass;
 
   return (
-      <div className={` flex-col page-stack${rootClass}`} style={{ textAlign: 'left', gap: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-          <p className="color-muted page-intro" style={{ margin: 0 }}>Outreach engine tracking, conversions, and follow-ups status.</p>
-          {hasTeam && (
-            <div className="rd-segmented" style={{ flexShrink: 0 }}>
-              <button
-                type="button"
-                className={`rd-segmented__btn ${dashboardScope === 'mine' ? 'rd-segmented__btn--active' : ''}`}
-                onClick={() => handleScopeChange('mine')}
-              >
-                Mine
-              </button>
-              <button
-                type="button"
-                className={`rd-segmented__btn ${dashboardScope === 'team' ? 'rd-segmented__btn--active' : ''}`}
-                onClick={() => handleScopeChange('team')}
-              >
-                Team
-              </button>
-            </div>
-          )}
-        </div>
+    <div className={`flex-col page-stack${rootClass}`} style={{ textAlign: 'left', gap: 'var(--space-6)' }}>
+      <p className="color-muted page-intro">Outreach engine tracking, conversions, and follow-ups status.</p>
 
-      {debugError && (<div style={{color: 'red', padding: 20, background: 'white'}}>DEBUG ERROR: {debugError}</div>)}
       {metrics.total === 0 && !loading ? (
         <div className={`card empty-state${revealBlock}`}>
           <div className="empty-state-icon" style={{ width: 56, height: 56, color: 'var(--text-primary)', background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
@@ -510,15 +466,13 @@ export default function Dashboard({ currentUser, onSelectLead }) {
             Once you add leads and log interactions, your conversion metrics, pitching velocity, and pipeline progression will light up here.
           </p>
           <button onClick={() => navigate('/leads')} className="btn btn-primary">
-            Go to CRM Leads →
+            Go to CRM Leads ΓåÆ
           </button>
         </div>
       ) : (
         <>
-          <div className="dashboard-main-layout">
-            <div className="dashboard-col-left">
-              {/* Primary KPIs Row — uses dash-kpi-grid so the mobile @media override
-                  (max-width 768px → 1-column stack) applies correctly */}
+          {/* Primary KPIs Row ΓÇö uses dash-kpi-grid so the mobile @media override
+              (max-width 768px ΓåÆ 1-column stack) applies correctly */}
       <div className={`dash-kpi-grid${revealBlock}`} style={{ marginBottom: 0 }}>
         
         {/* Leads card */}
@@ -526,10 +480,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           <div style={{ padding: 'var(--space-3)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-hover)', color: 'var(--text-primary)', display: 'flex', alignSelf: 'center' }}>
             <Users size={24} />
           </div>
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <span className="card-title">
-              {dashboardScope === 'team' ? 'Team Overview' : 'Leads Overview'}
-            </span>
+          <div style={{ width: '100%' }}>
+            <span className="card-title">Leads Overview</span>
             <div className="card-value" style={{ margin: 'var(--space-1) 0' }}>{metrics.total}</div>
             
             {/* Contacted / Replied / Positive mini-stats
@@ -639,12 +591,12 @@ export default function Dashboard({ currentUser, onSelectLead }) {
 
       </div>
 
-      {/* This week — clear activity (not pipeline confusion) */}
+      {/* This week ΓÇö clear activity (not pipeline confusion) */}
       <div className={`card${revealBlock}`}>
         <h3 style={{ fontSize: '0.9rem', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--text-secondary)' }}>
           <Activity size={16} /> This week
           <HelpPopover title="This week">
-            How much outreach you logged in the last 7 days — not the same as pipeline stage. Messaged = leads with a contact stamp; Called = leads with a call log; Due = message follow-up checkpoints that are overdue.
+            How much outreach you logged in the last 7 days ΓÇö not the same as pipeline stage. Messaged = leads with a contact stamp; Called = leads with a call log; Due = message follow-up checkpoints that are overdue.
           </HelpPopover>
         </h3>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
@@ -681,17 +633,17 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       <div
         className={revealBlock}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5rem',
+          display: 'grid',
+          gridTemplateColumns: showCallsStrip ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr',
+          gap: '1rem',
         }}
       >
-        <div className="card" style={{ minWidth: 0, flexGrow: 1 }}>
+        <div className="card">
           <h3 style={{ fontSize: '0.9rem', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
             <Mail size={16} /> Messages pipeline
           </h3>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.85rem' }}>
-            Where deals sit after email / LinkedIn — by message status.
+            Where deals sit after email / LinkedIn ΓÇö by message status.
           </p>
           <PipelineStepper
             stages={forwardStages}
@@ -700,13 +652,13 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           />
         </div>
 
-        {showCallsStrip && (metrics.call_activity?.total_attempts > 0) && (
-          <div className="card" style={{ minWidth: 0, flexGrow: 1 }}>
+        {showCallsStrip && (
+          <div className="card">
             <h3 style={{ fontSize: '0.9rem', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
               <Phone size={16} /> Calls pipeline
             </h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.85rem' }}>
-              Where dials sit in the Call Queue — by call status.
+              Where dials sit in the Call Queue ΓÇö by call status.
             </p>
             <PipelineStepper
               stages={callStageIds}
@@ -720,134 +672,498 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               style={{ marginTop: '0.75rem' }}
               onClick={() => navigate('/leads?mode=calls&callView=queue')}
             >
-              Open Call Queue →
+              Open Call Queue ΓåÆ
             </button>
           </div>
         )}
       </div>
 
-      </div>
 
-      <div className="dashboard-col-right">
+      {/* Main Dual Grid: Column 1 = Up Next chronological feed, Column 2 = Urgent Reminders & Templates */}
+      <div className={blockProp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
         
-                {/* Column 1: Upcoming Next Feed */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, flexGrow: 1 }}>
+        {/* Column 1: Upcoming Next Feed */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <h3 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
             <Activity size={18} style={{ color: 'var(--text-secondary)' }} /> Upcoming Next
-            <button type="button" onClick={() => navigate('/reminders')} className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>View Reminders →</button>
             <HelpPopover title="Upcoming Next Feed">
-              Shows follow-up checkpoints for the current scope.
+              Shows your follow-up checkpoints, invoice due dates, and suggestion mismatches. Team owners can switch to Team for a summary view.
             </HelpPopover>
           </h3>
 
-          {isOwner && !hasTeam && (
-            <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              No teammates invited yet.{' '}
-              <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 'inherit' }} onClick={() => navigate('/teams')}>
-                Invite from Teams →
+          {isOwner && hasTeam && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className={upNextTab === 'mine' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                onClick={() => setUpNextTab('mine')}
+              >
+                Mine
+              </button>
+              <button
+                type="button"
+                className={upNextTab === 'team' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                onClick={() => setUpNextTab('team')}
+              >
+                Team
               </button>
             </div>
           )}
 
-          {!getLimit(limits, 'upNextFeed') ? (
-            <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              <Lock size={14} style={{ display: 'inline', marginBottom: '-2px' }} /> Plan limit reached.
+          {isOwner && !hasTeam && (
+            <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              No teammates invited yet.{' '}
+              <button type="button" className="crm-list-breadcrumb-link" style={{ fontSize: 'inherit' }} onClick={() => navigate('/teams')}>
+                Invite from Teams ΓåÆ
+              </button>
             </div>
-          ) : upNextFeed.filter(i => i.type === 'checkpoint').length === 0 ? (
-            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Check size={20} style={{ color: 'var(--success-color)', marginBottom: '0.5rem' }} />
-              <div>No pending follow-ups!</div>
-            </div>
-          ) : (
+          )}
+
+          {upNextTab === 'team' && isOwner && teamOverview ? (
             <div className="flex-col gap-3">
-              {upNextFeed
-                .filter((item) => item.type === 'checkpoint')
-                .slice((upcomingNextPage - 1) * 4, upcomingNextPage * 4)
-                .map((item) => {
-                  const channel = item.channel || 'message';
-                  const isReplied = ['Positive Reply', 'Not Interested', 'Booked', 'Rescheduled'].includes(item.lead.status);
-                  const isTryAgain = ['No answer', 'Busy', 'Voicemail left'].includes(item.lead.status);
-                  let statusColor = '#d6d3d1'; // grey
-                  if (isTryAgain) statusColor = '#f59e0b'; // amber
-                  if (isReplied) statusColor = '#10b981'; // green
-
-                  return (
-                    <div 
-                      key={item.id} 
-                      className="flex-col gap-2" 
-                      style={{ 
-                        padding: '0.85rem 1rem', 
-                        borderRadius: '8px', 
-                        background: 'var(--bg-card)', 
-                        border: '1px solid var(--border)',
-                        borderLeft: `3px solid ${statusColor}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <span
-                          style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 500,
-                            letterSpacing: 0,
-                            textTransform: 'none',
-                            padding: '2px 7px',
-                            borderRadius: 'var(--radius-sm)',
-                            background: channel === 'call' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
-                            color: channel === 'call' ? '#10b981' : '#3b82f6',
-                          }}
-                        >
-                          {channel === 'call' ? 'Call' : 'Message'}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.68rem', height: 22, padding: '0 8px' }}
-                          onClick={() => navigate(channel === 'call' ? '/leads?mode=calls&callView=queue' : '/leads?mode=messages')}
-                        >
-                          Open →
-                        </button>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {teamOverview.totalLeads} leads across your team
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
+                {teamOverview.memberSummaries.map((m) => (
+                  <div key={m.userId} style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-card-hover)' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.35rem' }}>{m.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{m.leads.length} leads</div>
+                    {m.checkpointCount > 0 && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{m.checkpointCount} upcoming follow-ups</div>
+                    )}
+                    {m.mismatchCount > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '0.5rem', fontSize: '0.7rem', width: '100%', justifyContent: 'center' }}
+                        onClick={() => navigate('/leads')}
+                      >
+                        {m.mismatchCount} suggestion{m.mismatchCount === 1 ? '' : 's'} ┬╖ Review in CRM
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {teamActivity.length > 0 && (
+                <div>
+                  <div className="rd-section-label" style={{ marginBottom: 'var(--space-2)' }}>
+                    Recent team activity
+                  </div>
+                  <div className="flex-col gap-2">
+                    {teamActivity.map((ev) => (
+                      <div key={ev.id} style={{ fontSize: '0.78rem', padding: '0.5rem 0.65rem', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-secondary)' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{actorDisplayName(ev)}</strong>
+                        {' ┬╖ '}{ev.summary || ev.event_type}
+                        {' ┬╖ '}{leadDisplayFromTimeline(ev)}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
-                        Follow up with <span data-ph-mask>{item.lead.first_name || ''} {item.lead.last_name || ''}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {upNextFeed.filter(i => i.type === 'checkpoint').length > 4 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                  <button
-                    type="button"
-                    disabled={upcomingNextPage === 1}
-                    onClick={() => setUpcomingNextPage(p => Math.max(1, p - 1))}
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : upNextFeed.filter(item => {
+            if (item.type === 'mismatch-overflow') return true;
+            if (item.type === 'mismatch' || item.type === 'mismatch-group') {
+              return !ignoredMismatches[item.lead?.id] && !item.leads?.some((l) => ignoredMismatches[l.id]);
+            }
+            return true;
+          }).length === 0 ? (
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <div>Nothing coming up in the next {windowDays} days.</div>
+              {windowDays === 2 ? (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <button 
+                    onClick={() => setWindowDays(7)} 
                     className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    style={{ fontSize: '0.75rem', display: 'inline-flex', padding: '0.25rem 0.5rem' }}
                   >
-                    Prev
+                    Show more (next 7 days)
                   </button>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    Page {upcomingNextPage} of {Math.ceil(upNextFeed.filter(i => i.type === 'checkpoint').length / 4)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={upcomingNextPage >= Math.ceil(upNextFeed.filter(i => i.type === 'checkpoint').length / 4)}
-                    onClick={() => setUpcomingNextPage(p => p + 1)}
+                </div>
+              ) : (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <button 
+                    onClick={() => setWindowDays(2)} 
                     className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    style={{ fontSize: '0.75rem', display: 'inline-flex', padding: '0.25rem 0.5rem' }}
                   >
-                    Next
+                    Show less (next 2 days)
                   </button>
                 </div>
               )}
             </div>
+          ) : (
+            <div className="flex-col gap-3">
+              {upNextFeed
+                .filter((item) => {
+                  if (item.type === 'mismatch-overflow') return true;
+                  if (item.type === 'mismatch') return !ignoredMismatches[item.lead?.id];
+                  if (item.type === 'mismatch-group') return !item.leads?.every((l) => ignoredMismatches[l.id]);
+                  return true;
+                })
+                .map((item) => {
+                  const isCheckpoint = item.type === 'checkpoint';
+                  const isInvoice = item.type === 'invoice';
+                  const isMismatch = item.type === 'mismatch';
+                  const isMismatchGroup = item.type === 'mismatch-group';
+                  const isMismatchOverflow = item.type === 'mismatch-overflow';
+                  const isMeetingCheckIn = item.type === 'meeting-checkin';
+
+                  if (isMeetingCheckIn) {
+                    const firstName = item.lead.first_name || 'they';
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="flex-col gap-2" 
+                        style={{ 
+                          padding: '0.85rem 1rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-card-hover)', 
+                          border: '1px solid var(--border)' 
+                        }}
+                      >
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                          How did your meeting with <span data-ph-mask>{firstName}</span> go?
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                          <button
+                            onClick={() => handleLogMeetingOutcome(item.lead, 'Closed Won')}
+                            className="btn btn-primary btn-sm"
+                            style={{ fontSize: '0.72rem', padding: '4px', justifyContent: 'center', height: '28px' }}
+                          >
+                            Closed Won
+                          </button>
+                          <button
+                            onClick={() => handleLogMeetingOutcome(item.lead, 'Not Interested')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.72rem', padding: '4px', justifyContent: 'center', height: '28px' }}
+                          >
+                            Not Interested
+                          </button>
+                          <button
+                            onClick={() => handleLogMeetingOutcome(item.lead, 'Rescheduled')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.72rem', padding: '4px', justifyContent: 'center', height: '28px' }}
+                          >
+                            Rescheduled
+                          </button>
+                          <button
+                            onClick={() => handleLogMeetingOutcome(item.lead, 'Positive Reply')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.72rem', padding: '4px', justifyContent: 'center', height: '28px' }}
+                          >
+                            Still Deciding
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isCheckpoint) {
+                    const firstName = item.lead.first_name || 'they';
+                    const lowerName = firstName.toLowerCase();
+                    const isFemale = ['sarah', 'priya', 'maria', 'anna', 'laura', 'jessica', 'emily', 'elizabeth', 'charlotte'].includes(lowerName);
+                    const pronoun = isFemale ? 'she' : 'they';
+                    const pronounWill = isFemale ? "she'll" : "they'll";
+                    const pronounReplied = isFemale ? "she replied" : "they replied";
+                    const isExpanded = !!expandedReplies[item.lead.id];
+                    const channel = item.channel || 'message';
+
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="flex-col gap-2" 
+                        style={{ 
+                          padding: '0.85rem 1rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-card-hover)', 
+                          border: '1px solid var(--border)' 
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 500,
+                              letterSpacing: 0,
+                              textTransform: 'none',
+                              padding: '2px 7px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: channel === 'call' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
+                              color: channel === 'call' ? '#10b981' : '#3b82f6',
+                            }}
+                          >
+                            {channel === 'call' ? 'Call' : 'Message'}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.68rem', height: 22, padding: '0 8px' }}
+                            onClick={() => navigate(channel === 'call' ? '/leads?mode=calls&callView=queue' : '/leads?mode=messages')}
+                          >
+                            Open ΓåÆ
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                          Follow up with <span data-ph-mask>{item.lead.first_name || ''} {item.lead.last_name || ''}</span> ΓÇö {pronounWill} need a follow-up {formatTimePhrasing(item.date, 'checkpoint')} if {pronoun} hasn't replied yet.
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                          {!isExpanded ? (
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                onClick={() => handleLogCheckpointOutcome(item.lead, item.lead.status)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.75rem', height: '28px' }}
+                              >
+                                Not yet
+                              </button>
+                              <button
+                                onClick={() => setExpandedReplies(prev => ({ ...prev, [item.lead.id]: true }))}
+                                className="btn btn-primary btn-sm"
+                                style={{ flex: 1, justifyContent: 'center', fontSize: '0.75rem', height: '28px' }}
+                              >
+                                Yes, {pronounReplied}
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>What was the outcome?</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                <button
+                                  onClick={() => handleLogCheckpointOutcome(item.lead, 'Positive Reply', { reply_type: 'positive' })}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.72rem', padding: '4px', borderColor: 'var(--success-color)', color: 'var(--success-color)', fontWeight: 600 }}
+                                >
+                                  Positive reply
+                                </button>
+                                <button
+                                  onClick={() => handleLogCheckpointOutcome(item.lead, 'Booked', { reply_type: 'positive' })}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.72rem', padding: '4px', borderColor: '#8b5cf6', color: '#8b5cf6', fontWeight: 600 }}
+                                >
+                                  Call booked
+                                </button>
+                                <button
+                                  onClick={() => handleLogCheckpointOutcome(item.lead, 'Not Interested', { reply_type: 'negative' })}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.72rem', padding: '4px', borderColor: 'var(--danger-color)', color: 'var(--danger-color)', fontWeight: 600 }}
+                                >
+                                  Not interested
+                                </button>
+                                <button
+                                  onClick={() => handleLogCheckpointOutcome(item.lead, 'No Show / Rescheduled')}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.72rem', padding: '4px', borderColor: 'var(--warning-color)', color: 'var(--warning-color)', fontWeight: 600 }}
+                                >
+                                  Other
+                                </button>
+                              </div>
+                              <button
+                                onClick={() => setExpandedReplies(prev => ({ ...prev, [item.lead.id]: false }))}
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: '0.7rem', padding: '2px', border: 'none', color: 'var(--text-muted)' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isInvoice) {
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="flex-col gap-2" 
+                        style={{ 
+                          padding: '0.85rem 1rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-card-hover)', 
+                          border: '1px solid var(--border)' 
+                        }}
+                      >
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                          Invoice #${item.invoice.invoice_number} for {item.invoice.client_name || 'Client'} is due {formatTimePhrasing(item.date, 'invoice')} (${item.invoice.total || 0}).
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                          <button
+                            onClick={() => navigate('/invoices')}
+                            className="btn btn-primary btn-sm"
+                            style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem', height: '28px' }}
+                          >
+                            View Invoice
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isMismatchOverflow) {
+                    return (
+                      <div key={item.id} style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px dashed var(--border)', textAlign: 'center' }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          {item.count} more suggestion mismatch{item.count === 1 ? '' : 'es'} on your leads
+                        </p>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/leads')} style={{ fontSize: '0.75rem' }}>
+                          Review in CRM
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  if (isMismatchGroup) {
+                    return (
+                      <div key={item.id} className="flex-col gap-2" style={{ padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                          {item.count} leads with status &apos;{item.status}&apos; have next step &apos;{item.action || 'No Action'}&apos; ΓÇö suggested &apos;{item.suggestion}&apos;.
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => navigate('/leads')}
+                          style={{ alignSelf: 'flex-start', fontSize: '0.72rem' }}
+                        >
+                          Review in CRM
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  if (isMismatch) {
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="flex-col gap-2" 
+                        style={{ 
+                          padding: '0.85rem 1rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-card-hover)', 
+                          border: '1px solid var(--border)' 
+                        }}
+                      >
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                          {mismatchCopy({
+                            lead: item.lead,
+                            suggestion: item.suggestion,
+                            teamProfilesMap,
+                            currentUserId: currentUser.id,
+                            isOwnLead: item.lead.user_id === currentUser.id,
+                          })}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                          <button 
+                            onClick={() => handleApplyMismatchSuggestion(item.lead, item.suggestion)}
+                            className="btn btn-primary btn-sm" 
+                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.72rem', height: '28px' }}
+                          >
+                            Update to suggestion
+                          </button>
+                          <button 
+                            onClick={() => setIgnoredMismatches(prev => ({ ...prev, [item.lead.id]: true }))}
+                            className="btn btn-secondary btn-sm" 
+                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.72rem', height: '28px' }}
+                          >
+                            Keep as is
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
+              
+              {/* Show more/less toggle at the bottom of the feed list */}
+              <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                {windowDays === 2 ? (
+                  <button 
+                    onClick={() => setWindowDays(7)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', width: '100%', justifyContent: 'center' }}
+                  >
+                    Show more (next 7 days)
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setWindowDays(2)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', width: '100%', justifyContent: 'center' }}
+                  >
+                    Show less (next 2 days)
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Column 2: Template Stats */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0, flexGrow: 1 }}>
+        {/* Column 2: Urgent Follow-ups Preview & Templates */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Due Follow-ups (from leads.next_checkpoint_at) */}
+          <div className="card" id="due-followups">
+            <div className="flex justify-between align-center mb-3">
+              <h3 style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Bell size={18} style={{ color: 'var(--danger-color)' }} /> Due Follow-ups
+              </h3>
+              {reminders.length > 0 && (
+                <button onClick={() => navigate('/leads')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  Open CRM <ArrowRight size={12} />
+                </button>
+              )}
+            </div>
+
+            {reminders.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                No due follow-ups.
+              </div>
+            ) : (
+              <div className="flex-col gap-2">
+                {reminders.map((lead) => {
+                  const timeLabel = formatOverdueLabel(lead.next_checkpoint_at);
+                  return (
+                    <button
+                      key={lead.id}
+                      type="button"
+                      onClick={() => navigate(`/leads?lead=${lead.id}`)}
+                      className="flex justify-between align-center"
+                      style={{
+                        padding: '0.6rem 0.75rem',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-card-hover)',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                        color: 'inherit',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{leadDisplayName(lead)}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {lead.status || 'Lead'}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--danger-color)', fontWeight: 600 }}>
+                        {timeLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Copy Performance Analytics */}
-          <div className="card" style={{ flexGrow: 1 }}>
+          <div className="card">
             <h3 style={{ fontSize: '0.95rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Trophy size={18} style={{ color: '#f59e0b' }} /> Template Stats
             </h3>
@@ -875,61 +1191,34 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 No outreach metrics recorded.
               </div>
             ) : (
-              <div className="flex-col gap-2">
-                {copyAnalytics.slice((templateStatsPage - 1) * 2, templateStatsPage * 2).map((item, idx) => (
-                  <div key={item.id} className="flex-col gap-2" style={{ padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' }}>
-                    <div className="flex justify-between align-center">
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                        {(templateStatsPage === 1 && idx === 0) && <Trophy size={13} style={{ color: '#E8A838', marginRight: '0.25rem', display: 'inline-block', verticalAlign: 'text-bottom' }} />}
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--success-color)' }}>
-                        {item.rate.toFixed(1)}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>reply rate</span>
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div>Sent: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.sent}</span></div>
-                      <div>Replies: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.positive}</span></div>
-                    </div>
-                    
-                    <div style={{ width: '100%', height: 6, background: 'var(--border-strong)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginTop: '4px' }}>
-                      <div style={{ width: `${Math.min(100, item.rate)}%`, height: '100%', background: 'var(--success-color)', borderRadius: 'var(--radius-sm)', transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                ))}
-
-                {copyAnalytics.length > 2 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                    <button
-                      type="button"
-                      disabled={templateStatsPage === 1}
-                      onClick={() => setTemplateStatsPage(p => Math.max(1, p - 1))}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                    >
-                      Prev
-                    </button>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      Page {templateStatsPage} of {Math.ceil(copyAnalytics.length / 2)}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={templateStatsPage >= Math.ceil(copyAnalytics.length / 2)}
-                      onClick={() => setTemplateStatsPage(p => p + 1)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+              <div style={{ overflowX: 'auto', maxHeight: '150px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.4rem' }}>Template</th>
+                      <th style={{ padding: '0.4rem', textAlign: 'right' }}>Replies</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {copyAnalytics.slice(0, 3).map((item, idx) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.4rem', fontWeight: 500 }}>
+                          {idx === 0 && <Trophy size={13} style={{ color: '#E8A838', marginRight: '0.25rem', display: 'inline-block', verticalAlign: 'middle' }} />}
+                          {item.title}
+                        </td>
+                        <td style={{ padding: '0.4rem', color: 'var(--success-color)', fontWeight: 600, textAlign: 'right' }}>
+                          {item.count}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
 
         </div>
-        </div>
+
       </div>
       </>
       )}

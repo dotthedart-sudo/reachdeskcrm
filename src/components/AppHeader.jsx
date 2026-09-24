@@ -72,7 +72,7 @@ export default function AppHeader({
             })}
           </nav>
         ) : (
-          <h1 className="app-header__title">{title || 'ReachDesk CRM'}</h1>
+          <h1 className="app-header__title desktop-only">{title || 'ReachDesk CRM'}</h1>
         )}
       </div>
 

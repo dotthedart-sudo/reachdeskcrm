@@ -106,22 +106,22 @@
 
 /* ── Light mode — black / white / grey ── */
 :root.light {
-  --bg-page:         #eef2f8;
+  --bg-page:         #FFFFFF;
   --bg-sidebar:      #FFFFFF;
-  --bg-card:         #FFFFFF;
+  --bg-card:         #F3F4F6;
   --bg-surface:      #FFFFFF;
-  --bg-card-hover:   #F8FAFC;
-  --bg-hover:        #E2E8F0;
-  --bg-selected:     rgba(29, 78, 216, 0.08);
-  --border:          #dde3ec;
-  --border-subtle:   #E2E8F0;
-  --border-strong:   #CBD5E1;
-  --text-primary:    #0F172A;
-  --text-secondary:  #475569;
-  --text-muted:      #64748B;
-  --accent-blue:     #1d4ed8;
-  --accent-blue-hover: #1e40af;
-  --accent-green:    #15803d;
+  --bg-card-hover:   #E5E7EB;
+  --bg-hover:        #E5E7EB;
+  --bg-selected:     rgba(10, 10, 10, 0.08);
+  --border:          #E5E5E5;
+  --border-subtle:   #EBEBEB;
+  --border-strong:   #D4D4D4;
+  --text-primary:    #0A0A0A;
+  --text-secondary:  #525252;
+  --text-muted:      #737373;
+  --accent-blue:     #333338;
+  --accent-blue-hover: #44444A;
+  --accent-green:    #404040;
   --accent-on:       #FFFFFF;
   /* Status / priority keep semantic color (not monochrome) */
   --status-hot:      #ef4444;
@@ -201,10 +201,17 @@ h3 { font-size: var(--text-md); }
 }
 
 /* Layout classes */
-.app-container {
+.app-wrapper {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  width: 100%;
+}
+
+.app-container {
+  display: flex;
+  flex: 1;
   width: 100%;
   overflow: hidden;
 }
@@ -1430,10 +1437,10 @@ h3 { font-size: var(--text-md); }
 .card-title {
   font-family: var(--font-body);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  color: #44403c;
+  color: var(--text-muted);
   margin-bottom: var(--space-2);
 }
 
@@ -6618,31 +6625,56 @@ select option {
   }
 }
 
-/* ── Scoped Dashboard Theme ── */
-.rd-dashboard-page {
-  --bg-page:         #eef2f8;
-  --bg-sidebar:      #FFFFFF;
-  --bg-card:         #FFFFFF;
-  --bg-surface:      #FFFFFF;
-  --bg-card-hover:   #F8FAFC;
-  --bg-hover:        #E2E8F0;
-  --bg-selected:     rgba(29, 78, 216, 0.08);
-  --border:          #dde3ec;
-  --border-subtle:   #E2E8F0;
-  --border-strong:   #CBD5E1;
-  --text-primary:    #0F172A;
-  --text-secondary:  #475569;
-  --text-muted:      #64748B;
-  --accent-blue:     #1d4ed8;
-  --accent-blue-hover: #1e40af;
-  --accent-green:    #15803d;
-  --accent-on:       #FFFFFF;
-  --status-hot:      #ef4444;
-  --status-warm:     #f59e0b;
-  --status-cold:     #3b82f6;
-  --shadow-sm:       0 1px 2px rgba(15, 23, 42, 0.05);
+
+
+@media (min-width: 769px) {
+  .mobile-only { display: none !important; }
+}
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
 }
 
-.main-content:has(.rd-dashboard-page) {
-  background-color: var(--bg-page);
+.mobile-search-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-primary);
+  z-index: 1000;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+}
+.mobile-search-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.mobile-search-overlay-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: 99px;
+}
+.mobile-search-overlay-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+}
+.mobile-search-overlay-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: var(--text-secondary);
+}
+.mobile-search-overlay-results {
+  margin-top: 1rem;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }

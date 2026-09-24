@@ -109,7 +109,7 @@ export default function AppLayout({
   };
 
   return (
-    <>
+    <div className="app-wrapper">
       <LeadLimitTopBar
         status={limitStatus}
         onExport={handleExportLeads}
@@ -155,7 +155,7 @@ export default function AppLayout({
                 <span className="logo-text nav-label">{BRAND_LOGO_TEXT}</span>
                 <button
                   type="button"
-                  className="sidebar-collapse-btn"
+                  className="sidebar-collapse-btn desktop-only"
                   onClick={handleToggleCollapse}
                   title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                   aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -229,6 +229,6 @@ export default function AppLayout({
           <MobileNav onOpenMenu={() => setIsSidebarOpen((prev) => !prev)} />
         </div>
       </PageHeaderProvider>
-    </>
+    </div>
   );
 }

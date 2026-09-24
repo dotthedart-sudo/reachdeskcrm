@@ -65,29 +65,63 @@ export default function SidebarNav({
 
   if (mobile) {
     return (
-      <ul className="sidebar-menu mobile-only-menu">
-        <li><Link to="/invoices" onClick={close} className="mobile-menu-item">Client Invoices</Link></li>
-        <li><Link to="/revenue" onClick={close} className="mobile-menu-item">Revenue Tracker</Link></li>
-        <li><Link to="/reports" onClick={close} className="mobile-menu-item">{!reportsUnlocked ? 'Reports (Upgrade)' : 'Reports'}</Link></li>
-        <li><Link to="/notes" onClick={close} className="mobile-menu-item">Notes</Link></li>
-        <li><Link to="/calendar" onClick={close} className="mobile-menu-item">{!calendarUnlocked ? 'Calendar (Upgrade)' : 'Calendar'}</Link></li>
-        <li><Link to="/teams" onClick={close} className="mobile-menu-item">{teamsLocked ? 'Teams (Upgrade)' : 'Teams'}</Link></li>
-        <li><Link to="/get-started" onClick={close} className="mobile-menu-item">Get Started Guide</Link></li>
-        {(profile?.plan ?? '').toLowerCase() !== 'starter' && (
-          <li><Link to="/settings" onClick={close} className="mobile-menu-item">Configuration</Link></li>
-        )}
-        {showBillingLink && (
-          <li><Link to="/upgrade" onClick={close} className="mobile-menu-item">{billingLabel}</Link></li>
-        )}
-        {isAdmin && (
-          <li><Link to="/admin" onClick={close} className="mobile-menu-item" style={{ color: 'var(--primary-magenta)' }}>Admin Panel</Link></li>
-        )}
-        <li>
-          <div className="mobile-menu-item" onClick={() => { onLogout?.(); close(); }} style={{ cursor: 'pointer', color: 'var(--danger-color)', borderTop: '1px solid var(--border-color)', marginTop: '1rem', paddingTop: '1rem' }}>
-            Log Out
-          </div>
-        </li>
-      </ul>
+      <div className="sidebar-nav-groups mobile-only-menu">
+        <SidebarSection label="Outreach">
+          <SidebarLink to="/leads?mode=messages" onClick={close} icon={Users} label="Cold Outreach" active={pathname === '/leads'} tip={tip('Cold Outreach')} />
+          <SidebarLink to="/calendar" onClick={close} icon={Calendar} label="Calendar" active={pathname === '/calendar'} tip={tip(!calendarUnlocked ? 'Calendar (Upgrade)' : 'Calendar')} locked={!calendarUnlocked} />
+        </SidebarSection>
+        
+        <SidebarSection label="Business">
+          <SidebarLink to="/invoices" onClick={close} icon={Receipt} label="Client Invoices" active={pathname === '/invoices'} tip={tip('Client Invoices')} />
+          <SidebarLink to="/revenue" onClick={close} icon={TrendingUp} label="Revenue Tracker" active={pathname === '/revenue'} tip={tip('Revenue Tracker')} />
+        </SidebarSection>
+        
+        <SidebarSection label="Insights">
+          <SidebarLink to="/reports" onClick={close} icon={BarChart2} label="Reports" active={pathname === '/reports'} tip={tip(!reportsUnlocked ? 'Reports (Upgrade)' : 'Reports')} locked={!reportsUnlocked} />
+          <SidebarLink to="/notes" onClick={close} icon={FileText} label="Notes" active={pathname.startsWith('/notes')} tip={tip('Notes')} />
+        </SidebarSection>
+        
+        <SidebarSection label="Workspace">
+          <SidebarLink to="/teams" onClick={close} icon={UsersRound} label="Teams" active={pathname === '/teams'} tip={tip(teamsLocked ? 'Teams (Upgrade)' : 'Teams')} locked={teamsLocked} />
+          <SidebarLink to="/get-started" onClick={close} icon={HelpCircle} label="Get Started Guide" active={pathname === '/get-started'} tip={tip('Get Started Guide')} />
+          {(profile?.plan ?? '').toLowerCase() !== 'starter' && (
+            <SidebarLink to="/settings" onClick={close} icon={Settings} label="Configuration" active={pathname === '/settings'} tip={tip('Configuration')} />
+          )}
+          {showBillingLink && (
+            <SidebarLink to="/upgrade" onClick={close} icon={CreditCard} label={billingLabel} active={pathname === '/upgrade'} tip={tip(billingLabel)} />
+          )}
+          {isAdmin && (
+            <SidebarLink
+              to="/admin"
+              onClick={close}
+              icon={ShieldAlert}
+              label="Admin Panel"
+              active={pathname === '/admin'}
+              tip={tip('Admin Panel')}
+              badge={adminNotifCount > 0 ? (
+                <span className="sidebar-item__badge sidebar-item__badge--hot">{adminNotifCount > 99 ? '99+' : adminNotifCount}</span>
+              ) : null}
+            />
+          )}
+        </SidebarSection>
+
+        <div className="sidebar-bottom">
+          <ul className="sidebar-menu">
+            <li className="sidebar-item-divider" style={{ borderTop: '1px solid var(--border-color)', margin: '1rem 0' }}></li>
+            <SidebarLink
+              to="#"
+              onClick={(e) => {
+                e.preventDefault();
+                onLogout?.();
+                close();
+              }}
+              icon={LogOut}
+              label="Log Out"
+              danger
+            />
+          </ul>
+        </div>
+      </div>
     );
   }
 

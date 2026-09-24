@@ -17,7 +17,7 @@ export default function AppHeaderActions({
 
   return (
     <div className="app-header-actions">
-      <ChatWidget profile={profile} />
+      <div className="desktop-only"><ChatWidget profile={profile} /></div>
       <UserNotificationBell profile={profile} onRefreshProfile={onRefreshProfile} />
       <AppHeaderProfile
         profile={profile}

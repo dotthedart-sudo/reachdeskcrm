@@ -29,9 +29,7 @@ export async function clearServiceWorkersAndCaches() {
 }
 
 function cacheBustReload() {
-  const url = new URL(window.location.href);
-  url.searchParams.set('_rd', String(Date.now()));
-  window.location.replace(url.toString());
+  window.location.reload(true);
 }
 
 /**
