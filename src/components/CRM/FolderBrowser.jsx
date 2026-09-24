@@ -182,7 +182,7 @@ export default function FolderBrowser({
           {' '}
           <button
             type="button"
-            className="crm-list-breadcrumb-link"
+            className="btn btn-secondary btn-sm"
             style={{ fontSize: 'inherit', padding: 0 }}
             onClick={() => onSelectFolder?.('unfiled')}
           >

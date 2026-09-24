@@ -119,6 +119,7 @@ export default function Reminders({ currentUser }) {
   const navigate = useNavigate();
   const timeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
   const [leads, setLeads] = useState([]);
+  const [overdueInvoices, setOverdueInvoices] = useState([]);
   const [callAttemptsByLead, setCallAttemptsByLead] = useState({});
   const [suggestionRules, setSuggestionRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,6 +147,14 @@ export default function Reminders({ currentUser }) {
         limit: 200,
       });
       setLeads(upcoming);
+
+      const { data: invoices } = await supabase
+        .from('invoices')
+        .select('*')
+        .in('user_id', teamIds)
+        .is('paid_at', null)
+        .lt('due_date', new Date().toISOString());
+      setOverdueInvoices(invoices || []);
 
       const ids = upcoming.map((l) => l.id);
       if (ids.length) {
@@ -235,7 +244,7 @@ export default function Reminders({ currentUser }) {
     return <div className="loading-container">Loading reminders...</div>;
   }
 
-  const empty = groups.overdue.length + groups.today.length + groups.week.length === 0;
+  const empty = groups.overdue.length + groups.today.length + groups.week.length + overdueInvoices.length === 0;
 
   return (
     <div className="flex-col gap-4 page-stack rd-reminders-page">
@@ -283,6 +292,39 @@ export default function Reminders({ currentUser }) {
             onMarkDone={handleMarkDone}
             onOpen={openLead}
           />
+          
+          {overdueInvoices.length > 0 && (
+            <section className="rd-reminder-group">
+              <header className="rd-reminder-group__header rd-reminder-group__header--overdue">
+                <h3>Overdue Invoices</h3>
+                <span>{overdueInvoices.length}</span>
+              </header>
+              <div className="rd-reminder-group__list">
+                {overdueInvoices.map((inv) => (
+                  <div key={inv.id} className="rd-reminder-row rd-reminder-row--overdue">
+                    <button type="button" className="rd-reminder-row__main" onClick={() => navigate('/invoices')}>
+                      <div className="rd-reminder-row__top">
+                        <span className="rd-reminder-row__name">Invoice #{inv.invoice_number}</span>
+                        <span className="rd-reminder-row__when is-overdue">Due {new Date(inv.due_date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="rd-reminder-row__meta">
+                        <span className="rd-reminder-row__folder">
+                          {inv.client_name || 'Client'} — ${inv.total}
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => navigate('/invoices')}
+                    >
+                      View
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>

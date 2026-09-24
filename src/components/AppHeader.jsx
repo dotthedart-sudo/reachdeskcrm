@@ -82,11 +82,13 @@ export default function AppHeader({
         )}
 
         {!header.hideSearch && (
-          <CompactSearch
-            placeholder="Search leads…"
-            width={280}
-            className="app-header__search"
-          />
+          <div className="app-header__search-wrapper" style={{ flex: 1, minWidth: 0, maxWidth: 280 }}>
+            <CompactSearch
+              placeholder="Search leads…"
+              className="app-header__search"
+              width="100%"
+            />
+          </div>
         )}
 
         <AppHeaderActions

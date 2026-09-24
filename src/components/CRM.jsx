@@ -2710,7 +2710,7 @@ export default function CRM({
         ) : (
         <>
         <nav className="crm-list-breadcrumb" aria-label="List location">
-          <button type="button" className="crm-list-breadcrumb-link" onClick={() => handleSelectFolder('home')}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSelectFolder('home')}>
             Lists
           </button>
           <ChevronRight size={14} className="crm-list-breadcrumb-sep" aria-hidden />
