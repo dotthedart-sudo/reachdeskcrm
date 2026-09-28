@@ -143,15 +143,10 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
-      const teamIds = await getTeamIds(currentUser.id);
-      if (!teamIds || teamIds.length === 0 || teamIds.includes(undefined) || teamIds.includes(null)) {
-        setLoading(false);
-        return;
-      }
-
-      const activeScopeIds = (isOwner && hasTeam) ? teamIds : [currentUser.id];
-      console.log('DASHBOARD DEBUG:', { dashboardScope, isOwner, hasTeam, teamIds, currentUser_id: currentUser.id, activeScopeIds });
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ dashboardScope, isOwner, hasTeam, teamIds, activeScopeIds, currentUser_id: currentUser.id }) }).catch(() => {});
+      const { data: teamMembers } = await supabase.rpc('get_my_team_members');
+      const scopeTeamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
+      const isTeamScope = scopeTeamIds.length > 1 && dashboardScope === 'team';
+      const activeScopeIds = isTeamScope ? scopeTeamIds : [currentUser.id];
       const remindersEnabled = currentUser?.reminders_enabled !== false;
       const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
 
@@ -219,7 +214,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       setReminders(dueCheckpoints);
 
       setMetrics(computeLeadsOverviewFromStats(pipelineStats));
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ pipelineStats, metrics: computeLeadsOverviewFromStats(pipelineStats), feedLeadsCount: loadedLeads.length }) }).catch(() => {});
       setMessageStageCounts(pipelineStats.message_current || {});
       setCallStageCounts(pipelineStats.call_current || {});
       setWeeklyPitchCount(pipelineStats.velocity_7d || 0);
@@ -238,20 +232,19 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       });
 
       if (getLimit(limits, 'copyAnalytics')) {
-        const { data: templatesData } = await supabase
-          .from('templates')
-          .select('id, name')
-          .or(`user_id.eq.${currentUser.id},user_id.is.null`);
-
         const counts = pipelineStats.positive_by_template || {};
+        const templateIds = Object.keys(counts);
+        const { data: templatesData } = templateIds.length
+          ? await supabase.from('templates').select('id, title').in('id', templateIds)
+          : { data: [] };
         const sentCounts = pipelineStats.sent_by_template || {}; // we don't have this in pipelineStats from SQL yet, wait, we need reply-rate view (name, sent, replies, rate %)
         const sortedAnalytics = [];
-        for (const [templateName, count] of Object.entries(counts)) {
-          const matchedTemplate = (templatesData || []).find((t) => t.name === templateName);
+        for (const [templateId, count] of Object.entries(counts)) {
+          const matchedTemplate = (templatesData || []).find((t) => t.id === templateId);
           if (matchedTemplate) {
             sortedAnalytics.push({
               id: matchedTemplate.id,
-              title: matchedTemplate.name,
+              title: matchedTemplate.title,
               count: Number(count) || 0,
             });
           }
@@ -272,7 +265,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       });
       setUpNextFeed(personalFeed);
 
-      if (isOwner && hasTeam) {
+      if (isTeamScope) {
         setTeamOverview(buildTeamOverview({
           leads: loadedLeads,
           rules: loadedRules,
@@ -288,6 +281,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
             fromDate: todayKey,
             toDate: todayKey,
             limit: 10,
+            memberId: null,
           });
           setTeamActivity(events.slice(0, 10));
         } catch {
@@ -300,7 +294,6 @@ export default function Dashboard({ currentUser, onSelectLead }) {
 
     } catch (err) {
       console.error('Error loading dashboard analytics:', err);
-      fetch('http://localhost:3000/__debug', { method: 'POST', body: JSON.stringify({ error: err.message, name: err.name, code: err.code, details: err.details }) }).catch(()=>{});
     } finally {
       setLoading(false);
     }

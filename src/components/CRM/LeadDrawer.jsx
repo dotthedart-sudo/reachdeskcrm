@@ -4,6 +4,7 @@ import { X, Calendar, User, FileText, Activity as ActivityIcon, Plus, Trash2, Pe
 import { supabase } from '../../lib/supabase';
 import { useAppContext } from '../../App';
 import { fetchLeadCallTimeline } from '../../lib/callActivity';
+import { isTeamOwner } from '../../lib/teamWorkspace';
 import LogCallModal from './callActivity/LogCallModal';
 import LogMessageModal from './LogMessageModal';
 import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './EditableDropdown';
@@ -45,7 +46,8 @@ export default function LeadDrawer({
   initialTab = null,
 }) {
   const [activeTab, setActiveTab] = useState('contact'); // 'contact' | 'pipeline' | 'notes' | 'activity'
-  const { showToast, userSnippets } = useAppContext() || {};
+  const { showToast, userSnippets, teamProfilesMap = {} } = useAppContext() || {};
+  const isOwner = isTeamOwner(currentUser);
   const [formData, setFormData] = useState({});
   const [invoices, setInvoices] = useState([]);
 
@@ -191,11 +193,7 @@ export default function LeadDrawer({
     setNotesLoading(true);
     try {
       let query = supabase.from('lead_notes').select('*').order('created_at', { ascending: true });
-      if (isClientView) {
-        query = query.eq('client_id', lead.id);
-      } else {
-        query = query.eq('lead_id', lead.id);
-      }
+      query = query.eq('lead_id', lead.id);
       const { data, error } = await query;
 
       if (error) throw error;
@@ -1312,7 +1310,7 @@ export default function LeadDrawer({
                           }, 1000);
                         }}
                         placeholder="Write your note here..."
-                        readOnly={false}
+                        readOnly={!(selectedNote && (selectedNote.user_id === currentUser?.id || isOwner))}
                         noteId={selectedNote.id}
                         noteType="lead"
                         userId={currentUser?.id}

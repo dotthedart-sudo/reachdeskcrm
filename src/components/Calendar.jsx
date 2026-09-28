@@ -37,7 +37,7 @@ import {
   canViewTeamCalendarFeed,
   hasTeamCalendarActivity,
 } from '../lib/calendarActivity';
-import { hasTeammates } from '../lib/teamWorkspace';
+import { hasTeammates, isTeamOwner } from '../lib/teamWorkspace';
 import MemberActivityFilter from './CRM/callActivity/MemberActivityFilter';
 import CheckpointPopover from './CRM/CheckpointPopover';
 import './Calendar/Calendar.css';
@@ -343,7 +343,7 @@ export default function CalendarPage({ currentUser }) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [activityTypeFilter, setActivityTypeFilter] = useState('all');
-  const [memberFilter, setMemberFilter] = useState('');
+  const [memberFilter, setMemberFilter] = useState(currentUser?.id || '');
   const [calendarMembers, setCalendarMembers] = useState([]);
   const [calendarPerms, setCalendarPerms] = useState(null);
   const [teamIds, setTeamIds] = useState([currentUser?.id].filter(Boolean));
@@ -416,6 +416,7 @@ export default function CalendarPage({ currentUser }) {
       setTeamIds(teamIdsResolved);
 
       const teamId = currentUser.team_id || null;
+  const isOwner = isTeamOwner(currentUser);
       if (teamId && hasTeammates(teamIdsResolved)) {
         const [members, perms] = await Promise.all([
           fetchTeamMembersForCalendar(teamId),
@@ -631,6 +632,25 @@ export default function CalendarPage({ currentUser }) {
 
   const selectedEvents = eventsByDay[selectedDay] || [];
   const selectedOutreach = outreachByDay[selectedDay] || [];
+  
+  const renderMemberAvatar = (userId) => {
+    if (!userId || memberFilter) return null; // Only show in 'All team' view (where memberFilter is '')
+    const profile = teamProfilesMap[userId];
+    if (!profile) return null;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+        {profile.avatar_url ? (
+          <img src={profile.avatar_url} style={{ width: '16px', height: '16px', borderRadius: '50%' }} />
+        ) : (
+          <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold' }}>
+            {(profile.full_name || 'U')[0].toUpperCase()}
+          </div>
+        )}
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{profile.full_name || profile.email}</span>
+      </div>
+    );
+  };
+
   const filteredTimeline = (timelineByDay[selectedDay] || []).filter((ev) => matchesActivityFilter(ev, activityTypeFilter));
   const selectedTimeline = filteredTimeline;
   const selectedPlan = planByDay[selectedDay] || [];
@@ -921,6 +941,8 @@ export default function CalendarPage({ currentUser }) {
               members={calendarMembers}
               value={memberFilter}
               onChange={setMemberFilter}
+              isOwner={isTeamOwner(currentUser)}
+              currentUserId={currentUser?.id}
             />
           )}
           <div className="cal-segment" role="group" aria-label="Calendar range">
@@ -1363,20 +1385,25 @@ export default function CalendarPage({ currentUser }) {
                 {selectedTimeline.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {selectedTimeline.map((ev) => (
-                      <ActivityTimelineRow
-                        key={ev.id}
-                        event={ev}
-                        showLead
-                        compact
-                        onOpenLead={openLead}
-                      />
+                      <div>
+                        {renderMemberAvatar(ev.user_id)}
+                        <ActivityTimelineRow
+                          key={ev.id}
+                          event={ev}
+                          showLead
+                          compact
+                          onOpenLead={openLead}
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : selectedOutreach.length === 0 ? (
                   <EmptyHint>No activity this day. Change a status, log a call, or complete a plan item.</EmptyHint>
                 ) : (
                   selectedOutreach.map((row) => (
-                    <button
+                    <div key={row.lead?.id || `${row.lastOutcome}-${row.attemptCount}`}>
+                      {renderMemberAvatar(row.user_id || row.lead?.user_id)}
+                      <button
                       key={row.lead?.id || `${row.lastOutcome}-${row.attemptCount}`}
                       type="button"
                       onClick={() => openLead(row.lead?.id)}
@@ -1399,6 +1426,7 @@ export default function CalendarPage({ currentUser }) {
                         {row.lastOutcome ? ` · ${row.lastOutcome}` : ''}
                       </div>
                     </button>
+                    </div>
                   ))
                 )}
               </DaySection>

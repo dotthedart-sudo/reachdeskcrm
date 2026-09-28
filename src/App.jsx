@@ -878,11 +878,9 @@ function AppProvider({ children }) {
             setTeamIds(ids);
 
             if (ids.length > 0) {
-              const { data: members } = await supabase.from('user_profiles')
-                .select('id, email, full_name')
-                .in('id', ids);
+              const { data: members } = await supabase.rpc('get_my_team_members');
               const mapping = {};
-              members?.forEach(m => { mapping[m.id] = { id: m.id, email: m.email, full_name: m.full_name }; });
+              members?.forEach(m => { mapping[m.id] = { id: m.id, email: m.email, full_name: m.full_name, avatar_url: m.avatar_url, team_role: m.team_role }; });
               setTeamProfilesMap(mapping);
             }
 
