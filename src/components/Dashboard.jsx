@@ -144,9 +144,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     setLoading(true);
     try {
       const { data: teamMembers } = await supabase.rpc('get_my_team_members');
-      const scopeTeamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
-      const isTeamScope = scopeTeamIds.length > 1 && dashboardScope === 'team';
-      const activeScopeIds = isTeamScope ? scopeTeamIds : [currentUser.id];
+      const teamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
+      const activeScopeIds = (teamMembers?.length > 1 && dashboardScope === 'team') ? teamIds : [currentUser.id];
       const remindersEnabled = currentUser?.reminders_enabled !== false;
       const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
 
@@ -242,10 +241,16 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         for (const [templateId, count] of Object.entries(counts)) {
           const matchedTemplate = (templatesData || []).find((t) => t.id === templateId);
           if (matchedTemplate) {
+            const sent = Number(sentCounts[templateId]) || 0;
+            const positive = Number(count) || 0;
+            const rate = sent > 0 ? (positive / sent) * 100 : 0;
             sortedAnalytics.push({
               id: matchedTemplate.id,
               title: matchedTemplate.title,
-              count: Number(count) || 0,
+              count: positive,
+              sent,
+              positive,
+              rate,
             });
           }
         }
@@ -877,7 +882,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         {item.title}
                       </div>
                       <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--success-color)' }}>
-                        {item.rate.toFixed(1)}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>reply rate</span>
+                        {(item.rate || 0).toFixed(1)}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>reply rate</span>
                       </div>
                     </div>
                     

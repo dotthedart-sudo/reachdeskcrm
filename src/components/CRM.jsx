@@ -803,19 +803,7 @@ export default function CRM({
       const sharesRes = await fetchSharesForUser(currentUser.id);
       const sharedFolderIds = sharesRes.map((s) => s.folder_id).filter(Boolean);
 
-      const foldersPromise = isOwner
-        ? supabase.from('folders').select('*').in('user_id', teamIds).order('sort_order', { ascending: true })
-        : (async () => {
-          const [ownRes, sharedRes] = await Promise.all([
-            supabase.from('folders').select('*').eq('user_id', currentUser.id).order('sort_order', { ascending: true }),
-            sharedFolderIds.length
-              ? supabase.from('folders').select('*').in('id', sharedFolderIds).order('sort_order', { ascending: true })
-              : Promise.resolve({ data: [] }),
-          ]);
-          const byId = new Map();
-          [...(ownRes.data || []), ...(sharedRes.data || [])].forEach((f) => byId.set(f.id, f));
-          return { data: [...byId.values()] };
-        })();
+      const foldersPromise = supabase.from('folders').select('*').order('sort_order', { ascending: true });
 
       const smartFoldersPromise = isOwner
         ? supabase.from('user_folders').select('*').in('user_id', teamIds).order('created_at', { ascending: true })

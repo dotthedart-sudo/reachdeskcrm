@@ -48,8 +48,8 @@ export const getTeamIds = async (userId, opts = {}) => {
       }
     }
 
-    const { data: members } = await supabase.from('user_profiles')
-      .select('id').eq('team_id', p.team_id);
+    const { data: members, error } = await supabase.rpc('get_my_team_members');
+    if (error) throw error;
     if (!members || members.length === 0) return [userId];
     const ids = members.map(m => m.id).filter(Boolean);
     if (!ids.includes(userId)) ids.push(userId);

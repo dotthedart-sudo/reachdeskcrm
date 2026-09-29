@@ -41,10 +41,20 @@ export async function fetchSharesForFolders(folderIds = []) {
 }
 
 /** Replace share list for a folder. */
-export async function saveFolderShares(folderId, sharedByUserId, entries = []) {
+export async function saveFolderShares(folderId, sharedByUserId, entries = [], teamShareOpts = {}) {
   if (!folderId || !sharedByUserId) return;
   const { error: delErr } = await supabase.from('folder_shares').delete().eq('folder_id', folderId);
   if (delErr) throw delErr;
+
+  if (teamShareOpts.sharedWithTeam !== undefined) {
+    const { error: folderErr } = await supabase.from('folders')
+      .update({
+        shared_with_team: teamShareOpts.sharedWithTeam,
+        team_share_permission: teamShareOpts.teamSharePermission || 'view',
+      })
+      .eq('id', folderId);
+    if (folderErr) throw folderErr;
+  }
 
   const rows = entries
     .filter((e) => e.userId && e.userId !== sharedByUserId)

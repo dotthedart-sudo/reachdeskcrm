@@ -108,13 +108,11 @@ export function isProTeamOwner(profile) {
 /** Full Teams page access (not upgrade-locked): trial, teams (any role), or grandfathered Pro owner. */
 export function hasTeamsPageAccess(profile) {
   if (!profile) return false;
+  if (profile.team_id) return true;
+  
   const plan = getEffectivePlan(profile);
   if (plan === 'trial') return true;
   if (plan === 'teams') {
-    if (profile.plan_status && !isPaidPlanActive(profile)) return false;
-    return true;
-  }
-  if (plan === 'pro' && profile.team_id) {
     if (profile.plan_status && !isPaidPlanActive(profile)) return false;
     return true;
   }

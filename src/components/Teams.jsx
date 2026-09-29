@@ -105,11 +105,7 @@ export default function Teams({ currentUser, onRefreshProfile }) {
       }
 
       const [{ data: members, error: mErr }, { data: invites, error: iErr }, teamSettings, callPerms, calPerms] = await Promise.all([
-        supabase
-          .from('user_profiles')
-          .select('id, email, full_name, team_role, plan')
-          .eq('team_id', teamId)
-          .order('team_role', { ascending: true }),
+        supabase.rpc('get_my_team_members'),
         supabase
           .from('team_invitations')
           .select('*')

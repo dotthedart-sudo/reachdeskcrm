@@ -16,6 +16,9 @@ export default function ShareListModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [sharedWithTeam, setSharedWithTeam] = useState(false);
+  const [teamSharePermission, setTeamSharePermission] = useState('view');
+
   useEffect(() => {
     if (!open) return;
     const map = {};
@@ -23,8 +26,10 @@ export default function ShareListModal({
       map[s.shared_with_user_id] = s.permission || 'view';
     });
     setSelected(map);
+    setSharedWithTeam(folder?.shared_with_team || false);
+    setTeamSharePermission(folder?.team_share_permission || 'view');
     setError('');
-  }, [open, existingShares]);
+  }, [open, existingShares, folder]);
 
   if (!open || !folder) return null;
 
@@ -51,7 +56,10 @@ export default function ShareListModal({
         userId,
         permission,
       }));
-      await saveFolderShares(folder.id, currentUser.id, entries);
+      await saveFolderShares(folder.id, currentUser.id, entries, {
+        sharedWithTeam,
+        teamSharePermission,
+      });
       onSaved?.();
       onClose?.();
     } catch (err) {
@@ -80,8 +88,30 @@ export default function ShareListModal({
             </p>
           ) : (
             <>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                Choose who can access this list. They will see leads assigned to it.
+              <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                  <ToggleSwitch checked={sharedWithTeam} onChange={() => setSharedWithTeam(prev => !prev)} />
+                  <Users size={16} style={{ color: 'var(--primary-color)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>Share with team</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Anyone on the team can access</div>
+                  </div>
+                  {sharedWithTeam && (
+                    <select
+                      className="form-input"
+                      value={teamSharePermission}
+                      onChange={(e) => setTeamSharePermission(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 'auto', fontSize: '0.78rem', padding: '0.2rem 0.4rem' }}
+                    >
+                      <option value="view">View</option>
+                      <option value="edit">Edit</option>
+                    </select>
+                  )}
+                </label>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, marginBottom: '0.5rem' }}>
+                Or share with specific people:
               </p>
               <div className="flex-col gap-2">
                 {others.map((m) => {
