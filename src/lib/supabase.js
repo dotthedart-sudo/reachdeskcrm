@@ -20,7 +20,7 @@ export const isPlanLimitError = (err) => {
 
 const customFetch = async (url, options) => {
   const response = await fetch(url, options);
-  if (!response.ok) {
+  if (!response.ok && options?.method !== 'HEAD') {
     try {
       const cloned = response.clone();
       const data = await cloned.json();

@@ -18,6 +18,7 @@ import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './CRM/EditableDropdown
 import ColumnManager from './CRM/ColumnManager';
 import LeadDrawer from './CRM/LeadDrawer';
 import OutreachTracker from './CRM/OutreachTracker';
+import CRMBulkActionBar from './CRM/CRMBulkActionBar';
 import CallQueueTable from './CRM/callActivity/CallQueueTable';
 import CSVImporter from './CRM/CSVImporter';
 import CSVImportModal from './CRM/CSVImportModal';
@@ -213,6 +214,7 @@ export default function CRM({
   }, [teamProfilesMap, teamMembersList]);
   const [shareListTarget, setShareListTarget] = useState(null);
   const [shareListShares, setShareListShares] = useState([]);
+
   const [clients, setClients] = useState([]);
   const [statuses, setStatuses] = useState(() => {
     const defaults = DEFAULT_STATUSES;
@@ -293,6 +295,69 @@ export default function CRM({
   const activeFolderId = folderParam;
   const activeManualFolderId = folders.find((f) => f.id === activeFolderId)?.id || '';
 
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmRemoveFromQueue, setConfirmRemoveFromQueue] = useState(false);
+
+  const viewer_folder_access = useMemo(() => {
+    if (!activeManualFolderId) return false;
+    const f = folders.find((x) => x.id === activeManualFolderId);
+    if (!f) return false;
+    if (f.user_id === currentUser?.id) return false;
+    const share = folderShares.find((s) => s.folder_id === activeManualFolderId && s.shared_with_user_id === currentUser?.id);
+    const hasEdit = (share && share.permission === 'edit') || (f.shared_with_team && f.team_share_permission === 'edit');
+    if (hasEdit) return false;
+    const hasView = (share && share.permission === 'view') || (f.shared_with_team && f.team_share_permission === 'view');
+    return hasView;
+  }, [activeManualFolderId, folders, folderShares, currentUser]);
+
+  const handleBulkUpdateFields = async (updates, successMsg = 'Updated') => {
+    try {
+      const prevStates = selectedIds.map(id => {
+         const lead = leads.find(l => l.id === id);
+         const backup = {};
+         for (const key of Object.keys(updates)) {
+            backup[key] = lead[key] !== undefined ? lead[key] : null;
+         }
+         return { id, backup };
+      });
+      const affectedIds = [...selectedIds];
+
+      const { error } = await supabase.from('leads').update(updates).in('id', selectedIds).eq('user_id', currentUser.id);
+      if (error) throw error;
+      setLeads((prev) => prev.map((l) => (selectedIds.includes(l.id) ? { ...l, ...updates } : l)));
+      setSelectedIds([]);
+
+      if (typeof showToast !== 'undefined') {
+        showToast(successMsg, 'success', {
+          label: 'Undo',
+          onClick: async () => {
+             const upsertData = prevStates.map(p => ({ id: p.id, user_id: currentUser.id, ...p.backup }));
+             await supabase.from('leads').upsert(upsertData, { onConflict: 'id' });
+             setLeads(prev => prev.map(l => {
+               const p = prevStates.find(x => x.id === l.id);
+               return p ? { ...l, ...p.backup } : l;
+             }));
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error during bulk update:', err);
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    setConfirmBulkDelete(false);
+    try {
+      await supabase.from('outreach_log').delete().in('lead_id', selectedIds);
+      await supabase.from('leads').delete().in('id', selectedIds);
+      setLeads((prev) => prev.filter((l) => !selectedIds.includes(l.id)));
+      setSelectedIds([]);
+      if (typeof showToast !== 'undefined') showToast('Deleted');
+    } catch (err) {
+      console.error('Error during bulk delete:', err);
+    }
+  };
+
   useEffect(() => {
     if (searchParams.get('view') === 'outreach' && !searchParams.get('mode')) {
       setSearchParams((prev) => {
@@ -347,7 +412,13 @@ export default function CRM({
   const [columnDefs, setColumnDefs] = useState(() => {
     try {
       const saved = localStorage.getItem('crm_columns');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      parsed.forEach(c => {
+        if (c.table_view === 'call_queue' && c.column_key === 'next_checkpoint_at') {
+          c.is_visible = true;
+        }
+      });
+      return parsed;
     } catch (e) {
       return [];
     }
@@ -1060,6 +1131,14 @@ export default function CRM({
         ];
 
         const existingKeys = new Set(dedupedCols.map(c => `${c.table_view}::${c.column_key}`));
+        
+        // Force Callback column to be visible for users with saved settings
+        dedupedCols.forEach(c => {
+          if (c.table_view === 'call_queue' && c.column_key === 'next_checkpoint_at') {
+            c.is_visible = true;
+          }
+        });
+
         const missingDefs = allDefaultKeys
           .filter(d => !existingKeys.has(`${d.table_view}::${d.column_key}`))
           .map(d => ({ ...d, user_id: currentUser.id, is_default: true }));
@@ -1191,15 +1270,15 @@ export default function CRM({
   };
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.id) {
       fetchData();
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   // Reset page on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, activeFolderId]);
+  }, [searchQuery, statusFilter, activeFolderId, view, callSubView, sortOption]);
 
   // Auto-open lead from ?lead= query, sessionStorage, or custom event
   useEffect(() => {
@@ -1247,7 +1326,7 @@ export default function CRM({
     return () => {
       window.removeEventListener('reachdesk_trigger_auto_open', checkAutoOpen);
     };
-  }, [currentUser, searchParams]);
+  }, [currentUser?.id, searchParams]);
 
   // Google Sheets: check connection status & handle callback success banner
   useEffect(() => {
@@ -1278,7 +1357,7 @@ export default function CRM({
       nextUrl.searchParams.delete('connected');
       window.history.replaceState(null, '', nextUrl.toString());
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
 
   const totalLeadsCount = leads.length;
@@ -2495,15 +2574,22 @@ export default function CRM({
       }
 
       case 'call_now': {
+        const nowIso = new Date().toISOString();
         const score = (lead) => {
           const action = (lead.call_action || '').trim();
+          if (action === 'Callback scheduled' && lead.next_checkpoint_at && lead.next_checkpoint_at <= nowIso) return -1;
           if (action === 'Call now') return 0;
           if (!action) return 1;
           if (action === 'Callback scheduled') return 2;
           if (action === 'Try again tomorrow') return 4;
           return 3;
         };
-        return score(a) - score(b);
+        const sA = score(a);
+        const sB = score(b);
+        if (sA === sB && sA === -1) {
+            return new Date(a.next_checkpoint_at) - new Date(b.next_checkpoint_at);
+        }
+        return sA - sB;
       }
       
       default:
@@ -2614,6 +2700,26 @@ export default function CRM({
 
 
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [
+    activeFolderId,
+    outreachMode,
+    callSubView,
+    currentPage,
+    pageSize,
+    searchQuery,
+    statusFilter,
+    sortOption,
+    filterStatuses.join(','),
+    filterPriorities.join(','),
+    filterActions.join(','),
+    filterCallActions.join(','),
+    filterProjects.join(','),
+    filterDateRange,
+    filterDateField
+  ]);
+
   if (!currentUser) {
     return <div className="loading-container">Loading profile...</div>;
   }
@@ -2697,40 +2803,54 @@ export default function CRM({
           />
         ) : (
         <>
-        <nav className="crm-list-breadcrumb" aria-label="List location">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSelectFolder('home')}>
-            Lists
-          </button>
-          <ChevronRight size={14} className="crm-list-breadcrumb-sep" aria-hidden />
-          <ListSwitcher
-            activeFolderId={activeFolderId}
-            currentLabel={getActiveFolderLabel()}
-            folders={folders}
-            userFolders={userFolders}
-            systemFolderNames={systemFolderNames}
-            getLeadCount={getLeadCountForFolder}
-            onSelectFolder={handleSelectFolder}
-            teamProfilesMap={effectiveProfilesMap}
-            currentUserId={currentUser?.id}
-          />
-          {!isBrowseMode && folders.length > 0 && activeList.length > 0 && (
-            <select
-              className="form-select btn-sm"
-              defaultValue=""
-              style={{ marginLeft: '0.5rem', maxWidth: 180, fontSize: '0.8rem' }}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val) handleBulkMoveAllInViewToFolder(val);
-                e.target.value = '';
-              }}
+        <div className="flex justify-between align-center" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <nav className="crm-list-breadcrumb" aria-label="List location" style={{ margin: 0, padding: 0 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSelectFolder('home')}>
+              Lists
+            </button>
+            <ChevronRight size={14} className="crm-list-breadcrumb-sep" aria-hidden />
+            <ListSwitcher
+              activeFolderId={activeFolderId}
+              currentLabel={getActiveFolderLabel()}
+              folders={folders}
+              userFolders={userFolders}
+              systemFolderNames={systemFolderNames}
+              getLeadCount={getLeadCountForFolder}
+              onSelectFolder={handleSelectFolder}
+              teamProfilesMap={effectiveProfilesMap}
+              currentUserId={currentUser?.id}
+            />
+          </nav>
+          
+          {/* Outreach mode switcher */}
+          <div
+            className="flex gap-2"
+            style={{
+              padding: '0.25rem',
+              background: 'var(--bg-tertiary)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              width: 'fit-content',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => handleModeChange('messages')}
+              className={`btn btn-sm ${outreachMode === 'messages' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ borderRadius: '6px' }}
             >
-              <option value="" disabled>Assign all {activeList.length} in view…</option>
-              {folders.filter((f) => f.user_id === currentUser?.id).map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-          )}
-        </nav>
+              <Mail size={13} /> Message Outreach
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('calls')}
+              className={`btn btn-sm ${outreachMode === 'calls' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Phone size={13} /> Cold Calls
+            </button>
+          </div>
+        </div>
 
           {isActiveFolderLocked && (
             <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderRadius: '8px' }}>
@@ -2755,35 +2875,7 @@ export default function CRM({
             </div>
           )}
 
-        {/* Outreach mode switcher */}
-        <div
-          className="flex gap-2"
-          style={{
-            marginBottom: '0.75rem',
-            padding: '0.25rem',
-            background: 'var(--bg-tertiary)',
-            borderRadius: '8px',
-            border: '1px solid var(--border-color)',
-            width: 'fit-content',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleModeChange('messages')}
-            className={`btn btn-sm ${outreachMode === 'messages' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderRadius: '6px' }}
-          >
-            <Mail size={13} /> Message Outreach
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange('calls')}
-            className={`btn btn-sm ${outreachMode === 'calls' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            <Phone size={13} /> Cold Calls
-          </button>
-        </div>
+
 
         {outreachMode === 'messages' ? (
         <>
@@ -2882,7 +2974,18 @@ export default function CRM({
               </div>
             </div>
             <CallQueueTable
-              leads={sortedLeads}
+              leads={paginatedList}
+              allLeads={sortedLeads}
+              selectedIds={selectedIds}
+              viewerFolderAccess={viewer_folder_access}
+              onSelectRow={(id, checked) => setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))}
+              onSelectAll={(pageLeads) => {
+                if (pageLeads.every(l => selectedIds.includes(l.id))) {
+                  setSelectedIds(prev => prev.filter(id => !pageLeads.some(l => l.id === id)));
+                } else {
+                  setSelectedIds(prev => [...new Set([...prev, ...pageLeads.map(l => l.id)])]);
+                }
+              }}
               columnDefs={columnDefs}
               getWidth={getWidth}
               setWidth={setWidth}
@@ -3215,116 +3318,62 @@ export default function CRM({
         )}
 
         {/* Bulk Actions Menu Overlay */}
-        {selectedIds.length > 0 && (
-          <div className="bulk-action-bar">
-            <div className="bulk-action-bar__meta">
-              <span>{selectedIds.length} leads selected</span>
-              {selectedIds.length === paginatedList.length && activeList.length > paginatedList.length && (
-                <button 
-                  onClick={() => setSelectedIds(activeList.map(l => l.id))} 
-                  className="btn btn-secondary btn-sm bulk-action-bar__link"
-                >
-                  Select all {activeList.length} leads in this view
-                </button>
-              )}
-              {selectedIds.length === activeList.length && activeList.length > paginatedList.length && (
-                <button 
-                  onClick={() => setSelectedIds(paginatedList.map(l => l.id))} 
-                  className="btn btn-secondary btn-sm bulk-action-bar__link"
-                >
-                  Clear selection (keep current page only)
-                </button>
-              )}
+        <CRMBulkActionBar
+          selectedIds={selectedIds}
+          activeList={activeList}
+          paginatedList={paginatedList}
+          outreachMode={outreachMode}
+          canEdit={!isActiveFolderLocked && !viewer_folder_access}
+          currentUser={currentUser}
+          folders={folders.filter(f => f.user_id === currentUser?.id)}
+          statuses={statuses}
+          templates={templates}
+          teamProfilesMap={teamProfilesMap}
+          onSelectAll={() => setSelectedIds(activeList.map(l => l.id))}
+          onClear={() => setSelectedIds([])}
+          onClearCurrentPage={() => setSelectedIds(paginatedList.map(l => l.id))}
+          onStatusChange={handleBulkStatusChange}
+          onChannelChange={handleBulkChannelChange}
+          onMoveToFolder={handleBulkMoveToFolder}
+          onExport={() => handleExportLeadsSubset(leads.filter(l => selectedIds.includes(l.id)), 'selected')}
+          onDelete={() => setConfirmBulkDelete(true)}
+          onFieldChange={(field, value) => {
+            if (field === 'call_action' && value === 'No call needed') {
+              setConfirmRemoveFromQueue(true);
+            } else if (field === 'schedule_callback') {
+              handleBulkUpdateFields({ call_action: 'Callback scheduled', next_checkpoint_at: value }, 'Callback scheduled');
+            } else {
+              handleBulkUpdateFields({ [field]: value });
+            }
+          }}
+        />
+        
+        {confirmBulkDelete && (
+          <div className="rd-modal rd-modal--open">
+            <div className="rd-modal-content" style={{ maxWidth: 400 }}>
+              <h3 style={{ margin: 0, marginBottom: '0.5rem', color: 'var(--danger-color)' }}>Delete leads?</h3>
+              <p style={{ margin: 0, marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+                Are you sure you want to permanently delete {selectedIds.length} leads?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" className="btn btn-secondary" onClick={() => setConfirmBulkDelete(false)}>Cancel</button>
+                <button type="button" className="btn btn-danger" style={{ backgroundColor: 'var(--danger-color)', color: 'white' }} onClick={executeBulkDelete}>Delete</button>
+              </div>
             </div>
-            <div className="bulk-action-bar__actions">
-              {/* Change Status Dropdown */}
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setShowBulkStatusMenu(!showBulkStatusMenu)} className="btn btn-secondary btn-sm">
-                  Change Status ▾
-                </button>
-                 {showBulkStatusMenu && (
-                  <div className="rd-menu rd-menu--anchored" style={{ right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
-                    <div className="rd-menu__list">
-                      {(statuses.length > 0 ? statuses : DEFAULT_STATUSES).map(s => (
-                        <button
-                          key={s.label}
-                          type="button"
-                          className="rd-menu__item"
-                          onClick={() => { handleBulkStatusChange(s.label); setShowBulkStatusMenu(false); }}
-                        >
-                          <span className="rd-menu__item-label">{s.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          </div>
+        )}
+        
+        {confirmRemoveFromQueue && (
+          <div className="rd-modal rd-modal--open">
+            <div className="rd-modal-content" style={{ maxWidth: 400 }}>
+              <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>Remove from queue?</h3>
+              <p style={{ margin: 0, marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+                Are you sure you want to remove {selectedIds.length} leads from the call queue? They will be marked as "No call needed".
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" className="btn btn-secondary" onClick={() => setConfirmRemoveFromQueue(false)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={() => { handleBulkUpdateFields({ call_action: 'No call needed' }, 'Removed from queue'); setConfirmRemoveFromQueue(false); }}>Remove</button>
               </div>
-
-              {/* Change Channel Dropdown */}
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setShowBulkChannelMenu(!showBulkChannelMenu)} className="btn btn-secondary btn-sm">
-                  Change Channel ▾
-                </button>
-                 {showBulkChannelMenu && (
-                  <div className="rd-menu rd-menu--anchored" style={{ right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
-                    <div className="rd-menu__list">
-                      {getChannelDefaults('messaging').map(c => (
-                        <button
-                          key={c.label}
-                          type="button"
-                          className="rd-menu__item"
-                          onClick={() => { handleBulkChannelChange(c.label); setShowBulkChannelMenu(false); }}
-                        >
-                          <span className="rd-menu__item-label">{c.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {folders.length > 0 && (
-                <RdSelect
-                  size="sm"
-                  ariaLabel="Move to list"
-                  placeholder="Move to list"
-                  value=""
-                  options={[
-                    { value: '__unfiled__', label: '(Unfiled)' },
-                    ...folders.map((f) => ({ value: f.id, label: f.name })),
-                  ]}
-                  onChange={(val) => handleBulkMoveToFolder(val === '__unfiled__' ? '' : val)}
-                />
-              )}
-
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={!!exporting}
-                onClick={() => {
-                  const subset = leads.filter((l) => selectedIds.includes(l.id));
-                  handleExportLeadsSubset(subset, 'selected');
-                }}
-              >
-                <Download size={12} /> Export selected
-              </button>
-              {canUseIntegrations && sheetsConnected && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => openExportSheetsForLeads(leads.filter((l) => selectedIds.includes(l.id)))}
-                >
-                  <Download size={12} /> Sheets
-                </button>
-              )}
-
-              <button onClick={handleBulkDelete} className="btn btn-danger btn-sm" style={{ backgroundColor: 'var(--danger-color)', color: 'white' }}>
-                <Trash2 size={12} /> Delete Selected
-              </button>
-              
-              <button onClick={() => setSelectedIds([])} className="btn btn-secondary btn-sm">
-                Clear
-              </button>
             </div>
           </div>
         )}
@@ -3412,7 +3461,7 @@ export default function CRM({
             <table className="data-table data-table--resizable" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--bg-tertiary)' }}>
-                <th style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}>
+                <th className="sticky-left" style={{ width: '40px', minWidth: '40px', maxWidth: '40px', left: 0, zIndex: 3 }}>
                   <button 
                     type="button"
                     onClick={() => handleSelectAll(paginatedList)}
@@ -3426,7 +3475,7 @@ export default function CRM({
                   </button>
                 </th>
                 {view === 'contact_details' && (
-                  <th style={{ width: '36px', minWidth: '36px', maxWidth: '36px', userSelect: 'none' }}>#</th>
+                  <th className="sticky-left" style={{ width: '36px', minWidth: '36px', maxWidth: '36px', userSelect: 'none', left: 40, zIndex: 3 }}>#</th>
                 )}
                 {tableCols.map(col => {
                   const isProject = col.column_key === 'project';
@@ -3438,6 +3487,8 @@ export default function CRM({
                       width={getWidth(col.column_key)}
                       onResize={setWidth}
                       onReset={resetWidth}
+                      className={col.column_key === 'name' ? 'sticky-left' : ''}
+                      style={col.column_key === 'name' ? { position: 'sticky', left: view === 'contact_details' ? 76 : 40, zIndex: 3 } : undefined}
                     >
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {col.column_key === 'status' ? (
@@ -3521,7 +3572,7 @@ export default function CRM({
                         opacity: isLocked ? 0.6 : 1,
                       }}
                     >
-                      <td onClick={(e) => e.stopPropagation()}>
+                      <td className="sticky-left" style={{ left: 0, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
                         <button 
                           onClick={() => handleToggleSelect(lead.id)}
                           style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: 0 }}
@@ -3530,7 +3581,7 @@ export default function CRM({
                         </button>
                       </td>
                       {view === 'contact_details' && (
-                        <td style={{ padding: '0.75rem 0.5rem 0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', userSelect: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                        <td className="sticky-left" style={{ padding: '0.75rem 0.5rem 0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', userSelect: 'none', fontVariantNumeric: 'tabular-nums', left: 40, zIndex: 2 }}>
                           {(currentPage - 1) * pageSize + rowIndex + 1}
                         </td>
                       )}
@@ -3539,7 +3590,11 @@ export default function CRM({
                         const isCustom = !col.is_default;
                         const cellValue = isCustom ? lead.custom_fields?.[col.column_key] : lead[col.column_key];
                         const copyValue = getLeadCellCopyValue(lead, col);
-                        const { key: tdKey, ...tdProps } = { key: col.id, style: cellWidth(col.column_key) };
+                        const { key: tdKey, ...tdProps } = { 
+                          key: col.id, 
+                          style: col.column_key === 'name' ? { left: view === 'contact_details' ? 76 : 40, zIndex: 2, ...cellWidth(col.column_key) } : cellWidth(col.column_key),
+                          className: col.column_key === 'name' ? 'sticky-left' : ''
+                        };
 
                         if (col.column_key === 'name') {
                           const displayName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || '—';
@@ -3877,6 +3932,10 @@ export default function CRM({
           </table>
         </div>
         )}
+        </>
+        )}
+        </>
+        )}
 
         {/* Pagination Section */}
         <div className="flex justify-between align-center" style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
@@ -3936,10 +3995,6 @@ export default function CRM({
             </button>
           </div>
         </div>
-        </>
-        )}
-        </>
-        )}
       </div>
 
       {/* Add Lead Modal */}

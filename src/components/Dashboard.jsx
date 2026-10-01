@@ -145,7 +145,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     try {
       const { data: teamMembers } = await supabase.rpc('get_my_team_members');
       const teamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
-      const activeScopeIds = (teamMembers?.length > 1 && dashboardScope === 'team') ? teamIds : [currentUser.id];
+      const isTeamScope = teamMembers?.length > 1 && dashboardScope === 'team';
+      const activeScopeIds = isTeamScope ? teamIds : [currentUser.id];
       const remindersEnabled = currentUser?.reminders_enabled !== false;
       const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
 

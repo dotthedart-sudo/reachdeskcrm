@@ -1,3 +1,4 @@
+import { SiYoutube, SiInstagram } from '@icons-pack/react-simple-icons';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -9,6 +10,12 @@ import { useAppContext } from '../App';
 import PublicNav from './PublicNav';
 import '../styles/Blog.css';
 
+
+const SiLinkedin = ({ size = 24, color = 'currentColor', ...props }) => (
+  <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} {...props}>
+    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+  </svg>
+);
 export default function BlogPost() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -118,10 +125,17 @@ export default function BlogPost() {
           <ReactMarkdown>{content}</ReactMarkdown>
         </div>
 
-        <div className="blog-post-footer">
-          <button onClick={() => navigate('/blog')} className="back-button">
+        <div className="blog-post-footer" style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', marginTop: '4rem' }}>
+          <button onClick={() => navigate('/blog')} className="back-button" style={{ alignSelf: 'flex-start' }}>
             ← Back to Blog
           </button>
+          
+          <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+            <a href="https://www.youtube.com/@ReachDeskcrm" target="_blank" rel="noopener noreferrer" title="YouTube" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}><SiYoutube size={20} /></a>
+            <a href="https://www.instagram.com/reachdeskcrm/" target="_blank" rel="noopener noreferrer" title="Instagram" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}><SiInstagram size={20} /></a>
+            <a href="https://www.linkedin.com/company/reachdeskcrm/" target="_blank" rel="noopener noreferrer" title="LinkedIn" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}><SiLinkedin size={20} /></a>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>© 2026 ReachDesk CRM. All rights reserved.</p>
         </div>
       </article>
     </>

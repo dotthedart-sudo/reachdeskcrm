@@ -128,7 +128,7 @@ export async function logCallWithUpdates({
   if (updateLeadFields) {
     const { data: before } = await supabase
       .from('leads')
-      .select('call_status')
+      .select('call_status, call_action')
       .eq('id', leadId)
       .maybeSingle();
     prevCallStatus = before?.call_status ?? null;
@@ -140,6 +140,9 @@ export async function logCallWithUpdates({
       last_called_at: occurredIso,
       last_contacted_at: occurredIso,
     };
+    if (before?.call_action === 'Callback scheduled' && leadUpdates?.call_action !== 'Callback scheduled') {
+      timePatch.next_checkpoint_at = null;
+    }
     const { data: stamped, error: stampErr } = await supabase
       .from('leads')
       .update(timePatch)
@@ -189,7 +192,7 @@ export async function logCallStatusChange({
 }) {
   const { data: before } = await supabase
     .from('leads')
-    .select('call_status')
+    .select('call_status, call_action')
     .eq('id', leadId)
     .maybeSingle();
 
@@ -214,6 +217,9 @@ export async function logCallStatusChange({
     last_called_at: stamp.occurredAt,
     last_contacted_at: stamp.occurredAt,
   };
+  if (before?.call_action === 'Callback scheduled' && leadUpdates?.call_action !== 'Callback scheduled') {
+    timePatch.next_checkpoint_at = null;
+  }
   const { data: stamped, error: stampErr } = await supabase
     .from('leads')
     .update(timePatch)

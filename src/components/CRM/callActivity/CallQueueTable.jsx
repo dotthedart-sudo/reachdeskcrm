@@ -25,6 +25,11 @@ import EditCallAttemptModal from './EditCallAttemptModal';
 
 export default function CallQueueTable({
   leads = [],
+  allLeads = [],
+  selectedIds = [],
+  viewerFolderAccess = false,
+  onSelectRow,
+  onSelectAll,
   columnDefs = [],
   getWidth,
   setWidth,
@@ -52,6 +57,7 @@ export default function CallQueueTable({
   const [sessionOpen, setSessionOpen] = useState(false);
   const [manageLead, setManageLead] = useState(null);
   const [editLatest, setEditLatest] = useState(null);
+  const [autoOpenCallbackLeadId, setAutoOpenCallbackLeadId] = useState(null);
 
   const userId = currentUser?.id;
   const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
@@ -95,17 +101,18 @@ export default function CallQueueTable({
   }, [userId, leads.length]);
 
   const leadIdSet = useMemo(() => new Set(leads.map((l) => l.id)), [leads]);
+  const allLeadIdSet = useMemo(() => new Set(allLeads.map((l) => l.id)), [allLeads]);
 
   const scopedAttempts = useMemo(
-    () => attempts.filter((a) => leadIdSet.has(a.lead_id)),
-    [attempts, leadIdSet],
+    () => attempts.filter((a) => allLeadIdSet.has(a.lead_id)),
+    [attempts, allLeadIdSet],
   );
 
   const byLead = useMemo(() => allAttemptsByLeadMap(scopedAttempts), [scopedAttempts]);
 
   const sessionQueue = useMemo(
-    () => buildOutreachSessionQueue(leads, scopedAttempts, userTimeZone),
-    [leads, scopedAttempts, userTimeZone],
+    () => buildOutreachSessionQueue(allLeads, scopedAttempts, userTimeZone),
+    [allLeads, scopedAttempts, userTimeZone],
   );
 
   const handleLogged = ({ attempt, leadUpdates } = {}) => {
@@ -131,8 +138,15 @@ export default function CallQueueTable({
     const displayName = [lead.first_name, lead.last_name].filter(Boolean).join(' ').trim() || '—';
 
     switch (col.column_key) {
-      case 'name':
-        return <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>;
+      case 'name': {
+        const isCallbackDue = lead.call_action === 'Callback scheduled' && lead.next_checkpoint_at && new Date(lead.next_checkpoint_at) <= new Date();
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+            <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} data-ph-mask>{displayName}</span>
+            {isCallbackDue && <span className="sim-badge" style={{ background: 'var(--status-warm)', color: '#fff', fontSize: '0.7rem' }}>Callback due</span>}
+          </div>
+        );
+      }
       case 'phone':
         return (
           <CopyableCell value={lead.phone || ''} onCopied={onCopied}>
@@ -174,6 +188,7 @@ export default function CallQueueTable({
             onChange={(val) => handleCallStatusChange(lead.id, val)}
             isTableInline
             onUpdate={onRefresh}
+            disabled={viewerFolderAccess}
           />
         );
       case 'call_action': {
@@ -188,9 +203,28 @@ export default function CallQueueTable({
             <EditableDropdown
               value={lead.call_action || ''}
               columnDef={callActionColDef}
-              onChange={(val) => onFieldChange?.(lead.id, 'call_action', val)}
+              onChange={(val) => {
+                onFieldChange?.(lead.id, 'call_action', val);
+                if (val === 'Callback scheduled') {
+                  setAutoOpenCallbackLeadId(lead.id);
+                }
+              }}
               onUpdateColumnDef={onUpdateColumnDef}
+              disabled={viewerFolderAccess}
             />
+            {lead.call_action === 'Callback scheduled' && (
+               <DateTimePickerCell
+                 compact
+                 autoOpen={autoOpenCallbackLeadId === lead.id}
+                 value={lead.next_checkpoint_at}
+                 timeZone={userTimeZone}
+                 onChange={(iso) => {
+                   onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
+                   if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
+                 }}
+                 placeholder="Set time"
+               />
+            )}
             {isMismatch && (
               <button
                 type="button"
@@ -220,6 +254,14 @@ export default function CallQueueTable({
             />
           </CopyableCell>
         );
+      case 'next_checkpoint_at':
+        return lead.next_checkpoint_at ? (
+          <span style={{ fontSize: '0.85rem', color: new Date(lead.next_checkpoint_at) <= new Date() ? 'var(--status-warm)' : 'inherit' }}>
+            {new Date(lead.next_checkpoint_at).toLocaleString(undefined, {
+              weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            })}
+          </span>
+        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>;
       case 'last_called':
         return (
           <DateTimePickerCell
@@ -228,6 +270,7 @@ export default function CallQueueTable({
             timeZone={userTimeZone}
             onChange={(iso) => handleLastCalledChange(lead, iso)}
             placeholder="—"
+            disabled={viewerFolderAccess}
           />
         );
       case 'last_contacted_at':
@@ -327,7 +370,7 @@ export default function CallQueueTable({
     <div className="flex-col gap-3">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          {loading ? 'Loading call data…' : `${leads.length} lead${leads.length === 1 ? '' : 's'} in this list · ${sessionQueue.length} in calling queue`}
+          {loading ? 'Loading call data…' : `${allLeads.length} lead${allLeads.length === 1 ? '' : 's'} in this list · ${sessionQueue.length} in calling queue`}
           {!loading && (
             <span style={{ marginLeft: '0.75rem', color: 'var(--text-secondary)' }}>
               Your time: {formatLocalTime(new Date(), { timeZone: userTimeZone, showZone: true })}
@@ -343,7 +386,7 @@ export default function CallQueueTable({
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            disabled={sessionQueue.length === 0}
+            disabled={allLeads.length === 0 || sessionQueue.length === 0}
             onClick={() => setSessionOpen(true)}
           >
             <PhoneCall size={14} /> Start calling session
@@ -351,17 +394,32 @@ export default function CallQueueTable({
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table className="data-table data-table--resizable" style={{ width: '100%' }}>
+      <div className="call-queue-table-scroll" style={leads.length === 0 ? { overflow: 'hidden', width: '100%' } : undefined}>
+        <table className="data-table data-table--resizable">
           <thead>
             <tr>
+              {onSelectRow && (
+                <th className="sticky-left" style={{ width: 40, minWidth: 40, maxWidth: 40, left: 0, zIndex: 3, padding: '0 0.5rem', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    className="rd-checkbox"
+                    checked={leads.length > 0 && leads.every((l) => selectedIds.includes(l.id))}
+                    onChange={() => onSelectAll(leads)}
+                    aria-label="Select all on this page"
+                    disabled={viewerFolderAccess}
+                  />
+                </th>
+              )}
+              <th className="sticky-left" style={{ width: 56, minWidth: 56, maxWidth: 56, left: onSelectRow ? 40 : 0, zIndex: 3, textAlign: 'center', color: 'var(--text-muted)' }}>#</th>
               {tableCols.map((col) => (
                 <ResizableTh
                   key={col.id || col.column_key}
                   columnKey={col.column_key}
-                  width={getWidth?.(col.column_key) || 130}
+                  width={col.column_key === 'name' ? 200 : (getWidth?.(col.column_key) || 130)}
                   onResize={setWidth}
                   onReset={resetWidth}
+                  className={col.column_key === 'name' ? 'sticky-left' : ''}
+                  style={col.column_key === 'name' ? { position: 'sticky', left: onSelectRow ? 96 : 56, zIndex: 3 } : undefined}
                 >
                   {col.column_label}
                 </ResizableTh>
@@ -371,7 +429,7 @@ export default function CallQueueTable({
           <tbody>
             {leads.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                <td colSpan={colSpan + (onSelectRow ? 2 : 1)} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                   No leads in this list.
                 </td>
               </tr>
@@ -388,12 +446,32 @@ export default function CallQueueTable({
                   onResize={setRowHeight}
                   onReset={resetRowHeight}
                   style={{ cursor: 'pointer' }}
+                  className={selectedIds.includes(lead.id) ? 'row-selected' : ''}
                   onClick={() => onOpenLead?.(lead, 'calls')}
                 >
+                  {onSelectRow && (
+                    <td className="sticky-left" style={{ width: 40, minWidth: 40, maxWidth: 40, left: 0, padding: '0 0.5rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="rd-checkbox"
+                        checked={selectedIds.includes(lead.id)}
+                        onChange={(e) => onSelectRow(lead.id, e.target.checked)}
+                        aria-label={`Select lead`}
+                      />
+                    </td>
+                  )}
+                  <td className="sticky-left" style={{ width: 56, minWidth: 56, maxWidth: 56, left: onSelectRow ? 40 : 0, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    {/* Assuming we pass rowIndex from parent or we calculate it. Since we just have leads, we don't have absolute index easily unless passed. We'll leave it blank or find it from allLeads. */}
+                    {allLeads.findIndex(l => l.id === lead.id) + 1 || '—'}
+                  </td>
                   {tableCols.map((col) => (
                     <td
                       key={col.id || col.column_key}
-                      style={cellWidth(col.column_key)}
+                      className={col.column_key === 'name' ? 'sticky-left' : ''}
+                      style={{ 
+                        ...(col.column_key === 'name' ? { left: onSelectRow ? 96 : 56, width: 200, minWidth: 200, maxWidth: 200 } : cellWidth(col.column_key)),
+                        ...(col.column_type === 'text' || col.column_key === 'name' ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {})
+                      }}
                       onClick={interactiveKeys.has(col.column_key) ? (e) => e.stopPropagation() : undefined}
                     >
                       {renderCell(col, lead, last, attemptList)}

@@ -22,6 +22,7 @@ import {
 } from '@icons-pack/react-simple-icons';
 import { Mail, Globe, Phone, MessageSquare } from 'lucide-react';
 import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
+import { extractLinks } from '../../lib/linkRecognizer';
 
 // ── Inline LinkedIn SVG (no extra dependency) ─────────────────────────────────
 const SiLinkedin = ({ size = 24, color = 'currentColor', ...props }) => (
@@ -223,59 +224,72 @@ export const PhonePopup = ({ phone }) => {
 
 // ── ReachIcons — shown in the "Reach" column of the CRM table ─────────────────
 export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
-  // 1. Gather all social links (standard fields first)
-  const links = [];
-  const addedUrls = new Set();
+  const allLinks = [];
 
-  const tryAdd = (platform, url, isCustom = false) => {
-    if (url) {
-      let cleanUrl = url;
-      if (platform !== 'email' && platform !== 'whatsapp' && platform !== 'sms' && platform !== 'phone' && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
-        cleanUrl = `https://${url}`;
-      }
-      if (!addedUrls.has(cleanUrl)) {
-        links.push({ platform, url: cleanUrl, isCustom });
-        addedUrls.add(cleanUrl);
-      }
-    }
-  };
+  // 1. Standard Link Fields
+  if (lead.linkedin_url) allLinks.push(...extractLinks(lead.linkedin_url, { isLinkField: true }));
+  if (lead.instagram_url) allLinks.push(...extractLinks(lead.instagram_url, { isLinkField: true }));
+  if (lead.twitter_url) allLinks.push(...extractLinks(lead.twitter_url, { isLinkField: true }));
+  if (lead.website) allLinks.push(...extractLinks(lead.website, { isLinkField: true }));
 
-  // Standard fields from PLATFORM_MAP keys (linkedin, instagram, twitter, website, email)
-  tryAdd('linkedin_url', lead.linkedin_url);
-  tryAdd('instagram_url', lead.instagram_url);
-  tryAdd('twitter_url', lead.twitter_url);
-  tryAdd('website', lead.website);
-  if (lead.email) {
-    tryAdd('email', `email:${lead.email}`);
-  }
-  if (lead.phone) {
-    tryAdd('whatsapp', `whatsapp:${lead.phone}`);
-    tryAdd('sms', `sms:${lead.phone}`);
-    tryAdd('phone', `tel:${lead.phone}`);
-  }
-
-  // 2. Add custom_fields of type 'link'
-  if (lead.custom_fields && columnDefs && columnDefs.length > 0) {
+  // 2. Custom Fields
+  if (lead.custom_fields && columnDefs) {
     columnDefs.forEach(col => {
-      if (col.column_type === 'link' && !col.is_default) {
+      if (!col.is_default) {
         const val = lead.custom_fields[col.column_key];
         if (val) {
-          tryAdd(col.column_label || col.column_key, val, true);
+          if (col.column_type === 'link') {
+            allLinks.push(...extractLinks(val, { isLinkField: true }));
+          } else if (col.column_type === 'phone') {
+            allLinks.push(...extractLinks(val, { isPhoneField: true }));
+          } else {
+            allLinks.push(...extractLinks(val, { isLinkField: false, isPhoneField: false }));
+          }
         }
       }
     });
   }
 
-  // 3. Add links from custom_fields.links array
+  // 3. Links array (custom fields)
   if (lead.custom_fields && Array.isArray(lead.custom_fields.links)) {
     lead.custom_fields.links.forEach(item => {
       if (item && item.url) {
-        tryAdd(item.label || 'Website', item.url, true);
+        allLinks.push(...extractLinks(item.url, { isLinkField: true }));
       }
     });
   }
 
-  if (links.length === 0) {
+  // 4. Phone standard field (always adds WhatsApp, SMS, Call)
+  if (lead.phone) {
+    allLinks.push({ platform: 'whatsapp', url: `whatsapp:${lead.phone}` });
+    allLinks.push({ platform: 'sms', url: `sms:${lead.phone}` });
+    allLinks.push({ platform: 'phone', url: `tel:${lead.phone}` });
+  }
+
+  // 5. Email standard field
+  if (lead.email) {
+    allLinks.push({ platform: 'email', url: `mailto:${lead.email}` });
+  }
+
+  // Final dedupe on URL to avoid duplicating a link that was found in multiple places
+  const uniqueLinks = [];
+  const addedUrls = new Set();
+  allLinks.forEach(link => {
+    // Normalization logic for deduping
+    let normalized = link.url.toLowerCase();
+    if (link.platform !== 'email' && link.platform !== 'phone' && link.platform !== 'whatsapp' && link.platform !== 'sms') {
+      normalized = normalized.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+    } else if (['phone', 'whatsapp', 'sms'].includes(link.platform)) {
+      normalized = link.platform + ':' + link.url.replace(/\D/g, '');
+    }
+
+    if (!addedUrls.has(normalized)) {
+      addedUrls.add(normalized);
+      uniqueLinks.push(link);
+    }
+  });
+
+  if (uniqueLinks.length === 0) {
     return <span style={{ color: '#6B7280', fontSize: '0.85rem' }}>—</span>;
   }
 
@@ -284,7 +298,7 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
       style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
       onClick={(e) => e.stopPropagation()}
     >
-      {links.map(({ platform, url, isCustom }) => {
+      {uniqueLinks.map(({ platform, url, isCustom }) => {
         let IconComp = null;
         let iconColor = '#6B7280';
 

@@ -64,11 +64,16 @@ export function getFollowupAttemptContext(lead, { callAttemptCount = 0 } = {}) {
     return `${ord} attempt — follow up on “${status}”`;
   }
 
+  if (lead?.call_action === 'Callback scheduled') {
+    return `Scheduled callback`;
+  }
+
   return `${ord} follow-up`;
 }
 
 /** Reason chip label for Reminder rows. */
 export function getFollowupReasonTag(lead) {
+  if (lead?.call_action === 'Callback scheduled') return 'Callback';
   const status = lead?.status || 'Follow-up';
   if (REPLY_CHECK_STATUSES.includes(status)) return 'No reply yet';
   if (status === 'No show') return 'No show';
@@ -77,6 +82,9 @@ export function getFollowupReasonTag(lead) {
 }
 
 export function getFollowupReasonColor(lead) {
+  if (lead?.call_action === 'Callback scheduled') {
+    return { bg: 'color-mix(in srgb, var(--status-hot) 16%, transparent)', color: 'var(--status-hot)' };
+  }
   const status = lead?.status || '';
   if (status === 'No show') return { bg: 'color-mix(in srgb, var(--status-hot) 16%, transparent)', color: 'var(--status-hot)' };
   if (status === 'Not Interested') return { bg: 'color-mix(in srgb, var(--text-muted) 18%, transparent)', color: 'var(--text-secondary)' };

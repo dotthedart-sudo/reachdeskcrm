@@ -10,7 +10,7 @@ export const CHECKPOINT_CYCLE_STATUSES = [
 ];
 
 const CHECKPOINT_LEAD_COLUMNS =
-  'id, user_id, first_name, last_name, company, email, status, next_checkpoint_at, action_to_take, last_contacted_at, checkpoint_notified_at, folder_id, google_followup_event_id';
+  'id, user_id, first_name, last_name, company, email, status, next_checkpoint_at, action_to_take, last_contacted_at, checkpoint_notified_at, folder_id, google_followup_event_id, call_action';
 
 export function leadDisplayName(lead) {
   if (!lead) return 'Lead';
@@ -18,11 +18,15 @@ export function leadDisplayName(lead) {
   return name || lead.company || lead.email || 'Lead';
 }
 
-/** Whether a lead is in the messaging checkpoint cycle and due/overdue. */
 export function isCheckpointDue(lead, { now = new Date(), remindersEnabled = true } = {}) {
   if (!remindersEnabled || !lead?.next_checkpoint_at) return false;
-  if (!CHECKPOINT_CYCLE_STATUSES.includes(lead.status)) return false;
+  if (!CHECKPOINT_CYCLE_STATUSES.includes(lead.status) && lead.call_action !== 'Callback scheduled') return false;
   return new Date(lead.next_checkpoint_at) <= now;
+}
+
+export function getCheckpointOrFilter() {
+  const statuses = CHECKPOINT_CYCLE_STATUSES.map(s => `"${s}"`).join(',');
+  return `status.in.(${statuses}),call_action.eq."Callback scheduled"`;
 }
 
 /**
@@ -74,7 +78,7 @@ export async function fetchDueCheckpointLeads({
     .from('leads')
     .select(CHECKPOINT_LEAD_COLUMNS)
     .in('user_id', ids)
-    .in('status', CHECKPOINT_CYCLE_STATUSES)
+    .or(getCheckpointOrFilter())
     .not('next_checkpoint_at', 'is', null)
     .lte('next_checkpoint_at', nowIso)
     .order('next_checkpoint_at', { ascending: true })
@@ -102,7 +106,7 @@ export async function fetchUpcomingCheckpointLeads({
     .from('leads')
     .select(CHECKPOINT_LEAD_COLUMNS)
     .in('user_id', ids)
-    .in('status', CHECKPOINT_CYCLE_STATUSES)
+    .or(getCheckpointOrFilter())
     .not('next_checkpoint_at', 'is', null)
     .lte('next_checkpoint_at', throughIso)
     .order('next_checkpoint_at', { ascending: true })

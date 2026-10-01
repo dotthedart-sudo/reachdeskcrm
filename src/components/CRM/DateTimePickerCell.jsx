@@ -20,8 +20,9 @@ export default function DateTimePickerCell({
   placeholder = '—',
   disabled = false,
   compact = false,
+  autoOpen = false,
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [draft, setDraft] = useState('');
   const [menuPos, setMenuPos] = useState(null);
   const wrapRef = useRef(null);
@@ -75,6 +76,25 @@ export default function DateTimePickerCell({
     setOpen(false);
   };
 
+  const handleQuickOption = (option) => {
+    const now = new Date();
+    if (option === '1hour') {
+      onChange?.(new Date(now.getTime() + 60 * 60 * 1000).toISOString());
+      setOpen(false);
+    } else if (option === 'tomorrow' || option === 'nextWeek') {
+      const tzDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+      if (option === 'tomorrow') tzDate.setDate(tzDate.getDate() + 1);
+      if (option === 'nextWeek') tzDate.setDate(tzDate.getDate() + 7);
+      const yyyy = tzDate.getFullYear();
+      const mm = String(tzDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(tzDate.getDate()).padStart(2, '0');
+      const localStr = `${yyyy}-${mm}-${dd}T10:00`;
+      const iso = datetimeLocalValueToIso(localStr, tz);
+      onChange?.(iso);
+      setOpen(false);
+    }
+  };
+
   const panel = open && menuPos && createPortal(
     <div
       ref={panelRef}
@@ -90,8 +110,16 @@ export default function DateTimePickerCell({
         minWidth: 240,
       }}
     >
+      <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+        Quick options
+      </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: '0.75rem' }}>
+        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('1hour')}>In 1 hour</button>
+        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('tomorrow')}>Tomorrow 10am</button>
+        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('nextWeek')}>Next week</button>
+      </div>
       <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-        Date & time
+        Custom Date & Time
       </label>
       <input
         type="datetime-local"

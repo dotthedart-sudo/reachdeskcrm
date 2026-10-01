@@ -303,17 +303,19 @@ export async function processTeamInvites({
       }
     }
 
-    try {
-      const emailResult = await acceptPendingTeamInviteByEmail();
-      lastResult = emailResult ?? { ok: false };
-      if (emailResult?.ok) {
-        storeInviteToken(null);
-        setPaidInviteDeferred(false);
-        return emailResult;
+    if (token) {
+      try {
+        const emailResult = await acceptPendingTeamInviteByEmail();
+        lastResult = emailResult ?? { ok: false };
+        if (emailResult?.ok) {
+          storeInviteToken(null);
+          setPaidInviteDeferred(false);
+          return emailResult;
+        }
+      } catch (err) {
+        console.warn('[teamWorkspace] accept_pending_team_invite_by_email failed:', err);
+        lastResult = { ok: false, error: err.message };
       }
-    } catch (err) {
-      console.warn('[teamWorkspace] accept_pending_team_invite_by_email failed:', err);
-      lastResult = { ok: false, error: err.message };
     }
 
     if (attempt < retries) {

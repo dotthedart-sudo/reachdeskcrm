@@ -28,8 +28,15 @@ export {
  *   When respectLeadIsolation is true (default), hybrid members only get their own id.
  *   Pass false for always-shared workspace surfaces (templates, notes, snippets).
  */
+const teamIdsCache = new Map();
+
 export const getTeamIds = async (userId, opts = {}) => {
   const respectLeadIsolation = opts.respectLeadIsolation !== false;
+  const cacheKey = `${userId}-${respectLeadIsolation}`;
+  if (teamIdsCache.has(cacheKey)) {
+    return teamIdsCache.get(cacheKey);
+  }
+
   if (!userId) return [];
   try {
     const { data: p } = await supabase.from('user_profiles')
@@ -50,9 +57,14 @@ export const getTeamIds = async (userId, opts = {}) => {
 
     const { data: members, error } = await supabase.rpc('get_my_team_members');
     if (error) throw error;
-    if (!members || members.length === 0) return [userId];
+    if (!members || members.length === 0) {
+      teamIdsCache.set(cacheKey, [userId]);
+      return [userId];
+    }
     const ids = members.map(m => m.id).filter(Boolean);
     if (!ids.includes(userId)) ids.push(userId);
+    
+    teamIdsCache.set(cacheKey, ids);
     return ids;
   } catch (err) {
     console.error('Error fetching team IDs:', err);

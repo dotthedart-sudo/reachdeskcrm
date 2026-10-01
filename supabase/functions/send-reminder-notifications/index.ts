@@ -109,9 +109,9 @@ serve(async (req) => {
 
     const { data: dueLeads, error: leadsError } = await supabase
       .from('leads')
-      .select('id, user_id, first_name, last_name, status, next_checkpoint_at, checkpoint_notified_at')
+      .select('id, user_id, first_name, last_name, status, call_action, next_checkpoint_at, checkpoint_notified_at')
       .in('user_id', profileIds)
-      .in('status', CHECKPOINT_CYCLE_STATUSES)
+      .or(`status.in.(${CHECKPOINT_CYCLE_STATUSES.join(',')}),call_action.eq.Callback scheduled`)
       .not('next_checkpoint_at', 'is', null)
       .lte('next_checkpoint_at', nowIso)
       .order('next_checkpoint_at', { ascending: true });
@@ -153,11 +153,12 @@ serve(async (req) => {
             if (notifiedAt && notifiedAt >= checkpointAt) continue;
 
             const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ').trim() || 'Lead';
+            const isCallback = lead.call_action === 'Callback scheduled';
             await sendPush(
               serviceRoleKey,
               profile.id,
-              'ReachDesk CRM — Follow-up Due',
-              `Did ${name} reply? Open the lead to update status.`,
+              isCallback ? 'ReachDesk CRM — Callback Due' : 'ReachDesk CRM — Follow-up Due',
+              isCallback ? `Scheduled callback for ${name} is due.` : `Did ${name} reply? Open the lead to update status.`,
               `/crm?lead=${lead.id}`,
             );
 

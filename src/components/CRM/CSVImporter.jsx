@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, ArrowRight, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllLeadsForScope } from '../../lib/leadsQuery';
+import { extractLinks } from '../../lib/linkRecognizer';
 
 function parseCSV(text) {
   const lines = [];
@@ -118,18 +119,66 @@ export default function CSVImporter({
       // Auto-suggest mapping
       const fields = getAvailableFields();
       const initialMapping = {};
+      const mappedFields = new Set();
+
       csvHeaders.forEach((header, index) => {
-        const cleanedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const matchedField = fields.find(f => {
-          const cleanedField = f.key.replace('custom_fields.', '').replace(/[^a-z0-9]/g, '');
-          return cleanedField === cleanedHeader || cleanedHeader.includes(cleanedField) || cleanedField.includes(cleanedHeader);
-        });
+        let mappedKey = 'skip';
         
-        if (matchedField && matchedField.key !== 'skip') {
-          initialMapping[index] = matchedField.key;
-        } else {
-          initialMapping[index] = 'skip';
+        // 1. Check content patterns by sampling up to 5 non-empty values
+        const sampleValues = parsed.slice(1, 6).map(row => row[index]).filter(Boolean);
+        if (sampleValues.length > 0) {
+          const platformCounts = {};
+          sampleValues.forEach(val => {
+            const links = extractLinks(val, { isLinkField: true, isPhoneField: true });
+            if (links.length > 0) {
+              const p = links[0].platform;
+              platformCounts[p] = (platformCounts[p] || 0) + 1;
+            }
+          });
+          
+          let dominantPlatform = null;
+          let maxCount = 0;
+          Object.entries(platformCounts).forEach(([p, count]) => {
+            if (count > maxCount) {
+              maxCount = count;
+              dominantPlatform = p;
+            }
+          });
+
+          // If more than half the samples are a specific platform
+          if (dominantPlatform && maxCount >= Math.ceil(sampleValues.length / 2)) {
+            let suggested = null;
+            if (dominantPlatform === 'email') suggested = 'email';
+            else if (dominantPlatform === 'phone') suggested = 'phone';
+            else if (['linkedin', 'instagram', 'twitter'].includes(dominantPlatform)) {
+              suggested = `${dominantPlatform}_url`;
+            } else {
+              suggested = 'website';
+            }
+
+            if (suggested && !mappedFields.has(suggested)) {
+              mappedKey = suggested;
+            }
+          }
         }
+
+        // 2. Fallback to header name matching if no content pattern mapped it
+        if (mappedKey === 'skip') {
+          const cleanedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchedField = fields.find(f => {
+            if (mappedFields.has(f.key) || f.key === 'skip') return false;
+            const cleanedField = f.key.replace('custom_fields.', '').replace(/[^a-z0-9]/g, '');
+            return cleanedField === cleanedHeader || cleanedHeader.includes(cleanedField) || cleanedField.includes(cleanedHeader);
+          });
+          if (matchedField) {
+            mappedKey = matchedField.key;
+          }
+        }
+        
+        if (mappedKey !== 'skip') {
+          mappedFields.add(mappedKey);
+        }
+        initialMapping[index] = mappedKey;
       });
       
       setMapping(initialMapping);

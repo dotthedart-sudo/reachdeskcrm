@@ -62,19 +62,24 @@
      Elevation (darkest → lightest):
        page → sidebar → card/surface nest → hover/active
   */
-  --bg-page:         #050505; /* L0 — canvas */
-  --bg-sidebar:      #121212; /* L1 — between page and cards */
-  --bg-card:         #1A1A1A; /* L2 — main panels / tables */
-  --bg-surface:      #222222; /* L2.5 — nested panels on cards */
-  --bg-card-hover:   #2A2A2A; /* L3 — hover / active wells */
-  --bg-hover:        #2A2A2A;
-  --bg-selected:     rgba(255, 255, 255, 0.10);
-  --border:          #333333;
-  --border-subtle:   #2A2A2A;
-  --border-strong:   #454545;
-  --text-primary:    #FFFFFF;
-  --text-secondary:  #A3A3A3;
-  --text-muted:      #737373;
+  
+  --bg: #151515;
+  --sidebar-bg: #111111;
+  --bg-raised: #232323;
+  --bg-active: #2A2A2A;
+  --bg-page:         var(--bg); /* L0 — canvas */
+  --bg-sidebar:      var(--sidebar-bg); /* L1 — between page and cards */
+  --bg-card:         #1C1C1C; /* L2 — main panels / tables */
+  --bg-surface:      var(--bg-raised); /* L2.5 — nested panels on cards */
+  --bg-card-hover:   #1F1F1F; /* L3 — hover / active wells */
+  --bg-hover:        var(--bg-card-hover);
+  --bg-selected:     rgba(255, 255, 255, 0.06);
+  --border:          rgba(255, 255, 255, 0.08);
+  --border-subtle:   var(--border);
+  --border-strong:   rgba(255, 255, 255, 0.14);
+  --text-primary:    #ECEAE4;
+  --text-secondary:  #C2C0B6;
+  --text-muted:      #8E8C86;
   --accent-blue:     #2C2C30;
   --accent-blue-hover: #3A3A40;
   --accent-green:    #35353A;
@@ -86,11 +91,11 @@
   --shadow-sm:       none;
 
   /* Legacy aliases → same elevation stack */
-  --bg-primary:    #050505; /* = page */
-  --bg-secondary:  #1A1A1A; /* = card */
-  --bg-tertiary:   #2A2A2A; /* = hover */
-  --border-color:  #333333;
-  --border-hover:  #454545;
+  --bg-primary:    var(--bg); /* = page */
+  --bg-secondary:  var(--bg-card); /* = card */
+  --bg-tertiary:   var(--bg-card-hover); /* = hover */
+  --border-color:  var(--border);
+  --border-hover:  var(--border-strong);
   --primary-purple:  #2C2C30;
   --primary-magenta: #3A3A40;
   --gradient-brand:  #2C2C30;
@@ -118,7 +123,7 @@
   --border-strong:   #D4D4D4;
   --text-primary:    #0A0A0A;
   --text-secondary:  #525252;
-  --text-muted:      #737373;
+  --text-muted:      #8E8C86;
   --accent-blue:     #333338;
   --accent-blue-hover: #44444A;
   --accent-green:    #404040;
@@ -216,11 +221,16 @@ h3 { font-size: var(--text-md); }
   overflow: hidden;
 }
 
+
+
+.main-content > *,
+.page-stack > * {
+  flex-shrink: 0;
+}
 .main-content {
   flex: 1;
   padding: clamp(16px, 2vw, 24px) clamp(18px, 2.75vw, 34px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -801,7 +811,7 @@ h3 { font-size: var(--text-md); }
   width: 100%;
   height: 34px;
   padding: 0 10px 0 34px !important;
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--bg-card);
   color: var(--text-primary);
@@ -827,7 +837,7 @@ h3 { font-size: var(--text-md); }
   left: 0;
   right: 0;
   background: var(--bg-card);
-  border: 2px solid var(--border-hover);
+  border: 1px solid var(--border-hover);
   border-top: none;
   border-radius: 0 0 8px 8px;
   overflow: hidden;
@@ -1489,7 +1499,7 @@ h3 { font-size: var(--text-md); }
 .search-input {
   width: 100%;
   background-color: var(--bg-card);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-strong);
   color: var(--text-primary);
   padding: 0.5rem 1rem 0.5rem 2.25rem;
   border-radius: 4px;
@@ -1611,7 +1621,7 @@ input[type="text"]:not(.btn), input[type="email"]:not(.btn), input[type="passwor
 input[type="search"]:not(.btn), input[type="number"]:not(.btn), input[type="url"]:not(.btn),
 input[type="date"]:not(.btn) {
   background-color: var(--bg-card);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-strong);
   color: var(--text-primary);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
@@ -2204,7 +2214,7 @@ select option {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   border-top-color: var(--accent-blue);
   animation: rd-spin 0.8s linear infinite;
 }
@@ -3020,9 +3030,9 @@ select option {
   --bg-card: #0F0F0F;
   --bg-hover: #171717;
   --text: #EDEDED;
-  --text-primary: #FFFFFF;
-  --text-secondary: #A3A3A3;
-  --text-muted: #737373;
+  --text-primary:    #ECEAE4;
+  --text-secondary:  #C2C0B6;
+  --text-muted:      #8E8C86;
   --border: #1F1F1F;
   --border-strong: #2E2E2E;
   --accent-blue: #FFFFFF;
@@ -3049,7 +3059,7 @@ select option {
   --text: #111111;
   --text-primary: #0A0A0A;
   --text-secondary: #525252;
-  --text-muted: #737373;
+  --text-muted:      #8E8C86;
   --border: #E5E5E5;
   --border-strong: #D4D4D4;
   --accent-blue: #0A0A0A;
@@ -6677,4 +6687,68 @@ select option {
   margin-top: 1rem;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+}
+
+.hp-footer-social-item:hover {
+  color: var(--text-primary) !important;
+}
+
+
+/* ── Dark Mode Overrides (Rework) ── */
+.dark .data-table tr {
+  background: var(--bg) !important;
+}
+.dark .data-table th {
+  background-color: var(--bg-card) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+.dark .data-table td {
+  border-bottom: 1px solid var(--border) !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+.dark .data-table tr:hover td {
+  background-color: var(--bg-card-hover) !important;
+}
+
+/* Sidebar */
+.dark .app-sidebar {
+  background-color: var(--sidebar-bg) !important;
+}
+.dark .app-sidebar .nav-link {
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.dark .app-sidebar .nav-link:hover {
+  background-color: var(--bg-card-hover) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+.dark .app-sidebar .nav-link.active,
+.dark .app-sidebar .nav-link[aria-current="page"] {
+  background-color: var(--bg-active) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+.dark .sidebar-section-title, .dark .nav-section-title {
+  color: var(--text-muted) !important;
+}
+
+/* Sticky Overrides for Dark Mode */
+.dark .data-table td.sticky-left,
+.dark .card .data-table td.sticky-left {
+  background-color: var(--bg) !important;
+}
+
+.dark .data-table th.sticky-left,
+.dark .card .data-table th.sticky-left {
+  background-color: var(--bg-card) !important;
+}
+
+.dark .data-table tbody tr:hover td.sticky-left,
+.dark .card .data-table tbody tr:hover td.sticky-left {
+  background-color: var(--bg-card-hover) !important;
 }

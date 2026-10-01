@@ -1,3 +1,4 @@
+import { SiYoutube, SiInstagram } from '@icons-pack/react-simple-icons';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sun, Moon, Check, ArrowRight } from 'lucide-react';
@@ -21,6 +22,12 @@ import { getAppUrl, getMarketingUrl, isLocalDev } from '../utils/domain';
 import { ShinyButton } from '@/registry/magicui/shiny-button';
 import { MARKETING_MEDIA } from '../lib/marketingAssets';
 
+
+const SiLinkedin = ({ size = 24, color = 'currentColor', ...props }) => (
+  <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} {...props}>
+    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+  </svg>
+);
 const HERO_LIGHT = MARKETING_MEDIA.heroLight;
 const HERO_DARK = MARKETING_MEDIA.heroDark;
 
@@ -430,6 +437,17 @@ export default function Homepage({ currentUserEmail }) {
             <a href={getMarketingUrl('/privacy')} className="hp-footer-link-item">Privacy Policy</a>
             <a href={getMarketingUrl('/refund')} className="hp-footer-link-item">Refund Policy</a>
             <a href="mailto:support@reachdeskcrm.com" className="hp-footer-link-item">support@reachdeskcrm.com</a>
+          </div>
+          <div className="hp-footer-social-row" style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+            <a href="https://www.youtube.com/@ReachDeskcrm" target="_blank" rel="noopener noreferrer" className="hp-footer-social-item" title="YouTube" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+              <SiYoutube size={20} />
+            </a>
+            <a href="https://www.instagram.com/reachdeskcrm/" target="_blank" rel="noopener noreferrer" className="hp-footer-social-item" title="Instagram" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+              <SiInstagram size={20} />
+            </a>
+            <a href="https://www.linkedin.com/company/reachdeskcrm/" target="_blank" rel="noopener noreferrer" className="hp-footer-social-item" title="LinkedIn" style={{ color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+              <SiLinkedin size={20} />
+            </a>
           </div>
         </div>
       </footer>

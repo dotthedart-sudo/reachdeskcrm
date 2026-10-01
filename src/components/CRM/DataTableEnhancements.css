@@ -13,12 +13,21 @@
   vertical-align: middle;
 }
 
-.crm-leads-table-scroll {
+.crm-leads-table-scroll,
+.call-queue-table-scroll {
   padding: 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
+  width: max-content;
+  min-width: 100%;
   height: auto;
-  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .crm-leads-table-scroll,
+  .call-queue-table-scroll {
+    overflow-x: auto;
+    width: 100%;
+  }
 }
 
 .crm-resizable-th__label {
@@ -159,9 +168,40 @@ body.crm-resizing-row * {
   background: var(--bg-hover);
 }
 
-/* Only reveal copy on that cell (or while focusing the icon) — not on whole-row hover */
+/* Only reveal copy on that cell (or while focusing the icon)  not on whole-row hover */
 .copyable-cell:hover .copyable-cell__btn,
 .copyable-cell:focus-within .copyable-cell__btn,
 .copyable-cell__btn:focus-visible {
   opacity: 1;
 }
+
+
+
+/* Sticky Left Columns */
+.data-table th.sticky-left,
+.data-table td.sticky-left {
+  position: sticky;
+  z-index: 2;
+  background-color: var(--bg-primary);
+}
+
+.card .data-table th.sticky-left,
+.card .data-table td.sticky-left {
+  background-color: var(--bg-card);
+}
+
+.data-table th.sticky-left {
+  z-index: 3;
+}
+
+/* Row Hover State for Sticky Left */
+.data-table tbody tr:hover td.sticky-left {
+  background-color: var(--bg-card-hover) !important;
+}
+
+/* Row Selected State for Sticky Left */
+.data-table tbody tr[data-selected="true"] td.sticky-left,
+.data-table tbody tr.row-selected td.sticky-left {
+  background-color: var(--bg-selected) !important;
+}
+

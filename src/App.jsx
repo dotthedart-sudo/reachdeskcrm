@@ -481,8 +481,8 @@ function AppProvider({ children }) {
   // the latest value — refs are never stale even inside [] effects.
   const loadedUserIdRef = useRef(null);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
+  const showToast = (message, type = 'success', action = null) => {
+    setToast({ message, type, action });
   };
 
   const handleDeclinePaidInvite = () => {
@@ -1419,6 +1419,28 @@ function AppProvider({ children }) {
           border: '1px solid rgba(255,255,255,0.1)'
         }}>
           <span>{toast.message}</span>
+          {toast.action && (
+            <button
+              type="button"
+              onClick={() => {
+                if (toast.action.onClick) toast.action.onClick();
+                setToast(null);
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                borderRadius: 4,
+                padding: '4px 8px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                marginLeft: '0.5rem'
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button 
             onClick={() => setToast(null)}
             style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem', padding: '0 0 0 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

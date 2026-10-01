@@ -32,7 +32,7 @@ export default function PlanLimitBanner({ featureType }) {
           count = c || 0;
         } else if (featureType === 'templates') {
           limit = getLimit(limits, 'max_templates');
-          const { count: c } = await supabase.from('email_templates').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
+          const { count: c } = await supabase.from('templates').select('id', { count: 'exact', head: true }).eq('user_id', profile.id);
           count = c || 0;
         } else if (featureType === 'notes') {
           limit = cycle === 'yearly' ? getLimit(limits, 'max_notes_yearly') : getLimit(limits, 'max_notes');
