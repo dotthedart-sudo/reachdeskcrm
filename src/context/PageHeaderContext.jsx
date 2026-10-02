@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 
 const defaultHeader = {
   title: '',
+  description: '',
   breadcrumbs: [],
   actions: null,
   hideSearch: false,

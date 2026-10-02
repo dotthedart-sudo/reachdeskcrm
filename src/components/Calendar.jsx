@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { PageContainer } from './ui/PageContainer';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon,
@@ -901,6 +902,7 @@ export default function CalendarPage({ currentUser }) {
   const defaultCountryCode = currentUser?.default_country_code || '+92';
 
   return (
+    <PageContainer variant="wide">
     <div className="flex-col gap-4 page-stack">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
@@ -1524,6 +1526,7 @@ export default function CalendarPage({ currentUser }) {
         />
       )}
     </div>
+      </PageContainer>
   );
 }
 
@@ -1560,8 +1563,9 @@ function EventModal({ mode, event, defaultDate, timeZone, saving, onClose, onSub
   };
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}
+    
+      <div
+      style={{ position: 'fixed', inset: 0, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}
       onClick={onClose}
     >
       <div
@@ -1630,5 +1634,6 @@ function EventModal({ mode, event, defaultDate, timeZone, saving, onClose, onSub
         </form>
       </div>
     </div>
-  );
+  
+    );
 }

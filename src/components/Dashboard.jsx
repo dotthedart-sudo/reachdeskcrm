@@ -509,7 +509,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       <div className="dashboard-header">
         <div className="dashboard-header-text">
           <h1>{headerFirstName ? `Welcome back, ${headerFirstName}` : 'Dashboard'}</h1>
-          <p className="dashboard-subtitle">{weekActivity.followUpsDue} follow-ups due &middot; {weeklyPitchCount} {weeklyPitchCount === 1 ? 'pitch' : 'pitches'} in the last 7 days</p>
+          <p className="dashboard-subtitle">{weekActivity.followUpsDue} follow-ups due · {weeklyPitchCount} {weeklyPitchCount === 1 ? 'pitch' : 'pitches'} in the last 7 days</p>
         </div>
         <div className="dashboard-header-actions">
           {hasTeam && (
@@ -556,7 +556,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         </div>
         <div className="dashboard-kpi-tile">
           <span className="dashboard-kpi-title">Collected</span>
-          <span className="dashboard-kpi-value">{CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}{totalRevenueCollected >= 10000 ? (totalRevenueCollected/1000).toFixed(1) + 'k' : totalRevenueCollected}</span>
+          <span className="dashboard-kpi-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
           <span className="dashboard-kpi-subtext">this month</span>
         </div>
       </div>
@@ -598,9 +598,9 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           <div className="dashboard-card-header">
             <h3>Do next</h3>
             <div className="dashboard-donext-filters">
-              <span className="dashboard-donext-pill">Due &middot; {upNextFeed.filter(i => i.type === 'checkpoint' && i.overdue).length}</span>
-              <span className="dashboard-donext-pill">Upcoming &middot; {upNextFeed.filter(i => i.type === 'checkpoint' && !i.overdue).length}</span>
-              <span className="dashboard-donext-pill">Callbacks &middot; {upNextFeed.filter(i => i.channel === 'call').length}</span>
+              <span className="dashboard-donext-pill">Due · {upNextFeed.filter(i => i.type === 'checkpoint' && i.overdue).length}</span>
+              <span className="dashboard-donext-pill">Upcoming · {upNextFeed.filter(i => i.type === 'checkpoint' && !i.overdue).length}</span>
+              <span className="dashboard-donext-pill">Callbacks · {upNextFeed.filter(i => i.channel === 'call').length}</span>
             </div>
           </div>
           
@@ -620,7 +620,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                   const initials = (lead.first_name?.[0] || '') + (lead.last_name?.[0] || '');
                   
                   // Follow-up logic
-                  let followUpText = `${lead.folder_name || 'Unfiled'} &middot; `;
+                  let followUpText = `${lead.folder_name || 'Unfiled'} · `;
                   if (channel === 'call') {
                     followUpText += `Attempt ${lead.attempt_count + 1}`;
                   } else {
@@ -639,7 +639,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                     <div key={item.id} className="dashboard-donext-row" onClick={() => onSelectLead && onSelectLead(lead)}>
                       <div className="dashboard-donext-avatar">{initials || '-'}</div>
                       <div className="dashboard-donext-info">
-                        <span className="dashboard-donext-name">{lead.first_name} {lead.last_name}</span>
+                        <span className="dashboard-donext-name">{`${lead.first_name || ""} ${lead.last_name || ""}`.trim() || lead.email}</span>
                         <span className="dashboard-donext-meta">{followUpText}</span>
                       </div>
                       <div className="dashboard-donext-actions">
@@ -671,7 +671,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               <button className="dashboard-link" onClick={() => navigate('/settings')}>Set target</button>
             </div>
             <div className="dashboard-revenue-amount">
-              <span className="dashboard-revenue-value">{CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}{totalRevenueCollected >= 10000 ? (totalRevenueCollected/1000).toFixed(1) + 'k' : totalRevenueCollected}</span>
+              <span className="dashboard-revenue-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
               <span className="dashboard-revenue-subtext">collected this month</span>
             </div>
             <div className="dashboard-revenue-chart">
@@ -710,7 +710,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         zIndex: 1,
                         opacity: 0.5
                       }}
-                      title={`Target: ${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${revenueTarget}`}
+                      title={`Target: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(revenueTarget)}`}
                     />
                   )}
                   {sixMonthTotals.map((mTotal, i) => {
@@ -724,7 +724,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                         key={offset} 
                         className={`dashboard-bar ${isCurrent ? 'current' : ''}`} 
                         style={{ height: `${heightPct}%`, zIndex: 2, position: 'relative' }}
-                        title={`${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${mTotal} in ${d.toLocaleString('default', { month: 'short' })}`}
+                        title={`${new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(mTotal)} in ${d.toLocaleString('default', { month: 'short' })}`}
                       ></div>
                     );
                   })}
@@ -747,7 +747,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                   <div key={tpl.id} className="dashboard-template-row">
                     <div className="dashboard-template-info">
                       <span className="dashboard-template-name">{tpl.title}</span>
-                      <span className="dashboard-template-meta">Sent {tpl.sent} &middot; Replies {tpl.count}</span>
+                      <span className="dashboard-template-meta">Sent {tpl.sent} · Replies {tpl.count}</span>
                     </div>
                     <div className="dashboard-template-rate">
                       {notEnoughData ? (

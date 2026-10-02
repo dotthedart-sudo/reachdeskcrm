@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ReportsFunnel from './ReportsFunnel';
+import { fetchCustomStatuses } from '../../lib/customStatuses';
+import { useAppContext } from '../../App';
 import { ChevronDown, Filter } from 'lucide-react';
 
 export default function ReportsOverviewTab({
@@ -12,7 +14,26 @@ export default function ReportsOverviewTab({
   countMode,
   setCountMode
 }) {
-  const [metric, setMetric] = useState('outreach'); // outreach | calls | messages | invoices
+    const [metric, setMetric] = useState('outreach'); // outreach | calls | messages | invoices
+  const { teamIds } = useAppContext() || {};
+  const [colorsMap, setColorsMap] = useState({});
+
+  React.useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchCustomStatuses({ userIds: teamIds, channel: 'messaging' }),
+      fetchCustomStatuses({ userIds: teamIds, channel: 'calls' })
+    ]).then(([msgStatuses, callStatuses]) => {
+      if (!active) return;
+      const map = {};
+      [...msgStatuses, ...callStatuses].forEach(s => {
+        if (s.label) map[s.label.toLowerCase()] = s.color;
+      });
+      setColorsMap(map);
+    });
+    return () => { active = false; };
+  }, [teamIds]);
+
 
   const getMetricLabel = (m) => {
     switch (m) {

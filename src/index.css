@@ -63,10 +63,11 @@
        page → sidebar → card/surface nest → hover/active
   */
   
-  --bg: #151515;
+  --bg: #FFFFFF;
   --sidebar-bg: #111111;
-  --bg-raised: #232323;
-  --bg-active: #2A2A2A;
+  --bg-raised: #F3F4F6;
+  --bg-active: #E5E7EB;
+  --bg-subtle: #F9FAFB;
   --bg-page:         var(--bg); /* L0 — canvas */
   --bg-sidebar:      var(--sidebar-bg); /* L1 — between page and cards */
   --bg-card:         #1C1C1C; /* L2 — main panels / tables */
@@ -110,6 +111,13 @@
 }
 
 /* ── Light mode — black / white / grey ── */
+.dark {
+  --bg: #151515;
+  --bg-raised: #232323;
+  --bg-active: #2A2A2A;
+  --bg-subtle: #1F1F1F;
+}
+
 :root.light {
   --bg-page:         #FFFFFF;
   --bg-sidebar:      #FFFFFF;
@@ -257,7 +265,7 @@ h3 { font-size: var(--text-md); }
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0 clamp(18px, 2.75vw, 34px);
+  padding: 0 32px;
   background: var(--bg-page);
   border-bottom: 1px solid var(--border);
 }
@@ -1669,7 +1677,7 @@ select option {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5024,7 +5032,7 @@ select option {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     z-index: 1000;
   }
@@ -6798,6 +6806,11 @@ select option {
   gap: 1rem;
   margin-bottom: 2rem;
 }
+@media (min-width: 1100px) {
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
 @media (max-width: 768px) {
   .dashboard-kpi-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -6952,7 +6965,7 @@ select option {
   display: flex;
   align-items: center;
   padding: 0.75rem;
-  background: var(--bg);
+  background: var(--bg-subtle);
   border-radius: var(--radius-sm);
   gap: 1rem;
   cursor: pointer;
@@ -7107,3 +7120,31 @@ select option {
   font-size: 0.9rem;
 }
 
+
+/* Global Page Containers */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+  width: 100%;
+}
+.page-container-wide {
+  max-width: 1600px;
+}
+.page-container-full {
+  max-width: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+
+
+@media (max-width: 1024px) {
+  .app-header { padding: 0 24px; }
+}
+@media (max-width: 768px) {
+  .app-header { padding: 0 16px; }
+}

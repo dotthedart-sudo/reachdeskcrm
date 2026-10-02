@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+
 import { useAppContext } from '../App';
 import '../styles/excalidraw.css'; // Local wrapper for Excalidraw CSS
 
@@ -200,11 +201,13 @@ export default function DrawingBoard({ initialContent, onSave, saveRef }) {
   }, [saveSnapshot]);
 
   return (
-    // Fix 2 — explicit, correct container dimensions
     <div style={{
       width: '100%',
-      height: 'calc(100vh - 120px)',
-      minHeight: '500px',
+      height: '100%',
+      minHeight: 0,
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
       position: 'relative',
       overflow: 'hidden',
       backgroundColor: canvasBackground,
@@ -242,5 +245,6 @@ export default function DrawingBoard({ initialContent, onSave, saveRef }) {
         </Suspense>
       </NotesErrorBoundary>
     </div>
+  
   );
 }

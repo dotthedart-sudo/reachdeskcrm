@@ -37,6 +37,7 @@ export default function AppHeader({
 
   const defaults = ROUTE_DEFAULTS[pathname] || { title: '' };
   const title = header.title || defaults.title;
+  const description = header.description || defaults.description;
   const breadcrumbs = header.breadcrumbs?.length ? header.breadcrumbs : defaults.breadcrumbs || [];
 
   const breadcrumbTrail = useMemo(() => {
@@ -72,7 +73,10 @@ export default function AppHeader({
             })}
           </nav>
         ) : (
-          <h1 className="app-header__title desktop-only">{title || 'ReachDesk CRM'}</h1>
+          <div className="app-header__title-group desktop-only">
+            <h1 className="app-header__title">{title || 'ReachDesk CRM'}</h1>
+            {description && <p className="app-header__description">{description}</p>}
+          </div>
         )}
       </div>
 

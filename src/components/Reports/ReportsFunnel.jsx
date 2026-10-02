@@ -27,8 +27,8 @@ export default function ReportsFunnel({
             {idx > 0 && (
               <div className="reports-funnel__connector" aria-hidden="true">
                 <span className="reports-funnel__connector-line" />
-                {rate != null && (
-                  <span className="reports-funnel__rate">{rate}%</span>
+                {countMode === 'cumulative' && rate != null && (
+                  <span className="reports-funnel__rate">{Math.min(Number(rate), 100)}%</span>
                 )}
                 <span className="reports-funnel__connector-line" />
               </div>
@@ -36,7 +36,14 @@ export default function ReportsFunnel({
             <div className="reports-funnel__step">
               <div className="reports-funnel__step-meta">
                 <span className="reports-funnel__step-label">{labelFor(stage)}</span>
-                <span className="reports-funnel__step-count">{count}</span>
+                <span className="reports-funnel__step-count">
+                  {count}
+                  {countMode === 'current' && totalLeads > 0 && (
+                    <span style={{ marginLeft: '0.5rem', color: 'var(--text-muted)' }}>
+                      ({Math.round((count / totalLeads) * 100)}%)
+                    </span>
+                  )}
+                </span>
               </div>
               <div className="reports-funnel__bar-track">
                 <div

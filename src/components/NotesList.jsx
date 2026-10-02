@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageContainer } from './ui/PageContainer';
 import { useNavigate } from 'react-router-dom';
 import { supabase, isPlanLimitError } from '../lib/supabase';
 import { getTeamIds, PLAN_LIMITS, getLimit, getEffectivePlan } from '../lib/utils';
@@ -565,7 +566,7 @@ export default function NotesList({ currentUser }) {
 
       {/* ── Folder Creation Modal ── */}
       {showFolderModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-subtle)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>Create New Folder</h3>
@@ -621,7 +622,7 @@ export default function NotesList({ currentUser }) {
 
       {/* ── Premium Sorting Upgrade Modal ── */}
       {showUpgradeModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-subtle)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '2rem', width: '90%', maxWidth: '420px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <Gem size={40} style={{ color: 'var(--primary-magenta)' }} />
             <h3 style={{ margin: 0, color: 'var(--primary-magenta)' }}>Unlock Premium Sorting</h3>
@@ -791,7 +792,8 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
   }
 
   return (
-    <div 
+    
+      <div 
       className="card flex-col gap-3" 
       onClick={() => onSelect(note)}
       style={{
@@ -876,5 +878,6 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
         <span>{new Date(note.updated_at || note.created_at).toLocaleDateString()}</span>
       </div>
     </div>
-  );
+  
+    );
 }
