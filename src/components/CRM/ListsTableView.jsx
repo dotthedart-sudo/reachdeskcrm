@@ -258,13 +258,16 @@ export default function ListsTableView({
     team: [],
     auto: userFolders,
   };
+  const manualLists = [
+    ...(sections.mine || []),
+    ...(sections.sharedWithMe || []),
+    ...(sections.team || []),
+  ];
+  const autoLists = sections.auto || [];
 
   const showAssignee = Object.keys(teamProfilesMap || {}).length > 1;
 
-  const hasLists = (sections.mine?.length || 0)
-    + (sections.sharedWithMe?.length || 0)
-    + (sections.team?.length || 0)
-    + (sections.auto?.length || 0) > 0;
+  const hasLists = manualLists.length > 0 || autoLists.length > 0;
 
   if (!hasLists) {
     return (
@@ -302,43 +305,34 @@ export default function ListsTableView({
       <div className="crm-lists-table-head" role="row">
         <div className="crm-lists-table-col-name" role="columnheader">Name</div>
         <div className="crm-lists-table-col-type" role="columnheader">Type</div>
-        <div className="crm-lists-table-col-count" role="columnheader">Leads</div>
-        <div className="crm-lists-table-col-by" role="columnheader">Created by</div>
+        <div className="crm-lists-table-col-count" role="columnheader" style={{ textAlign: 'right' }}>Leads</div>
+        <div className="crm-lists-table-col-by" role="columnheader">Owner</div>
         {showAssignee && (
           <div className="crm-lists-table-col-assignee" role="columnheader">Assigned to</div>
         )}
         <div className="crm-lists-table-col-actions" role="columnheader" aria-label="Actions" />
       </div>
-      {sections.mine?.length > 0 && (
+      
+      {manualLists.length > 0 && (
         <>
-          <SectionHeader title="My lists" />
-          {renderFolderRows({ list: sections.mine, ...rowProps })}
+          <SectionHeader title={`MANUAL · ${manualLists.length}`} />
+          {renderFolderRows({ list: manualLists, ...rowProps })}
         </>
       )}
-      {sections.sharedWithMe?.length > 0 && (
+      
+      {autoLists.length > 0 && (
         <>
-          <SectionHeader title="Shared with me" />
-          {renderFolderRows({ list: sections.sharedWithMe, ...rowProps })}
-        </>
-      )}
-      {sections.team?.length > 0 && (
-        <>
-          <SectionHeader title="Team lists" />
-          {renderFolderRows({ list: sections.team, ...rowProps })}
-        </>
-      )}
-      {sections.auto?.length > 0 && (
-        <>
-          <SectionHeader title="Auto lists" />
-          {sections.auto.map((uf) => (
+          <SectionHeader title={`AUTO · ${autoLists.length}`} />
+          {autoLists.map((uf) => (
             <ListRow
               key={uf.id}
               icon={Sparkles}
-              iconColor="var(--accent-blue)"
+              iconColor="var(--warning-color)"
               name={uf.name}
               typeLabel="Auto"
               typeVariant="auto"
               count={getLeadCount?.(uf.id) ?? 0}
+              countHint={uf.rule_summary || "[Rule summary] - updates automatically"}
               createdAt={uf.created_at}
               createdBy={creatorLabel(uf.user_id, teamProfilesMap, currentUserId)}
               assigneeId={uf.assignee_id || uf.user_id}

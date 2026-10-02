@@ -139,7 +139,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const hasTeam = hasTeammates(teamIds);
   const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (isMounted = true) => {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
@@ -147,11 +147,16 @@ export default function Dashboard({ currentUser, onSelectLead }) {
       const teamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
       const isTeamScope = teamMembers?.length > 1 && dashboardScope === 'team';
       const activeScopeIds = isTeamScope ? teamIds : [currentUser.id];
+      
+      console.log('[DEBUG_LOAD] Start', { dashboardScope, teamMembersLength: teamMembers?.length, isTeamScope, activeScopeIdsLength: activeScopeIds?.length });
+      
+      const reqId = Date.now() + Math.random();
+      window.__lastDashboardReq = reqId;
       const remindersEnabled = currentUser?.reminders_enabled !== false;
-      const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at';
+      const feedColumns = 'id, user_id, first_name, last_name, status, call_status, created_at, last_contacted_at, last_called_at, action_to_take, next_checkpoint_at, template_used, reply_type, meeting_ends_at, folder_id';
 
       const settled = await Promise.allSettled([
-        supabase.from('invoices').select('*').in('user_id', activeScopeIds),
+        supabase.from('revenue_entries').select('*').in('user_id', activeScopeIds),
         supabase.from('action_suggestion_rules').select('*'),
         fetchLeadPipelineStats({ userIds: activeScopeIds }),
         remindersEnabled
@@ -200,13 +205,36 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         : { data: [] };
       const pipelineStats = pipelineSettled.value;
       const dueCheckpoints = dueSettled.status === 'fulfilled' ? dueSettled.value : [];
-      const attemptsData = attemptsSettled.status === 'fulfilled' ? attemptsSettled.value : [];
+      const attemptsData = attemptsSettled.status === 'fulfilled' ? (attemptsSettled.value?.data || attemptsSettled.value || []) : [];
       const feedLeads = feedSettled.status === 'fulfilled' ? feedSettled.value : [];
 
       const loadedInvoices = invoicesRes.data || [];
       const loadedRules = rulesRes.data || [];
       const loadedLeads = feedLeads || [];
       const loadedAttempts = attemptsData || [];
+
+      
+      // Map Folders
+      const folderIds = new Set(loadedLeads.map(l => l.folder_id).filter(Boolean));
+      if (folderIds.size > 0) {
+        const { data: folderData } = await supabase.from('folders').select('id, name').in('id', Array.from(folderIds));
+        const folderMap = {};
+        (folderData || []).forEach(f => folderMap[f.id] = f.name);
+        loadedLeads.forEach(l => {
+          l.folder_name = l.folder_id ? (folderMap[l.folder_id] || 'Unfiled') : 'Unfiled';
+        });
+      } else {
+        loadedLeads.forEach(l => { l.folder_name = 'Unfiled'; });
+      }
+
+      // Map Attempt Counts
+      const attemptCounts = {};
+      loadedAttempts.forEach(a => {
+        attemptCounts[a.lead_id] = (attemptCounts[a.lead_id] || 0) + 1;
+      });
+      loadedLeads.forEach(l => {
+        l.attempt_count = attemptCounts[l.id] || 0;
+      });
 
       setInvoices(loadedInvoices);
       setSuggestionRules(loadedRules);
@@ -301,7 +329,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     } catch (err) {
       console.error('Error loading dashboard analytics:', err);
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
 
@@ -309,7 +337,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     if (currentUser) {
       loadDashboardData();
     }
-  }, [currentUser, windowDays, teamProfilesMap, dashboardScope]); // added dashboardScope
+  }, [currentUser?.id, windowDays, dashboardScope]); // removed teamProfilesMap to stop flickering
 
   // Digest push deep-link: scroll to Due Follow-ups
   useEffect(() => {
@@ -475,11 +503,15 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const revealBlock = blockClass;
 
   return (
-      <div className={` flex-col page-stack${rootClass}`} style={{ textAlign: 'left', gap: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-          <p className="color-muted page-intro" style={{ margin: 0 }}>Outreach engine tracking, conversions, and follow-ups status.</p>
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <div className="dashboard-header-text">
+          <h1>{headerFirstName ? `Welcome back, ${headerFirstName}` : 'Dashboard'}</h1>
+          <p className="dashboard-subtitle">{weekActivity.followUpsDue} follow-ups due &middot; {weeklyPitchCount} {weeklyPitchCount === 1 ? 'pitch' : 'pitches'} in the last 7 days</p>
+        </div>
+        <div className="dashboard-header-actions">
           {hasTeam && (
-            <div className="rd-segmented" style={{ flexShrink: 0 }}>
+            <div className="rd-segmented">
               <button
                 type="button"
                 className={`rd-segmented__btn ${dashboardScope === 'mine' ? 'rd-segmented__btn--active' : ''}`}
@@ -497,441 +529,215 @@ export default function Dashboard({ currentUser, onSelectLead }) {
             </div>
           )}
         </div>
+      </div>
 
-      {debugError && (<div style={{color: 'red', padding: 20, background: 'white'}}>DEBUG ERROR: {debugError}</div>)}
-      {metrics.total === 0 && !loading ? (
-        <div className={`card empty-state${revealBlock}`}>
-          <div className="empty-state-icon" style={{ width: 56, height: 56, color: 'var(--text-primary)', background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
-            <BarChart2 size={28} />
-          </div>
-          <h3 className="empty-state-title">Your Dashboard is Quiet</h3>
-          <p className="empty-state-desc">
-            Once you add leads and log interactions, your conversion metrics, pitching velocity, and pipeline progression will light up here.
-          </p>
-          <button onClick={() => navigate('/leads')} className="btn btn-primary">
-            Go to CRM Leads →
-          </button>
+      <div className="dashboard-kpi-grid">
+        <div className="dashboard-kpi-tile">
+          <span className="dashboard-kpi-title">Leads</span>
+          <span className="dashboard-kpi-value">{metrics.total >= 10000 ? (metrics.total/1000).toFixed(1) + 'k' : metrics.total}</span>
+          <span className="dashboard-kpi-subtext">{metrics.contacted >= 10000 ? (metrics.contacted/1000).toFixed(1) + 'k' : metrics.contacted} contacted</span>
         </div>
-      ) : (
-        <>
-          <div className="dashboard-main-layout">
-            <div className="dashboard-col-left">
-              {/* Primary KPIs Row — uses dash-kpi-grid so the mobile @media override
-                  (max-width 768px → 1-column stack) applies correctly */}
-      <div className={`dash-kpi-grid${revealBlock}`} style={{ marginBottom: 0 }}>
-        
-        {/* Leads card */}
-        <div className="card flex align-start gap-3" style={{ minHeight: 140 }}>
-          <div style={{ padding: 'var(--space-3)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-hover)', color: 'var(--text-primary)', display: 'flex', alignSelf: 'center' }}>
-            <Users size={24} />
-          </div>
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <span className="card-title">
-              {dashboardScope === 'team' ? 'Team Overview' : 'Leads Overview'}
-            </span>
-            <div className="card-value" style={{ margin: 'var(--space-1) 0' }}>{metrics.total}</div>
-            
-            {/* Contacted / Replied / Positive mini-stats
-                flex-wrap + min-width ensures the 3rd item never clips
-                regardless of sidebar state or card width */}
-            <div style={{
-              display: 'flex',
-              gap: 'var(--space-3)',
-              marginTop: 'var(--space-2)',
-              borderTop: '1px solid var(--border)',
-              paddingTop: 'var(--space-2)',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--text-secondary)',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ minWidth: '70px' }}>Contacted: <strong style={{ color: 'var(--text-primary)' }}>{metrics.contacted}</strong></div>
-              <div style={{ minWidth: '60px' }}>Replied: <strong style={{ color: 'var(--text-primary)' }}>{metrics.replied}</strong></div>
-              <div style={{ minWidth: '65px' }}>Positive: <strong style={{ color: 'var(--success-color)' }}>{metrics.positive}</strong></div>
-            </div>
-          </div>
+        <div className="dashboard-kpi-tile">
+          <span className="dashboard-kpi-title">Replied</span>
+          <span className="dashboard-kpi-value">{metrics.replied >= 10000 ? (metrics.replied/1000).toFixed(1) + 'k' : metrics.replied}</span>
+          <span className="dashboard-kpi-subtext">{(metrics.total > 0 ? ((metrics.replied / metrics.total) * 100) : 0).toFixed(1)}% reply rate</span>
         </div>
-
-        {/* Revenue progress card */}
-        <div className="card flex-col justify-between" style={{ minHeight: 140 }}>
-          <div className="flex align-center justify-between" style={{ width: '100%' }}>
-            <span className="card-title">Invoices Collected</span>
-            {(() => {
-              const userCurrency = CURRENCY_SYMBOLS[currentUser?.default_currency] || '$';
-              return (
-                <span style={{ color: 'var(--success-color)', fontSize: '1.1rem', fontWeight: 500, lineHeight: 1 }}>
-                  {userCurrency}
-                </span>
-              );
-            })()}
-          </div>
-
-          {(() => {
-            const userCurrency = CURRENCY_SYMBOLS[currentUser?.default_currency] || '$';
-            return (
-              <>
-                {revenueTarget > 0 ? (
-                  <div style={{ marginTop: 'var(--space-2)', width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span className="card-value" style={{ fontSize: 'var(--text-xl)' }} data-ph-mask>{userCurrency}{totalRevenueCollected}</span>
-                      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }} data-ph-mask>target: {userCurrency}{revenueTarget}</span>
-                    </div>
-                    <div style={{ width: '100%', height: 8, background: 'var(--border-strong)', borderRadius: 'var(--radius-sm)', marginTop: 'var(--space-2)', overflow: 'hidden' }}>
-                      <div style={{ width: `${targetPct}%`, height: '100%', background: 'var(--success-color)', borderRadius: 'var(--radius-sm)', transition: 'width 0.4s ease' }} />
-                    </div>
-                    <span className="card-subtext">
-                      {targetPct}% of your monthly target
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 'var(--space-2)', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-                    <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      Set your monthly target to see progress here
-                    </span>
-                    <button 
-                      onClick={() => navigate('/settings')} 
-                      className="btn btn-secondary btn-sm" 
-                      style={{ marginTop: 'var(--space-2)', width: '100%', justifyContent: 'center' }}
-                    >
-                      Set Monthly Target
-                    </button>
-                  </div>
-                )}
-              </>
-            );
-          })()}
+        <div className="dashboard-kpi-tile">
+          <span className="dashboard-kpi-title">Positive</span>
+          <span className="dashboard-kpi-value">{metrics.positive >= 10000 ? (metrics.positive/1000).toFixed(1) + 'k' : metrics.positive}</span>
+          <span className="dashboard-kpi-subtext">{(metrics.replied > 0 ? ((metrics.positive / metrics.replied) * 100) : 0).toFixed(1)}% of replies</span>
         </div>
+        <div className="dashboard-kpi-tile">
+          <span className="dashboard-kpi-title">Closed won</span>
+          <span className="dashboard-kpi-value" style={{ color: 'var(--success-color)' }}>{messageStageCounts['Closed Won'] || 0}</span>
+          <span className="dashboard-kpi-subtext">{messageStageCounts['Booked'] || 0} booked</span>
+        </div>
+        <div className="dashboard-kpi-tile">
+          <span className="dashboard-kpi-title">Collected</span>
+          <span className="dashboard-kpi-value">{CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}{totalRevenueCollected >= 10000 ? (totalRevenueCollected/1000).toFixed(1) + 'k' : totalRevenueCollected}</span>
+          <span className="dashboard-kpi-subtext">this month</span>
+        </div>
+      </div>
 
-        {/* Velocity Dial card */}
-        <div className="card flex justify-between align-center" style={{ minHeight: 140 }}>
-          <div>
-            <span className="card-title">Outreach Velocity</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-              <span style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-body)', fontWeight: 600, letterSpacing: 0, color: velocityColor, textTransform: 'capitalize' }}>
-                {velocityLevel}
-              </span>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>({weeklyPitchCount} pitches)</span>
-            </div>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-2)', maxWidth: 150, lineHeight: 'var(--leading-tight)', wordBreak: 'break-word' }}>
-              {velocityMsg}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="80" height="45" viewBox="0 0 100 55" style={{ display: 'block', margin: '0 auto' }}>
-              {/* Back track */}
-              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="var(--border-strong)" strokeWidth="10" strokeLinecap="round" />
-              {/* Filled progress */}
-              <path 
-                d="M 10 50 A 40 40 0 0 1 90 50" 
-                fill="none" 
-                stroke={velocityColor} 
-                strokeWidth="10" 
-                strokeLinecap="round" 
-                strokeDasharray={pathLength} 
-                strokeDashoffset={dashOffset} 
-                style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+      <div className="dashboard-pipeline-card">
+        <div className="dashboard-pipeline-header">
+          <h3>Messages pipeline</h3>
+          <button type="button" className="dashboard-link" onClick={() => navigate('/reports')}>Open in Reports</button>
+        </div>
+        <div className="dashboard-pipeline-bar">
+          {forwardStages.map(st => {
+            const count = messageStageCounts[st] || 0;
+            return count > 0 ? (
+              <div 
+                key={st} 
+                className="dashboard-pipeline-segment" 
+                style={{ flexGrow: count, backgroundColor: STAGE_COLORS[st] }}
+                title={`${st}: ${count}`}
               />
-            </svg>
-            <span className="rd-section-label" style={{ marginTop: 'var(--space-1)' }}>Last 7 days</span>
+            ) : null;
+          })}
+        </div>
+        <div className="dashboard-pipeline-legend">
+          {forwardStages.map(st => {
+            const count = messageStageCounts[st] || 0;
+            return (
+              <div key={st} className="dashboard-pipeline-legend-item">
+                <span className="dashboard-pipeline-legend-dot" style={{ backgroundColor: STAGE_COLORS[st] }}></span>
+                <span className="dashboard-pipeline-legend-label">{st}</span>
+                <span className="dashboard-pipeline-legend-count">{count >= 10000 ? (count/1000).toFixed(1) + 'k' : count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="dashboard-bottom-grid">
+        <div className="dashboard-card dashboard-donext-card">
+          <div className="dashboard-card-header">
+            <h3>Do next</h3>
+            <div className="dashboard-donext-filters">
+              <span className="dashboard-donext-pill">Due &middot; {upNextFeed.filter(i => i.type === 'checkpoint' && i.overdue).length}</span>
+              <span className="dashboard-donext-pill">Upcoming &middot; {upNextFeed.filter(i => i.type === 'checkpoint' && !i.overdue).length}</span>
+              <span className="dashboard-donext-pill">Callbacks &middot; {upNextFeed.filter(i => i.channel === 'call').length}</span>
+            </div>
           </div>
-        </div>
-
-      </div>
-
-      {/* This week — clear activity (not pipeline confusion) */}
-      <div className={`card${revealBlock}`}>
-        <h3 style={{ fontSize: '0.9rem', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--text-secondary)' }}>
-          <Activity size={16} /> This week
-          <HelpPopover title="This week">
-            How much outreach you logged in the last 7 days — not the same as pipeline stage. Messaged = leads with a contact stamp; Called = leads with a call log; Due = message follow-up checkpoints that are overdue.
-          </HelpPopover>
-        </h3>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => navigate('/leads?mode=messages')}
-            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
-          >
-            <Mail size={14} /> Messaged <strong>{weekActivity.messaged}</strong>
-          </button>
-          {showCallsStrip && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => navigate('/leads?mode=calls&callView=queue')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <Phone size={14} /> Called <strong>{weekActivity.called}</strong>
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => navigate('/reminders')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <Bell size={14} /> Follow-ups due <strong>{weekActivity.followUpsDue}</strong>
-          </button>
-        </div>
-      </div>
-
-      {/* Dual pipelines */}
-      <div
-        className={revealBlock}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5rem',
-        }}
-      >
-        <div className="card" style={{ minWidth: 0, flexGrow: 1 }}>
-          <h3 style={{ fontSize: '0.9rem', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
-            <Mail size={16} /> Messages pipeline
-          </h3>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.85rem' }}>
-            Where deals sit after email / LinkedIn — by message status.
-          </p>
-          <PipelineStepper
-            stages={forwardStages}
-            counts={messageStageCounts}
-            getColor={(st) => STAGE_COLORS[st]}
-          />
-        </div>
-
-        {showCallsStrip && (metrics.call_activity?.total_attempts > 0) && (
-          <div className="card" style={{ minWidth: 0, flexGrow: 1 }}>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)' }}>
-              <Phone size={16} /> Calls pipeline
-            </h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.85rem' }}>
-              Where dials sit in the Call Queue — by call status.
-            </p>
-            <PipelineStepper
-              stages={callStageIds}
-              counts={callStageCounts}
-              getColor={(id) => callStageMeta[id]?.color}
-              getLabel={(id) => callStageMeta[id]?.label || id}
-            />
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ marginTop: '0.75rem' }}
-              onClick={() => navigate('/leads?mode=calls&callView=queue')}
-            >
-              Open Call Queue →
-            </button>
-          </div>
-        )}
-      </div>
-
-      </div>
-
-      <div className="dashboard-col-right">
-        
-                {/* Column 1: Upcoming Next Feed */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, flexGrow: 1 }}>
-          <h3 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-            <Activity size={18} style={{ color: 'var(--text-secondary)' }} /> Upcoming Next
-            <button type="button" onClick={() => navigate('/reminders')} className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>View Reminders →</button>
-            <HelpPopover title="Upcoming Next Feed">
-              Shows follow-up checkpoints for the current scope.
-            </HelpPopover>
-          </h3>
-
-          {isOwner && !hasTeam && (
-            <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              No teammates invited yet.{' '}
-              <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 'inherit' }} onClick={() => navigate('/teams')}>
-                Invite from Teams →
-              </button>
-            </div>
-          )}
-
-          {!getLimit(limits, 'upNextFeed') ? (
-            <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              <Lock size={14} style={{ display: 'inline', marginBottom: '-2px' }} /> Plan limit reached.
-            </div>
-          ) : upNextFeed.filter(i => i.type === 'checkpoint').length === 0 ? (
-            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Check size={20} style={{ color: 'var(--success-color)', marginBottom: '0.5rem' }} />
-              <div>No pending follow-ups!</div>
-            </div>
-          ) : (
-            <div className="flex-col gap-3">
-              {upNextFeed
-                .filter((item) => item.type === 'checkpoint')
-                .slice((upcomingNextPage - 1) * 4, upcomingNextPage * 4)
-                .map((item) => {
+          
+          <div className="dashboard-donext-list">
+            {upNextFeed.filter(i => i.type === 'checkpoint').length === 0 ? (
+              <div className="dashboard-empty-state">
+                <Check size={20} style={{ color: 'var(--success-color)', marginBottom: '0.5rem' }} />
+                <div>No pending follow-ups!</div>
+              </div>
+            ) : (
+              upNextFeed
+                .filter(i => i.type === 'checkpoint')
+                .slice(0, 6)
+                .map(item => {
+                  const lead = item.lead;
                   const channel = item.channel || 'message';
-                  const isReplied = ['Positive Reply', 'Not Interested', 'Booked', 'Rescheduled'].includes(item.lead.status);
-                  const isTryAgain = ['No answer', 'Busy', 'Voicemail left'].includes(item.lead.status);
-                  let statusColor = '#d6d3d1'; // grey
-                  if (isTryAgain) statusColor = '#f59e0b'; // amber
-                  if (isReplied) statusColor = '#10b981'; // green
+                  const initials = (lead.first_name?.[0] || '') + (lead.last_name?.[0] || '');
+                  
+                  // Follow-up logic
+                  let followUpText = `${lead.folder_name || 'Unfiled'} &middot; `;
+                  if (channel === 'call') {
+                    followUpText += `Attempt ${lead.attempt_count + 1}`;
+                  } else {
+                    if (!lead.last_contacted_at) {
+                      followUpText += 'Not contacted yet';
+                    } else {
+                      const days = Math.floor((new Date() - new Date(lead.last_contacted_at)) / (1000 * 60 * 60 * 24));
+                      followUpText += `Last contacted ${days}d ago`;
+                    }
+                  }
+
+                  let timeLabel = item.overdue ? 'Overdue' : 'Today';
+                  let timeColor = item.overdue ? 'var(--danger-color)' : 'var(--warning-color)';
 
                   return (
-                    <div 
-                      key={item.id} 
-                      className="flex-col gap-2" 
-                      style={{ 
-                        padding: '0.85rem 1rem', 
-                        borderRadius: '8px', 
-                        background: 'var(--bg-card)', 
-                        border: '1px solid var(--border)',
-                        borderLeft: `3px solid ${statusColor}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <span
-                          style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 500,
-                            letterSpacing: 0,
-                            textTransform: 'none',
-                            padding: '2px 7px',
-                            borderRadius: 'var(--radius-sm)',
-                            background: channel === 'call' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
-                            color: channel === 'call' ? '#10b981' : '#3b82f6',
-                          }}
-                        >
-                          {channel === 'call' ? 'Call' : 'Message'}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.68rem', height: 22, padding: '0 8px' }}
-                          onClick={() => navigate(channel === 'call' ? '/leads?mode=calls&callView=queue' : '/leads?mode=messages')}
-                        >
-                          Open →
-                        </button>
+                    <div key={item.id} className="dashboard-donext-row" onClick={() => onSelectLead && onSelectLead(lead)}>
+                      <div className="dashboard-donext-avatar">{initials || '-'}</div>
+                      <div className="dashboard-donext-info">
+                        <span className="dashboard-donext-name">{lead.first_name} {lead.last_name}</span>
+                        <span className="dashboard-donext-meta">{followUpText}</span>
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
-                        Follow up with <span data-ph-mask>{item.lead.first_name || ''} {item.lead.last_name || ''}</span>
+                      <div className="dashboard-donext-actions">
+                        <span className={`dashboard-donext-type ${channel === 'call' ? 'call' : 'message'}`}>{channel === 'call' ? 'Call' : 'Message'}</span>
+                        <span className="dashboard-donext-time" style={{ color: timeColor }}>{timeLabel}</span>
+                        <ArrowRight size={16} className="dashboard-donext-arrow" />
                       </div>
                     </div>
                   );
-                })}
-
-              {upNextFeed.filter(i => i.type === 'checkpoint').length > 4 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                  <button
-                    type="button"
-                    disabled={upcomingNextPage === 1}
-                    onClick={() => setUpcomingNextPage(p => Math.max(1, p - 1))}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                  >
-                    Prev
-                  </button>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    Page {upcomingNextPage} of {Math.ceil(upNextFeed.filter(i => i.type === 'checkpoint').length / 4)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={upcomingNextPage >= Math.ceil(upNextFeed.filter(i => i.type === 'checkpoint').length / 4)}
-                    onClick={() => setUpcomingNextPage(p => p + 1)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
+                })
+            )}
+          </div>
+          {upNextFeed.filter(i => i.type === 'checkpoint').length > 6 && (
+            <button className="dashboard-link" onClick={() => navigate('/reminders')} style={{ marginTop: '1rem' }}>
+              View all ({upNextFeed.filter(i => i.type === 'checkpoint').length})
+            </button>
           )}
         </div>
 
-        {/* Column 2: Template Stats */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0, flexGrow: 1 }}>
-
-          {/* Copy Performance Analytics */}
-          <div className="card" style={{ flexGrow: 1 }}>
-            <h3 style={{ fontSize: '0.95rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Trophy size={18} style={{ color: '#f59e0b' }} /> Template Stats
-            </h3>
-
-            {!getLimit(limits, 'copyAnalytics') ? (
-              <div style={{ position: 'relative', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <div style={{ filter: 'blur(3px)', width: '100%', opacity: 0.25, pointerEvents: 'none' }}>
-                  <table style={{ width: '100%', fontSize: '0.75rem' }}>
-                    <tbody>
-                      <tr><td>Cold Pitch Template</td><td>3 replies</td></tr>
-                      <tr><td>Follow-up sequence</td><td>1 reply</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
-                  <Lock size={14} style={{ color: 'var(--text-muted)' }} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Analytics Locked</span>
-                  <button onClick={() => navigate('/settings')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', marginTop: '0.2rem' }}>
-                    Upgrade
-                  </button>
-                </div>
-              </div>
-            ) : copyAnalytics.length === 0 ? (
-              <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                No outreach metrics recorded.
+        <div className="dashboard-right-col">
+          <div className="dashboard-card dashboard-revenue-card">
+            <div className="dashboard-card-header">
+              <h3>Revenue</h3>
+              <button className="dashboard-link" onClick={() => navigate('/settings')}>Set target</button>
+            </div>
+            <div className="dashboard-revenue-amount">
+              <span className="dashboard-revenue-value">{CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}{totalRevenueCollected >= 10000 ? (totalRevenueCollected/1000).toFixed(1) + 'k' : totalRevenueCollected}</span>
+              <span className="dashboard-revenue-subtext">collected this month</span>
+            </div>
+            <div className="dashboard-revenue-chart">
+              {/* Mock 6-month chart layout with actual logic to render bars if we have monthly invoice data */}
+              
+            {invoices.length === 0 ? (
+              <div className="dashboard-empty-state" style={{ height: '80px', margin: '0.5rem 0' }}>
+                <span style={{ marginBottom: '0.5rem' }}>No revenue data yet.</span>
+                <button className="dashboard-link" onClick={() => navigate('/revenue')}>Add revenue</button>
               </div>
             ) : (
-              <div className="flex-col gap-2">
-                {copyAnalytics.slice((templateStatsPage - 1) * 2, templateStatsPage * 2).map((item, idx) => (
-                  <div key={item.id} className="flex-col gap-2" style={{ padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' }}>
-                    <div className="flex justify-between align-center">
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                        {(templateStatsPage === 1 && idx === 0) && <Trophy size={13} style={{ color: '#E8A838', marginRight: '0.25rem', display: 'inline-block', verticalAlign: 'text-bottom' }} />}
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--success-color)' }}>
-                        {(item.rate || 0).toFixed(1)}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>reply rate</span>
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div>Sent: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.sent}</span></div>
-                      <div>Replies: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.positive}</span></div>
-                    </div>
-                    
-                    <div style={{ width: '100%', height: 6, background: 'var(--border-strong)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginTop: '4px' }}>
-                      <div style={{ width: `${Math.min(100, item.rate)}%`, height: '100%', background: 'var(--success-color)', borderRadius: 'var(--radius-sm)', transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                ))}
+              <div className="dashboard-revenue-bars">
 
-                {copyAnalytics.length > 2 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                    <button
-                      type="button"
-                      disabled={templateStatsPage === 1}
-                      onClick={() => setTemplateStatsPage(p => Math.max(1, p - 1))}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                    >
-                      Prev
-                    </button>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      Page {templateStatsPage} of {Math.ceil(copyAnalytics.length / 2)}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={templateStatsPage >= Math.ceil(copyAnalytics.length / 2)}
-                      onClick={() => setTemplateStatsPage(p => p + 1)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+                {[5, 4, 3, 2, 1, 0].map(offset => {
+                  const d = new Date();
+                  d.setMonth(d.getMonth() - offset);
+                  const mYear = d.getFullYear();
+                  const mMonth = d.getMonth();
+                  const mInvoices = invoices.filter(inv => {
+                    // revenue_entries use date or created_at, no status needed usually, but let's check
+                    const date = new Date(inv.date || inv.created_at);
+                    return date.getFullYear() === mYear && date.getMonth() === mMonth;
+                  });
+                  const mTotal = mInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+                  const maxTarget = revenueTarget || 5000;
+                  const heightPct = Math.min(100, (mTotal / maxTarget) * 100);
+                  const isCurrent = offset === 0;
+                  return (
+                    <div 
+                      key={offset} 
+                      className={`dashboard-bar ${isCurrent ? 'current' : ''}`} 
+                      style={{ height: `${heightPct}%` }}
+                      title={`${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${mTotal} in ${d.toLocaleString('default', { month: 'short' })}`}
+                    ></div>
+                  );
+                })}
               </div>
-            )}
+              )}
+              <span className="dashboard-revenue-chart-label">Last 6 months</span>
+            </div>
           </div>
 
-        </div>
+          <div className="dashboard-card dashboard-templates-card">
+            <div className="dashboard-card-header">
+              <h3>Top templates</h3>
+              <span className="dashboard-link">Templates</span>
+            </div>
+            <div className="dashboard-templates-list">
+              {copyAnalytics.slice(0, 3).map(tpl => {
+                const notEnoughData = tpl.sent < 5;
+                return (
+                  <div key={tpl.id} className="dashboard-template-row">
+                    <div className="dashboard-template-info">
+                      <span className="dashboard-template-name">{tpl.title}</span>
+                      <span className="dashboard-template-meta">Sent {tpl.sent} &middot; Replies {tpl.count}</span>
+                    </div>
+                    <div className="dashboard-template-rate">
+                      {notEnoughData ? (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Not enough data</span>
+                      ) : (
+                        <span>{Number(tpl.rate || 0).toFixed(1)}%</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {copyAnalytics.length === 0 && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No template data available yet.</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      </>
-      )}
     </div>
   );
 }

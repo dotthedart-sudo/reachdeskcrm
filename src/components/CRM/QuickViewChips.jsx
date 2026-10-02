@@ -1,16 +1,18 @@
 import React from 'react';
-import { Folder, Users, LayoutGrid } from 'lucide-react';
 
-function QuickViewChip({
-  icon: Icon, iconColor, label, count, onClick,
+function QuickViewTile({
+  iconColor, label, count, onClick,
 }) {
+  const isZero = count === 0;
   return (
-    <button type="button" className="crm-quick-view-chip" onClick={onClick}>
-      <Icon size={14} className="crm-quick-view-chip-icon" style={{ color: iconColor }} aria-hidden />
-      <span className="crm-quick-view-chip-label">{label}</span>
-      {count != null && (
-        <span className="crm-quick-view-chip-count">{count}</span>
-      )}
+    <button type="button" className="crm-quick-view-tile" onClick={onClick}>
+      <div className="crm-quick-view-tile-header">
+        <span className="crm-quick-view-tile-dot" style={{ backgroundColor: iconColor }} aria-hidden />
+        <span className="crm-quick-view-tile-label">{label}</span>
+      </div>
+      <div className={`crm-quick-view-tile-count ${isZero ? 'crm-quick-view-tile-count--zero' : ''}`}>
+        {count}
+      </div>
     </button>
   );
 }
@@ -22,38 +24,27 @@ export default function QuickViewChips({
   totalLeads = 0,
   onSelectFolder,
 }) {
-  const unfiledCount = getLeadCount?.('unfiled') ?? 0;
-
   return (
-    <div className="crm-quick-view-chips">
-      <div className="crm-quick-view-chips-label">Quick views</div>
-      <div className="crm-quick-view-chips-row">
-        {systemViews.map((sys) => (
-          <QuickViewChip
-            key={sys.id}
-            icon={Folder}
-            iconColor={sys.iconColor}
-            label={systemFolderNames[sys.id] || sys.label}
-            count={getLeadCount?.(sys.id) ?? 0}
-            onClick={() => onSelectFolder(sys.id)}
-          />
-        ))}
-        <QuickViewChip
-          icon={LayoutGrid}
-          iconColor="var(--text-muted)"
-          label={systemFolderNames.all || 'All leads'}
-          count={totalLeads}
-          onClick={() => onSelectFolder('all')}
-        />
-        {unfiledCount > 0 && (
-          <QuickViewChip
-            icon={Users}
-            iconColor="var(--text-muted)"
-            label="Unfiled leads"
-            count={unfiledCount}
-            onClick={() => onSelectFolder('unfiled')}
-          />
-        )}
+    <div className="crm-quick-view-section">
+      <div className="crm-quick-view-section-header">
+        <h3 className="crm-quick-view-section-title">Quick views</h3>
+        <button type="button" className="crm-quick-view-all-btn" onClick={() => onSelectFolder('all')}>
+          All leads &middot; {totalLeads}
+        </button>
+      </div>
+      <div className="crm-quick-view-grid">
+        {systemViews.map((sys) => {
+          const count = getLeadCount?.(sys.id) ?? 0;
+          return (
+            <QuickViewTile
+              key={sys.id}
+              iconColor={sys.iconColor}
+              label={systemFolderNames[sys.id] || sys.label}
+              count={count}
+              onClick={() => onSelectFolder(sys.id)}
+            />
+          );
+        })}
       </div>
     </div>
   );

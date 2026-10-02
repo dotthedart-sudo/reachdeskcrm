@@ -102,71 +102,65 @@ export default function FolderBrowser({
     return { mine: classified.mine, sharedWithMe: [], team: [], auto: filteredUserFolders };
   }, [listFilter, classified, filteredUserFolders, isOwner]);
 
+  
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const [newListMenuOpen, setNewListMenuOpen] = useState(false);
+
   return (
     <div className="crm-folder-browser crm-folder-browser--full">
       <div className="crm-folder-browser-header">
         <div>
-          <p className="crm-folder-browser-desc" style={{ margin: 0 }}>
-            Your lists hold assigned leads. Share a list with teammates from the row menu.
+          <h2 className="crm-folder-browser-title">Lists</h2>
+          <p className="crm-folder-browser-desc">
+            Group leads into lists and share them with your team.
           </p>
         </div>
         <div className="crm-folder-browser-actions">
-          <button type="button" className="btn btn-primary btn-sm" onClick={onCreateList}>
-            <FolderPlus size={14} /> Manual list
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onCreateSmartList}>
-            <Sparkles size={14} /> Auto list
-          </button>
-          {canBulkImport && onImportCsv && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onImportCsv}>
-              <Upload size={14} /> Import CSV
+          <div className="dropdown-container" style={{ position: 'relative' }}>
+            <button 
+              type="button" 
+              className="btn btn-secondary"
+              onClick={() => { setImportMenuOpen(!importMenuOpen); setNewListMenuOpen(false); }}
+            >
+              <Upload size={16} /> Import ▾
             </button>
-          )}
-          {canUseIntegrations && onImportSheets && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onImportSheets}>
-              <Database size={14} /> Import from Sheets
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className={listFilter === 'mine' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-          onClick={() => setListFilter('mine')}
-        >
-          Mine
-        </button>
-        <button
-          type="button"
-          className={listFilter === 'shared' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-          onClick={() => setListFilter('shared')}
-        >
-          Shared with me
-        </button>
-        {showTeamTab && (
-          <button
-            type="button"
-            className={listFilter === 'all' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-            onClick={() => setListFilter('all')}
-          >
-            All team
-          </button>
-        )}
-      </div>
-
-      {!hasLeads && (
-        <div className="crm-folder-browser-empty-inline">
-          <div className="crm-folder-browser-empty-icon">
-            <Users size={24} />
+            {importMenuOpen && (
+              <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 10, marginTop: '4px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '4px', minWidth: '150px' }}>
+                {canBulkImport && onImportCsv && (
+                  <button type="button" className="dropdown-item" onClick={() => { onImportCsv(); setImportMenuOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    CSV
+                  </button>
+                )}
+                {canUseIntegrations && onImportSheets && (
+                  <button type="button" className="dropdown-item" onClick={() => { onImportSheets(); setImportMenuOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    Google Sheets
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <strong>No leads yet</strong>
-            <p>Use Import CSV or Import from Sheets above — each import can become its own list.</p>
+          
+          <div className="dropdown-container" style={{ position: 'relative' }}>
+            <button 
+              type="button" 
+              className="btn btn-primary"
+              onClick={() => { setNewListMenuOpen(!newListMenuOpen); setImportMenuOpen(false); }}
+            >
+              + New list ▾
+            </button>
+            {newListMenuOpen && (
+              <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 10, marginTop: '4px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '4px', minWidth: '150px' }}>
+                <button type="button" className="dropdown-item" onClick={() => { onCreateList(); setNewListMenuOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                  Manual
+                </button>
+                <button type="button" className="dropdown-item" onClick={() => { onCreateSmartList(); setNewListMenuOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                  Auto
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       <QuickViewChips
         systemViews={SYSTEM_VIEWS}
@@ -177,20 +171,54 @@ export default function FolderBrowser({
       />
 
       {unfiledCount > 0 && classified.mine.some((f) => (getLeadCount?.(f.id) ?? 0) === 0) && (
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
-          Manual lists count leads assigned to that list.
-          {' '}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            style={{ fontSize: 'inherit', padding: 0 }}
-            onClick={() => onSelectFolder?.('unfiled')}
-          >
-            {unfiledCount} unfiled lead{unfiledCount === 1 ? '' : 's'}
+        <div className="crm-unfiled-banner">
+          <div className="crm-unfiled-banner-icon">
+            <Database size={18} />
+          </div>
+          <div className="crm-unfiled-banner-text">
+            <strong>{unfiledCount} leads aren't in any list yet</strong>
+            <span>Sort them into lists so you can call, message and share them.</span>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onSelectFolder?.('unfiled')}>
+            Review unfiled →
           </button>
-          {' '}are not in any list yet.
-        </p>
+        </div>
       )}
+
+      <div className="crm-lists-table-controls">
+        <h3 className="crm-lists-table-title">Your lists</h3>
+        <div className="crm-lists-table-filters">
+          <div className="crm-segmented-control">
+            <button
+              type="button"
+              className={listFilter === 'mine' ? 'active' : ''}
+              onClick={() => setListFilter('mine')}
+            >
+              Mine
+            </button>
+            <button
+              type="button"
+              className={listFilter === 'shared' ? 'active' : ''}
+              onClick={() => setListFilter('shared')}
+            >
+              Shared with me
+            </button>
+            {showTeamTab && (
+              <button
+                type="button"
+                className={listFilter === 'all' ? 'active' : ''}
+                onClick={() => setListFilter('all')}
+              >
+                All team
+              </button>
+            )}
+          </div>
+          <div className="crm-lists-search">
+            <Sparkles size={14} className="crm-lists-search-icon" />
+            <input type="search" placeholder="Filter lists" />
+          </div>
+        </div>
+      </div>
 
       <ListsTableView
         folders={folders}
@@ -207,8 +235,8 @@ export default function FolderBrowser({
         canExportSheets={canExportSheets}
         getFolderSettings={getFolderSettings}
         onToggleFolderLocalTime={onToggleFolderLocalTime}
+        currentUser={currentUser}
         teamProfilesMap={teamProfilesMap}
-        currentUserId={currentUserId}
         shareCountForFolder={shareCountForFolder}
         canShareFolder={canShareFolder}
         onAssignFolder={onAssignFolder}
