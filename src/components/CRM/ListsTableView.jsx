@@ -231,6 +231,23 @@ function renderFolderRows({
   });
 }
 
+
+const formatRule = (rule) => {
+  if (!rule) return 'Updates automatically';
+  try {
+    const r = typeof rule === 'string' ? JSON.parse(rule) : rule;
+    if (r.field && r.value) {
+      return `${r.field} ${r.operator || '='} ${r.value}`;
+    }
+    if (r.conditions && r.conditions.length) {
+      return r.conditions.map(c => `${c.field} ${c.operator || '='} ${c.value}`).join(' AND ');
+    }
+    return 'Updates automatically';
+  } catch(e) {
+    return 'Updates automatically';
+  }
+};
+
 export default function ListsTableView({
   folders = [],
   userFolders = [],
@@ -332,7 +349,7 @@ export default function ListsTableView({
               typeLabel="Auto"
               typeVariant="auto"
               count={getLeadCount?.(uf.id) ?? 0}
-              countHint={uf.rule_summary || "[Rule summary] - updates automatically"}
+              countHint={uf.rule_summary || formatRule(uf.rule)}
               createdAt={uf.created_at}
               createdBy={creatorLabel(uf.user_id, teamProfilesMap, currentUserId)}
               assigneeId={uf.assignee_id || uf.user_id}

@@ -94,7 +94,7 @@ function formatTimePhrasing(targetDateStr, type) {
 
 export default function Dashboard({ currentUser, onSelectLead }) {
   const navigate = useNavigate();
-  const { showToast, teamProfilesMap = {}, teamIds = [] } = useAppContext() || {};
+  const { showToast, teamProfilesMap = {}, teamIds = [], teamSettings = null } = useAppContext() || {};
   const [metrics, setMetrics] = useState({ total: 0, contacted: 0, replied: 0, positive: 0 });
   const [copyAnalytics, setCopyAnalytics] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -139,16 +139,18 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const hasTeam = hasTeammates(teamIds);
   const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
 
+  const isTeamScope = dashboardScope === 'team' && hasTeam;
+
   const loadDashboardData = async (isMounted = true) => {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
       const { data: teamMembers } = await supabase.rpc('get_my_team_members');
-      const teamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
-      const isTeamScope = teamMembers?.length > 1 && dashboardScope === 'team';
-      const activeScopeIds = isTeamScope ? teamIds : [currentUser.id];
+      const fetchedTeamIds = teamMembers?.length ? teamMembers.map(m => m.id) : [currentUser.id];
+      const activeIsTeamScope = teamMembers?.length > 1 && dashboardScope === 'team';
+      const activeScopeIds = activeIsTeamScope ? fetchedTeamIds : [currentUser.id];
       
-      console.log('[DEBUG_LOAD] Start', { dashboardScope, teamMembersLength: teamMembers?.length, isTeamScope, activeScopeIdsLength: activeScopeIds?.length });
+      console.log('[DEBUG_LOAD] Start', { dashboardScope, teamMembersLength: teamMembers?.length, activeIsTeamScope, activeScopeIdsLength: activeScopeIds?.length });
       
       const reqId = Date.now() + Math.random();
       window.__lastDashboardReq = reqId;
@@ -661,6 +663,11 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           <div className="dashboard-card dashboard-revenue-card">
             <div className="dashboard-card-header">
               <h3>Revenue</h3>
+              {isTeamScope && currentUser?.team_role !== 'owner' && !teamSettings?.members_can_view_revenue && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 400 }}>
+                  (Showing your revenue only)
+                </span>
+              )}
               <button className="dashboard-link" onClick={() => navigate('/settings')}>Set target</button>
             </div>
             <div className="dashboard-revenue-amount">
@@ -675,34 +682,55 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 <span style={{ marginBottom: '0.5rem' }}>No revenue data yet.</span>
                 <button className="dashboard-link" onClick={() => navigate('/revenue')}>Add revenue</button>
               </div>
-            ) : (
-              <div className="dashboard-revenue-bars">
+            ) : (() => {
+              const sixMonthTotals = [5, 4, 3, 2, 1, 0].map(offset => {
+                const d = new Date();
+                d.setMonth(d.getMonth() - offset);
+                const mYear = d.getFullYear();
+                const mMonth = d.getMonth();
+                const mInvoices = invoices.filter(inv => {
+                  if (inv.status?.toLowerCase() !== 'paid') return false;
+                  const date = new Date(inv.paid_at);
+                  return date.getFullYear() === mYear && date.getMonth() === mMonth;
+                });
+                return mInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+              });
+              const maxMonth = Math.max(...sixMonthTotals, 1);
+              const chartDivisor = revenueTarget > 0 ? Math.max(maxMonth, revenueTarget) : maxMonth;
 
-                {[5, 4, 3, 2, 1, 0].map(offset => {
-                  const d = new Date();
-                  d.setMonth(d.getMonth() - offset);
-                  const mYear = d.getFullYear();
-                  const mMonth = d.getMonth();
-                  const mInvoices = invoices.filter(inv => {
-                    // revenue_entries use date or created_at, no status needed usually, but let's check
-                    const date = new Date(inv.date || inv.created_at);
-                    return date.getFullYear() === mYear && date.getMonth() === mMonth;
-                  });
-                  const mTotal = mInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-                  const maxTarget = revenueTarget || 5000;
-                  const heightPct = Math.min(100, (mTotal / maxTarget) * 100);
-                  const isCurrent = offset === 0;
-                  return (
+              return (
+                <div className="dashboard-revenue-bars" style={{ position: 'relative' }}>
+                  {revenueTarget > 0 && (
                     <div 
-                      key={offset} 
-                      className={`dashboard-bar ${isCurrent ? 'current' : ''}`} 
-                      style={{ height: `${heightPct}%` }}
-                      title={`${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${mTotal} in ${d.toLocaleString('default', { month: 'short' })}`}
-                    ></div>
-                  );
-                })}
-              </div>
-              )}
+                      style={{
+                        position: 'absolute',
+                        bottom: `${(revenueTarget / chartDivisor) * 100}%`,
+                        left: 0, right: 0,
+                        borderTop: '1px dashed var(--text-muted, #8E8C86)',
+                        zIndex: 1,
+                        opacity: 0.5
+                      }}
+                      title={`Target: ${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${revenueTarget}`}
+                    />
+                  )}
+                  {sixMonthTotals.map((mTotal, i) => {
+                    const offset = 5 - i;
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - offset);
+                    const heightPct = (mTotal / chartDivisor) * 100;
+                    const isCurrent = offset === 0;
+                    return (
+                      <div 
+                        key={offset} 
+                        className={`dashboard-bar ${isCurrent ? 'current' : ''}`} 
+                        style={{ height: `${heightPct}%`, zIndex: 2, position: 'relative' }}
+                        title={`${CURRENCY_SYMBOLS[currentUser?.default_currency] || '$'}${mTotal} in ${d.toLocaleString('default', { month: 'short' })}`}
+                      ></div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
               <span className="dashboard-revenue-chart-label">Last 6 months</span>
             </div>
           </div>

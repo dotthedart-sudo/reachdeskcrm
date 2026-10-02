@@ -461,6 +461,7 @@ function AppProvider({ children }) {
   const [currencySymbol, setCurrencySymbol] = useState('PKR');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [teamIds, setTeamIds] = useState([]);
+  const [teamSettings, setTeamSettings] = useState(null);
   const [teamProfilesMap, setTeamProfilesMap] = useState({});
   const [leads, setLeads] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -928,15 +929,15 @@ function AppProvider({ children }) {
         if (role === 'owner') {
           invoiceQuery = supabase.from('invoices').select('*').in('user_id', workspaceIds).order('created_at', { ascending: false });
         } else if (role === 'member') {
-          const { data: teamSettings } = await supabase
+          const { data: teamSettingsRes } = await supabase
             .from('teams')
             .select('members_can_view_revenue, members_can_view_invoices')
             .eq('id', p.team_id)
             .maybeSingle();
-          if (teamSettings?.members_can_view_revenue && ids?.length) {
+          if (teamSettingsRes?.members_can_view_revenue && ids?.length) {
             revenueQuery = supabase.from('revenue_entries').select('*').in('user_id', ids).order('paid_at', { ascending: false });
           }
-          if (teamSettings?.members_can_view_invoices && workspaceIds?.length) {
+          if (teamSettingsRes?.members_can_view_invoices && workspaceIds?.length) {
             invoiceQuery = supabase.from('invoices').select('*').in('user_id', workspaceIds).order('created_at', { ascending: false });
           }
         }
@@ -1377,7 +1378,7 @@ function AppProvider({ children }) {
     session, profile, subStatus, loading,
     outreachUnlocked, calendarUnlocked, reportsUnlocked,
     theme, toggleTheme, brandName, currencySymbol, webhookUrl,
-    teamIds, teamProfilesMap, leads, templates, userSnippets, invoices, revenueLogs,
+    teamSettings, teamIds, teamProfilesMap, leads, templates, userSnippets, invoices, revenueLogs,
     adminNotifCount, remindersCount,
     toast, showToast,
     handleLogout, handleRegisterUser, handleLoginUser, handleSaveSettings,
@@ -1608,7 +1609,7 @@ function InvoicesPage() {
 }
 
 function RevenuePage() {
-  const { profile, revenueLogs, currencySymbol, handleAddRevenueLog, handleDeleteRevenueLog } = useAppContext();
+  const { profile, revenueLogs, currencySymbol, handleAddRevenueLog, handleDeleteRevenueLog, teamSettings } = useAppContext();
   return (
     <RevenueTracker
       currentUser={profile}
