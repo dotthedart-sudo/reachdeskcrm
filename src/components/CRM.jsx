@@ -14,6 +14,7 @@ import {
   Database, Info, Users, Phone, Gem
 } from 'lucide-react';
 
+import { PageContainer } from './ui/PageContainer';
 import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './CRM/EditableDropdown';
 import ColumnManager from './CRM/ColumnManager';
 import LeadDrawer from './CRM/LeadDrawer';
@@ -2725,10 +2726,11 @@ export default function CRM({
   }
 
   return (
-    <div
-      className={`crm-workspace flex w-full${isBrowseMode ? '' : ' crm-workspace--list'}${rootClass}`}
-      style={isBrowseMode ? undefined : { minHeight: 'calc(100vh - 120px)' }}
-    >
+    <PageContainer variant={isBrowseMode ? 'standard' : 'wide'}>
+      <div
+        className={`crm-workspace flex w-full${isBrowseMode ? '' : ' crm-workspace--list'}${rootClass}`}
+        style={isBrowseMode ? undefined : { minHeight: 'calc(100vh - 120px)' }}
+      >
       {/* Leads Table Content Section — no Lists sidebar; switch lists via breadcrumb */}
       <div className={`flex-col page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%', gap: 'var(--space-6)' }}>
         {canUseIntegrations && sheetsNeedsReconnect && (
@@ -3938,7 +3940,8 @@ export default function CRM({
         )}
 
         {/* Pagination Section */}
-        <div className="flex justify-between align-center" style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
+        {!isBrowseMode && (
+          <div className="flex justify-between align-center" style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
           <div className="flex gap-4 align-center" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
             <span>
               Showing {totalFiltered === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalFiltered)} of {totalFiltered} leads
@@ -3995,6 +3998,7 @@ export default function CRM({
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* Add Lead Modal */}
@@ -5245,5 +5249,6 @@ export default function CRM({
         />
       )}
     </div>
+    </PageContainer>
   );
 }

@@ -1432,7 +1432,7 @@ function AppProvider({ children }) {
                 border: 'none',
                 borderRadius: 4,
                 padding: '4px 8px',
-                color: '#fff',
+                color: 'var(--accent-on, #fff)',
                 cursor: 'pointer',
                 fontWeight: 600,
                 fontSize: '0.8rem',
@@ -1830,7 +1830,7 @@ export default function App() {
                 onClick={handleSwUpdateRefresh}
                 style={{
                   backgroundColor: '#050505',
-                  color: '#FFFFFF',
+                  color: 'var(--text-primary, #FFFFFF)',
                   border: 'none',
                   padding: '4px 12px',
                   borderRadius: '6px',

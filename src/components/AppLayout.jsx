@@ -75,7 +75,7 @@ export default function AppLayout({
   const planLabel = getSidebarPlanLabel(profile);
   const teamsLocked = isTeamsFeatureLocked(profile);
   const showBillingLink = !isTeamMember(profile) && canManageOwnBilling(profile);
-  const billingLabel = isPaidPlanActive(profile) && profile?.plan !== 'trial'
+  const billingLabel = isPaidPlanActive(profile) && profile?.effective_plan !== 'trial'
     ? 'Manage Plan'
     : 'Upgrade Plan';
 
@@ -189,7 +189,7 @@ export default function AppLayout({
             />
 
             <div className="main-content">
-              {profile?.plan === 'trial' && subStatus === 'active' && !isTeamMember(profile) && isValidTrialEndDate(profile.trial_ends_at) && (() => {
+              {profile?.effective_plan === 'trial' && subStatus === 'active' && !isTeamMember(profile) && isValidTrialEndDate(profile.trial_ends_at) && new Date(profile.trial_ends_at) > Date.now() && (() => {
                 const msLeft = new Date(profile.trial_ends_at) - Date.now();
                 const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
                 const label = daysLeft === 0 ? 'less than a day' : daysLeft === 1 ? '1 day' : `${daysLeft} days`;
@@ -205,7 +205,7 @@ export default function AppLayout({
                   </div>
                 );
               })()}
-              {profile?.plan === 'free' && (
+              {profile?.effective_plan === 'free' && (
                 <div className="rd-info-banner">
                   <Clock size={16} style={{ color: 'var(--status-warm)', flexShrink: 0, marginTop: '2px' }} />
                   <span>

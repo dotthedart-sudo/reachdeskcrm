@@ -63,11 +63,11 @@
        page → sidebar → card/surface nest → hover/active
   */
   
-  --bg: #FFFFFF;
+  --bg: #151515;
   --sidebar-bg: #111111;
-  --bg-raised: #F3F4F6;
-  --bg-active: #E5E7EB;
-  --bg-subtle: #F9FAFB;
+  --bg-raised: #232323;
+  --bg-active: #2A2A2A;
+  --bg-subtle: #1F1F1F;
   --bg-page:         var(--bg); /* L0 — canvas */
   --bg-sidebar:      var(--sidebar-bg); /* L1 — between page and cards */
   --bg-card:         #1C1C1C; /* L2 — main panels / tables */
@@ -112,13 +112,13 @@
 
 /* ── Light mode — black / white / grey ── */
 .dark {
-  --bg: #151515;
-  --bg-raised: #232323;
-  --bg-active: #2A2A2A;
-  --bg-subtle: #1F1F1F;
 }
 
 :root.light {
+  --bg: #FFFFFF;
+  --bg-raised: #F3F4F6;
+  --bg-active: #E5E7EB;
+  --bg-subtle: #F9FAFB;
   --bg-page:         #FFFFFF;
   --bg-sidebar:      #FFFFFF;
   --bg-card:         #F3F4F6;
@@ -265,7 +265,7 @@ h3 { font-size: var(--text-md); }
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0 32px;
+  padding: 0 clamp(18px, 2.75vw, 34px);
   background: var(--bg-page);
   border-bottom: 1px solid var(--border);
 }
@@ -1677,7 +1677,7 @@ select option {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5032,7 +5032,7 @@ select option {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     z-index: 1000;
   }
@@ -7142,9 +7142,4 @@ select option {
 
 
 
-@media (max-width: 1024px) {
-  .app-header { padding: 0 24px; }
-}
-@media (max-width: 768px) {
-  .app-header { padding: 0 16px; }
-}
+

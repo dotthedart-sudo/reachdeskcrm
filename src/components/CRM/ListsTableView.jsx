@@ -232,15 +232,16 @@ function renderFolderRows({
 }
 
 
-const formatRule = (rule) => {
-  if (!rule) return 'Updates automatically';
+const formatRule = (rules) => {
+  if (!rules) return 'Updates automatically';
   try {
-    const r = typeof rule === 'string' ? JSON.parse(rule) : rule;
+    const r = typeof rules === 'string' ? JSON.parse(rules) : rules;
+    if (Array.isArray(r)) {
+      if (r.length === 0) return 'Updates automatically';
+      return r.map(c => `${c.field} ${c.operator || '='} ${c.value}`).join(' and ');
+    }
     if (r.field && r.value) {
       return `${r.field} ${r.operator || '='} ${r.value}`;
-    }
-    if (r.conditions && r.conditions.length) {
-      return r.conditions.map(c => `${c.field} ${c.operator || '='} ${c.value}`).join(' AND ');
     }
     return 'Updates automatically';
   } catch(e) {
@@ -264,11 +265,13 @@ export default function ListsTableView({
   getFolderSettings,
   onToggleFolderLocalTime,
   teamProfilesMap = {},
-  currentUserId,
+  currentUser,
+  currentUserId: currentUserIdProp,
   shareCountForFolder,
   canShareFolder,
   onAssignFolder,
 }) {
+  const currentUserId = currentUserIdProp || currentUser?.id;
   const sections = listSections || {
     mine: folders.filter((f) => f.user_id === currentUserId),
     sharedWithMe: folders.filter((f) => f.user_id !== currentUserId),
@@ -349,7 +352,7 @@ export default function ListsTableView({
               typeLabel="Auto"
               typeVariant="auto"
               count={getLeadCount?.(uf.id) ?? 0}
-              countHint={uf.rule_summary || formatRule(uf.rule)}
+              countHint={formatRule(uf.filter_config?.rules)}
               createdAt={uf.created_at}
               createdBy={creatorLabel(uf.user_id, teamProfilesMap, currentUserId)}
               assigneeId={uf.assignee_id || uf.user_id}
