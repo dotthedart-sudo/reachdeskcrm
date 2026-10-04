@@ -484,6 +484,7 @@ function AppProvider({ children }) {
 
   const showToast = (message, type = 'success', action = null) => {
     setToast({ message, type, action });
+    setTimeout(() => setToast(null), 4500);
   };
 
   const handleDeclinePaidInvite = () => {

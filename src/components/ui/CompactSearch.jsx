@@ -73,7 +73,7 @@ export default function CompactSearch({ placeholder = "Search leads\u2026", clas
     setIsOpen(false);
     setActiveIdx(-1);
     const params = new URLSearchParams();
-    if (result.folder_id) params.set("folder", result.folder_id);
+    params.set("folder", result.folder_id || "unfiled");
     params.set("lead", result.id);
     navigate("/leads?" + params.toString());
   }, [navigate]);

@@ -115,7 +115,7 @@ export default function RevenueTracker({
             Object.keys(currencyTotals).map(curr => (
               <div className="card" key={curr} style={{ textAlign: 'left' }}>
                 <span className="card-title">Total {curr} Earnings</span>
-                <div className="card-value" style={{ color: curr === 'USD' ? 'var(--primary-magenta)' : 'var(--primary-purple)' }} data-ph-mask>
+                <div className="card-value" style={{ color: 'var(--text-primary)' }} data-ph-mask>
                   {CURRENCY_MAP[curr] || curr} 
                   {currencyTotals[curr].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
@@ -227,7 +227,7 @@ export default function RevenueTracker({
           <div className="table-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div className="flex gap-2 align-center">
               <h3>Earnings Log</h3>
-              <span className="badge badge-pro">{filteredLogs.length} Transaction(s)</span>
+              <span className="badge badge-pro" style={{ color: 'var(--accent-green, #10b981)', background: 'color-mix(in srgb, var(--accent-green, #10b981) 16%, transparent)', fontWeight: 600 }}>{filteredLogs.length} Transaction(s)</span>
             </div>
             
             <div className="flex gap-2">

@@ -22,6 +22,7 @@ import ManageCallAttemptsModal from './ManageCallAttemptsModal';
 import EditCallAttemptModal from './EditCallAttemptModal';
 import DataTableShell from '../DataTableShell';
 import { useColumnPrefs } from '../useColumnPrefs';
+import { useAppContext } from '../../../App';
 
 export default function CallQueueTable({
   leads = [],
@@ -53,10 +54,13 @@ export default function CallQueueTable({
   const [editLatest, setEditLatest] = useState(null);
   const [autoOpenCallbackLeadId, setAutoOpenCallbackLeadId] = useState(null);
 
+  const { showToast } = useAppContext() || {};
+
   const columnPrefs = useColumnPrefs({
     tableView: 'call_queue',
     columnDefs,
     setColumnDefs,
+    showToast,
   });
 
   const userId = currentUser?.id;

@@ -797,26 +797,26 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
       className="card flex-col gap-3" 
       onClick={() => onSelect(note)}
       style={{
-        backgroundColor: note.type === 'text' ? note.color || '#ffffff' : '#ffffff',
+        backgroundColor: (note.type === 'text' && note.color && note.color.toLowerCase() !== '#ffffff' && note.color.toLowerCase() !== '#fff') ? note.color : 'var(--bg-card)',
         border: '1px solid var(--border-color)',
         cursor: 'pointer',
         justifyContent: 'space-between',
         transition: 'transform 0.2s, box-shadow 0.2s',
         position: 'relative',
         minHeight: '180px',
-        color: '#1e293b'
+        color: 'var(--text-primary)'
       }}
     >
       <div>
         <div className="flex justify-between align-start">
-          <h4 style={{ fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.25rem', margin: 0 }}>
+          <h4 style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', margin: 0 }}>
           {note.type === 'text' ? <FileText size={14} /> : <Paintbrush size={14} />} {note.title}
           </h4>
           <div style={{ display: 'flex', gap: '0.25rem' }}>
             <button 
               onClick={(e) => { e.stopPropagation(); onPin(note); }}
               className="btn btn-icon" 
-              style={{ padding: '0.2rem', color: note.pinned ? 'var(--accent-blue)' : '#64748b' }}
+              style={{ padding: '0.2rem', color: note.pinned ? 'var(--status-warm, #f59e0b)' : 'var(--text-muted)' }}
             >
               <Pin size={14} />
             </button>
@@ -838,7 +838,7 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
               gap: '0.25rem', 
               fontSize: '0.75rem', 
               fontWeight: 600, 
-              color: '#1e293b', 
+              color: 'var(--text-primary)', 
               background: `${folder.color}15`, 
               border: `1px solid ${folder.color}30`, 
               padding: '0.1rem 0.5rem', 
@@ -857,7 +857,7 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
           <p 
             style={{ 
               fontSize: '0.88rem', 
-              color: '#475569', 
+              color: 'var(--text-secondary)', 
               lineHeight: 1.5, 
               marginTop: '0.5rem',
               display: '-webkit-box',
@@ -873,7 +873,7 @@ function NoteCard({ note, onSelect, onDelete, onPin, folder }) {
         )}
       </div>
 
-      <div style={{ fontSize: '0.75rem', color: '#64748b', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
         <span>{note.type === 'text' ? 'Text Note' : 'Drawing Canvas'}</span>
         <span>{new Date(note.updated_at || note.created_at).toLocaleDateString()}</span>
       </div>

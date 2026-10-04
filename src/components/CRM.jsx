@@ -428,6 +428,7 @@ export default function CRM({
     tableView: outreachMode === 'calls' ? 'call_queue' : view,
     columnDefs,
     setColumnDefs,
+    showToast,
   });
   const { getWidth, setWidth, resetWidth, getRowHeight, setRowHeight, resetRowHeight } = columnPrefs;
 
@@ -1073,7 +1074,7 @@ export default function CRM({
 
         const { data: seeded, error: seedErr } = await supabase
           .from('column_definitions')
-          .insert(defaultDefs)
+          .upsert(defaultDefs, { onConflict: 'user_id,table_view,column_key', ignoreDuplicates: true })
           .select();
 
         if (seedErr) throw seedErr;
@@ -1144,7 +1145,7 @@ export default function CRM({
         if (missingDefs.length > 0) {
           const { data: newCols } = await supabase
             .from('column_definitions')
-            .insert(missingDefs)
+            .upsert(missingDefs, { onConflict: 'user_id,table_view,column_key', ignoreDuplicates: true })
             .select();
           const combined = [...dedupedCols, ...(newCols || [])];
           setColumnDefs(combined);
@@ -1291,7 +1292,9 @@ export default function CRM({
       if (!error && lead) {
         const modifiedLead = preselectStatus ? { ...lead, status: preselectStatus } : lead;
         setSelectedLead(modifiedLead);
+        return lead;
       }
+      return null;
     };
 
     const checkAutoOpen = async () => {
@@ -1299,8 +1302,11 @@ export default function CRM({
 
       const leadFromQuery = searchParams.get('lead');
       if (leadFromQuery) {
-        await openLeadById(leadFromQuery);
+        const loadedLead = await openLeadById(leadFromQuery);
         const next = new URLSearchParams(searchParams);
+        if (!next.get('folder')) {
+          next.set('folder', loadedLead?.folder_id || 'unfiled');
+        }
         next.delete('lead');
         setSearchParams(next, { replace: true });
         return;

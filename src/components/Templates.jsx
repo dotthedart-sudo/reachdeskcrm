@@ -507,8 +507,8 @@ export default function Templates({
             </span>
             <span 
               style={{ 
-                backgroundColor: 'rgba(91, 143, 185, 0.1)', 
-                color: 'var(--accent-blue)', 
+                backgroundColor: 'color-mix(in srgb, var(--status-cold, #5B8FB9) 16%, transparent)', 
+                color: 'var(--text-secondary)', 
                 fontSize: '0.75rem', 
                 padding: '2px 8px', 
                 borderRadius: '10px', 

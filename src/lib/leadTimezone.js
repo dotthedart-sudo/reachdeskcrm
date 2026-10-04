@@ -113,8 +113,8 @@ const CALL_WINDOW_BADGE = {
   good: { label: 'Good time', bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
   early: { label: 'Early', bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' },
   late: { label: 'Late', bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
-  weekend: { label: 'Weekend', bg: 'rgba(107, 114, 128, 0.2)', color: '#9ca3af' },
-  unknown: { label: 'Unknown TZ', bg: 'rgba(107, 114, 128, 0.15)', color: '#9ca3af' },
+  weekend: { label: 'Weekend', bg: 'color-mix(in srgb, var(--text-muted) 16%, transparent)', color: 'var(--text-secondary)' },
+  unknown: { label: 'Unknown TZ', bg: 'color-mix(in srgb, var(--text-muted) 16%, transparent)', color: 'var(--text-secondary)' },
 };
 
 function extractDialCode(normalizedPhone) {

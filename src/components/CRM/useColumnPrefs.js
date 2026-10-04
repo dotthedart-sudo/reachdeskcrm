@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useCrmTableLayout } from './useCrmTableLayout';
 import { getAllViewColumns } from './crmTableColumns';
+import { useAppContext } from '../../App';
 
 const MIN_COL = 64;
 const MAX_COL = 560;
@@ -20,7 +21,17 @@ export function isPersistableColumn(col) {
  * happens in the background and is rolled back if it fails.
  * Width writes are debounced per column.
  */
-export function useColumnPrefs({ tableView, columnDefs, setColumnDefs }) {
+export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast: propsShowToast }) {
+  const { showToast: appShowToast } = useAppContext() || {};
+  const notifyError = useCallback((msg) => {
+    const fn = propsShowToast || appShowToast;
+    if (typeof fn === 'function') {
+      fn(msg, 'error');
+    } else {
+      console.error(msg);
+    }
+  }, [propsShowToast, appShowToast]);
+
   // Legacy localStorage widths: used as the fallback default for columns with
   // no saved width yet, and as the store for non-definition columns (e.g. "Added By").
   const legacy = useCrmTableLayout(tableView);
@@ -55,15 +66,35 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs }) {
     const snapshot = defsRef.current;
     setColumnDefs((prev) => prev.map((c) => (patchesById[c.id] ? { ...c, ...patchesById[c.id] } : c)));
 
-    const results = await Promise.all(
-      ids.map((id) => supabase.from('column_definitions').update(patchesById[id]).eq('id', id)),
-    );
-    const failed = results.find((r) => r.error);
-    if (failed) {
-      console.error('Failed to save column preferences:', failed.error);
+    try {
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const def = snapshot.find((d) => d.id === id);
+          if (!def) return { error: null };
+          const patch = patchesById[id];
+          return supabase
+            .from('column_definitions')
+            .update(patch)
+            .match({
+              user_id: def.user_id,
+              table_view: def.table_view,
+              column_key: def.column_key,
+            });
+        }),
+      );
+      const failed = results.find((r) => r?.error);
+      if (failed?.error) {
+        console.error('Failed to save column preferences:', failed.error);
+        setColumnDefs(snapshot);
+        const errText = failed.error.message || failed.error.details || 'unknown error';
+        notifyError('Failed to save column preferences: ' + errText);
+      }
+    } catch (err) {
+      console.error('Failed to save column preferences:', err);
       setColumnDefs(snapshot);
+      notifyError('Failed to save column preferences: ' + (err?.message || 'unknown error'));
     }
-  }, [setColumnDefs]);
+  }, [setColumnDefs, notifyError]);
 
   // ── Width ────────────────────────────────────────────────────────────────
   const getWidth = useCallback((key) => {
@@ -83,10 +114,28 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs }) {
     setColumnDefs((prev) => prev.map((c) => (c.id === def.id ? { ...c, width: next } : c)));
     clearTimeout(widthTimers.current[def.id]);
     widthTimers.current[def.id] = setTimeout(async () => {
-      const { error } = await supabase.from('column_definitions').update({ width: next }).eq('id', def.id);
-      if (error) console.error('Failed to save column width:', error);
+      try {
+        const { error } = await supabase
+          .from('column_definitions')
+          .update({ width: next })
+          .match({
+            user_id: def.user_id,
+            table_view: def.table_view,
+            column_key: def.column_key,
+          });
+        if (error) {
+          console.error('Failed to save column width:', error);
+          setColumnDefs((prev) => prev.map((c) => (c.id === def.id ? { ...c, width: def.width } : c)));
+          const errText = error.message || error.details || 'unknown error';
+          notifyError('Failed to save column width: ' + errText);
+        }
+      } catch (err) {
+        console.error('Failed to save column width:', err);
+        setColumnDefs((prev) => prev.map((c) => (c.id === def.id ? { ...c, width: def.width } : c)));
+        notifyError('Failed to save column width: ' + (err?.message || 'unknown error'));
+      }
     }, WIDTH_SAVE_DEBOUNCE_MS);
-  }, [defsByKey, legacy, setColumnDefs]);
+  }, [defsByKey, legacy, setColumnDefs, notifyError]);
 
   const resetWidth = useCallback((key) => {
     const def = defsByKey.get(key);

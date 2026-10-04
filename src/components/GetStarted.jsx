@@ -549,7 +549,7 @@ function GetStartedContent({ isAppView, theme, navigate }) {
                   fontWeight: 600,
                   borderRadius: '3px',
                   backgroundColor: accent,
-                  color: theme === 'dark' ? '#0D1117' : '#FFFFFF',
+                  color: '#FFFFFF',
                   fontSize: '0.88rem',
                 }}
               >
