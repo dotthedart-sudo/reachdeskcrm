@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReportsOverviewTab from './ReportsOverviewTab';
 import ReportsPipelineTab from './ReportsPipelineTab';
 import ReportsBreakdownTab from './ReportsBreakdownTab';
+import ReportsErrorBoundary from './ReportsErrorBoundary';
 import { Activity, GitMerge, PieChart } from 'lucide-react';
 
 export default function ReportsTabs({ 
@@ -90,36 +91,42 @@ export default function ReportsTabs({
 
       <div className="reports-tab-content" style={{ padding: '1rem 0' }}>
         {activeTab === 'overview' && (
-          <ReportsOverviewTab 
-            totalLeads={totalLeads}
-            messageCounts={messageCounts}
-            messageConversionRates={messageConversionRates}
-            getMessageStageDisplayLabel={getMessageStageDisplayLabel}
-            trendData={trendData}
-            countMode={countMode}
-            setCountMode={setCountMode}
-          />
+          <ReportsErrorBoundary sectionName="Reports Overview Tab">
+            <ReportsOverviewTab 
+              totalLeads={totalLeads}
+              messageCounts={messageCounts}
+              messageConversionRates={messageConversionRates}
+              getMessageStageDisplayLabel={getMessageStageDisplayLabel}
+              trendData={trendData}
+              countMode={countMode}
+              setCountMode={setCountMode}
+            />
+          </ReportsErrorBoundary>
         )}
         {activeTab === 'pipeline' && (
-          <ReportsPipelineTab 
-            totalLeads={totalLeads}
-            messageCounts={messageCounts}
-            messageConversionRates={messageConversionRates}
-            callCounts={callCounts}
-            callConversionRates={callConversionRates}
-            callActivity={callActivity}
-            callStageIds={callStageIds}
-            getMessageStageDisplayLabel={getMessageStageDisplayLabel}
-            getCallStageLabel={getCallStageLabel}
-          />
+          <ReportsErrorBoundary sectionName="Reports Pipeline Tab">
+            <ReportsPipelineTab 
+              totalLeads={totalLeads}
+              messageCounts={messageCounts}
+              messageConversionRates={messageConversionRates}
+              callCounts={callCounts}
+              callConversionRates={callConversionRates}
+              callActivity={callActivity}
+              callStageIds={callStageIds}
+              getMessageStageDisplayLabel={getMessageStageDisplayLabel}
+              getCallStageLabel={getCallStageLabel}
+            />
+          </ReportsErrorBoundary>
         )}
         {activeTab === 'breakdown' && (
-          <ReportsBreakdownTab 
-            breakdownData={breakdownData}
-            listTableData={listTableData}
-            growthStats={growthStats}
-            countMode={countMode}
-          />
+          <ReportsErrorBoundary sectionName="Reports Breakdown Tab">
+            <ReportsBreakdownTab 
+              breakdownData={breakdownData}
+              listTableData={listTableData}
+              growthStats={growthStats}
+              countMode={countMode}
+            />
+          </ReportsErrorBoundary>
         )}
       </div>
     </div>

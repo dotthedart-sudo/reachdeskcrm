@@ -41,15 +41,17 @@ export function getSuggestionForStatus(status, suggestionRules = [], profile = n
   const fallbacks = {
     'lead': 'Send first pitch',
     'contacted': 'Wait for reply',
+    'replied': 'Reply to lead',
     'positive reply': 'Send proposal',
-    'Invite Sent': 'Wait for reply',
+    'invite sent': 'Wait for reply',
     'booked': 'Prepare for call',
     'no show': 'Send a follow up',
     'rescheduled': 'Prepare for call',
-    'proposal sent': 'Send Calendly',
+    'proposal sent': 'Send invite',
     'followed up': 'Wait for reply',
     'not interested': 'Send a different pitch',
-    'closed won': 'Send invoice'
+    'closed won': 'Send invoice',
+    'client': 'Send invoice',
   };
 
   if (fallbacks[normStatus]) {

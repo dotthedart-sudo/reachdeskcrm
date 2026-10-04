@@ -20,6 +20,7 @@ import {
 } from '../lib/dashboardMetrics';
 import { fetchLeadPipelineStats, fetchReportsAdvancedStats, emptyPipelineStats } from '../lib/leadsQuery';
 import { usePageHeader } from '../context/PageHeaderContext';
+import { PageContainer } from './ui/PageContainer';
 import SegmentedControl from './ui/SegmentedControl';
 import ReportsTabs from './Reports/ReportsTabs';
 import './Reports/Reports.css';
@@ -481,7 +482,7 @@ export default function Reports({ currentUser }) {
   });
 
   return (
-    <div className="reports-page flex-col gap-4">
+    <PageContainer variant="standard" className="reports-page flex-col gap-4">
       {canUseTeamScope && (
         <SegmentedControl
           ariaLabel="Report scope"
@@ -522,7 +523,7 @@ export default function Reports({ currentUser }) {
         </div>
 
         {datePreset === 'custom' && (
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <>
             <div className="reports-filters__group">
               <label htmlFor="reports-from" className="reports-filters__label">From</label>
               <input
@@ -545,7 +546,7 @@ export default function Reports({ currentUser }) {
                 style={{ minWidth: 140 }}
               />
             </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -626,6 +627,6 @@ export default function Reports({ currentUser }) {
           <span>{BRAND_NAME}</span>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

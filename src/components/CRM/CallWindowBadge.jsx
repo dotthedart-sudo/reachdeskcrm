@@ -12,6 +12,7 @@ export default function CallWindowBadge({
   lead,
   defaultCountryCode = '+92',
   showLocalTime = false,
+  compact = false,
   at = new Date(),
   editable = false,
   onTimezoneChange,
@@ -25,6 +26,10 @@ export default function CallWindowBadge({
   const { status, label } = getCallWindowStatus(lead, at, { defaultCountryCode });
   const style = getCallWindowBadgeStyle(status);
   const localTime = showLocalTime ? getLeadLocalTimeLabel(lead, at, defaultCountryCode) : null;
+
+  const tooltip = localTime 
+    ? `Their time: ${localTime}` 
+    : (editable ? 'Set timezone or add phone' : 'No timezone set');
 
   const sorted = useMemo(
     () => [...COUNTRY_TIMEZONE_OPTIONS].sort((a, b) => a.name.localeCompare(b.name)),
@@ -125,7 +130,7 @@ export default function CallWindowBadge({
   );
 
   return (
-    <span ref={wrapRef} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
+    <span ref={wrapRef} style={{ display: 'inline-flex', flexDirection: compact ? 'row' : 'column', alignItems: 'flex-start', gap: 2, position: 'relative' }}>
       <button
         ref={triggerRef}
         type="button"
@@ -135,7 +140,7 @@ export default function CallWindowBadge({
           e.stopPropagation();
           if (editable) setOpen((v) => !v);
         }}
-        title={editable ? 'Set lead timezone / country' : undefined}
+        title={compact ? tooltip : (editable ? 'Set lead timezone / country' : undefined)}
         style={{
           background: style.bg,
           color: style.color,
@@ -145,11 +150,12 @@ export default function CallWindowBadge({
           cursor: editable ? 'pointer' : 'default',
           padding: '2px 8px',
           borderRadius: 999,
+          whiteSpace: 'nowrap',
         }}
       >
         {label}
       </button>
-      {showLocalTime && (
+      {!compact && showLocalTime && (
         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
           {localTime ? `Their time: ${localTime}` : (editable ? 'Set timezone or add phone' : '—')}
         </span>

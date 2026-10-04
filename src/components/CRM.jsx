@@ -11,7 +11,7 @@ import {
   Filter, CheckSquare, Square, Folder, FolderPlus, LayoutGrid, ChevronRight,
   MoreVertical, Check, ThumbsUp, ThumbsDown, SkipForward, AlertCircle, ChevronDown, FileText,
   Settings as Gear, MessageCircle, Zap, ExternalLink, Lock, Lightbulb, Copy, Sparkles, Mail,
-  Database, Info, Users, Phone, Gem
+  Database, Info, Users, Phone, Gem, EyeOff
 } from 'lucide-react';
 
 import { PageContainer } from './ui/PageContainer';
@@ -29,11 +29,10 @@ import FolderBrowser from './CRM/FolderBrowser';
 import CallWindowBadge from './CRM/CallWindowBadge';
 import ListSwitcher from './CRM/ListSwitcher';
 import CopyableCell from './CRM/CopyableCell';
-import ResizableTh from './CRM/ResizableTh';
 import CustomFieldCell from './CRM/CustomFieldCell';
-import ResizableTr from './CRM/ResizableTr';
+import DataTableShell from './CRM/DataTableShell';
+import { useColumnPrefs } from './CRM/useColumnPrefs';
 import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS, CALL_ACTION_DEFAULT_OPTIONS } from './CRM/crmTableColumns';
-import { useCrmTableLayout } from './CRM/useCrmTableLayout';
 import './CRM/DataTableEnhancements.css';
 import ConvertModal from './CRM/ConvertModal';
 import LeadFormFields from './CRM/LeadFormFields';
@@ -425,14 +424,12 @@ export default function CRM({
     }
   });
 
-  const {
-    getWidth,
-    setWidth,
-    resetWidth,
-    getRowHeight,
-    setRowHeight,
-    resetRowHeight,
-  } = useCrmTableLayout(outreachMode === 'calls' ? 'call_queue' : view);
+  const columnPrefs = useColumnPrefs({
+    tableView: outreachMode === 'calls' ? 'call_queue' : view,
+    columnDefs,
+    setColumnDefs,
+  });
+  const { getWidth, setWidth, resetWidth, getRowHeight, setRowHeight, resetRowHeight } = columnPrefs;
 
   // Must be declared before activeListShowsLocalTime (used in its deps)
   const [listSettingsTick, setListSettingsTick] = useState(0);
@@ -1388,6 +1385,7 @@ export default function CRM({
     }
     setLeadForm({
       name: '', email: '', phone: '', company: '', niche: '',
+      outreach_channel: '',
       priority: 'Warm', status: 'Lead', notes: '', folder_id: activeManualFolderId || '',
       template_used: '',
       links: [],
@@ -1451,6 +1449,7 @@ export default function CRM({
           phone: leadForm.phone || null,
           company: leadForm.company || null,
           niche: leadForm.niche || null,
+          outreach_channel: leadForm.outreach_channel || null,
           linkedin_url: urlUpdates.linkedin_url,
           instagram_url: urlUpdates.instagram_url,
           twitter_url: urlUpdates.twitter_url,
@@ -1623,6 +1622,7 @@ export default function CRM({
       phone: lead.phone || '',
       company: lead.company || '',
       niche: lead.niche || '',
+      outreach_channel: lead.outreach_channel || '',
       priority: lead.priority || 'Warm',
       status: lead.status || 'Lead',
       notes: lead.notes || '',
@@ -1687,6 +1687,7 @@ export default function CRM({
           phone: leadForm.phone || null,
           company: leadForm.company || null,
           niche: leadForm.niche || null,
+          outreach_channel: leadForm.outreach_channel || null,
           linkedin_url: urlUpdates.linkedin_url,
           instagram_url: urlUpdates.instagram_url,
           twitter_url: urlUpdates.twitter_url,
@@ -2880,25 +2881,7 @@ export default function CRM({
 
 
         {outreachMode === 'messages' ? (
-        <>
-        {/* Message sub-views */}
-        <div className="crm-tabs">
-          <button
-            type="button"
-            onClick={() => handleViewChange('contact_details')}
-            className={`crm-tab ${view === 'contact_details' ? 'crm-tab--active' : ''}`}
-          >
-            Contact Details
-          </button>
-          <button
-            type="button"
-            onClick={() => handleViewChange('pipeline')}
-            className={`crm-tab ${view === 'pipeline' ? 'crm-tab--active' : ''}`}
-          >
-            Pipeline View
-          </button>
-        </div>
-        </>
+          <></>
         ) : (
         <>
         {/* Calls sub-views */}
@@ -3044,6 +3027,26 @@ export default function CRM({
           </div>
 
           <div className="crm-toolbar__actions">
+            <button
+              type="button"
+              onClick={() => setShowColumnManager(true)}
+              className="btn btn-secondary btn-sm"
+              title="Manage Columns"
+            >
+              <Gear size={14} /> Columns
+            </button>
+            {columnPrefs.viewDefs.filter((c) => !c.is_visible).length > 0 && (
+              <button
+                type="button"
+                className="rd-dt-hidden-chip"
+                onClick={() => setShowColumnManager(true)}
+                title={`${columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden column${columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? '' : 's'}. Click to manage.`}
+              >
+                <EyeOff size={12} />
+                {columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden {columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? 'column' : 'columns'}
+              </button>
+            )}
+
             <div className="crm-toolbar__more">
               <button
                 type="button"
@@ -3459,70 +3462,407 @@ export default function CRM({
             </p>
           </div>
         ) : (
-          <div className="card crm-leads-table-scroll">
-            <table className="data-table data-table--resizable" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--bg-tertiary)' }}>
-                <th className="sticky-left" style={{ width: '40px', minWidth: '40px', maxWidth: '40px', left: 0, zIndex: 3 }}>
-                  <button 
-                    type="button"
-                    onClick={() => handleSelectAll(paginatedList)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: 0 }}
-                  >
-                    {paginatedList.length > 0 && paginatedList.every(l => selectedIds.includes(l.id)) ? (
-                      <CheckSquare size={16} />
-                    ) : (
-                      <Square size={16} />
-                    )}
-                  </button>
-                </th>
-                {view === 'contact_details' && (
-                  <th className="sticky-left" style={{ width: '36px', minWidth: '36px', maxWidth: '36px', userSelect: 'none', left: 40, zIndex: 3 }}>#</th>
+          <DataTableShell
+            prefs={columnPrefs}
+            columns={tableCols}
+            rows={paginatedList}
+            getRowKey={(lead) => lead.id}
+            isRowSelected={(lead) => selectedIds.includes(lead.id)}
+            getRowProps={(lead) => {
+              const isLocked = lockedLeadCutoff !== null && new Date(lead.created_at).getTime() < lockedLeadCutoff;
+              return {
+                style: {
+                  cursor: 'pointer',
+                  opacity: isLocked ? 0.6 : 1,
+                },
+                onClick: () => {
+                  if (isLocked) {
+                    window.openUpgradeLockModal?.();
+                  } else {
+                    setSelectedLead(lead);
+                  }
+                },
+              };
+            }}
+            selectHeader={
+              <button 
+                type="button"
+                onClick={() => handleSelectAll(paginatedList)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: 0 }}
+              >
+                {paginatedList.length > 0 && paginatedList.every(l => selectedIds.includes(l.id)) ? (
+                  <CheckSquare size={16} />
+                ) : (
+                  <Square size={16} />
                 )}
-                {tableCols.map(col => {
-                  const isProject = col.column_key === 'project';
-                  const isProjectUnlocked = !!getLimit(PLAN_LIMITS[getEffectivePlan(currentUser)], 'custom_columns');
-                  return (
-                    <ResizableTh
-                      key={col.id}
-                      columnKey={col.column_key}
-                      width={getWidth(col.column_key)}
-                      onResize={setWidth}
-                      onReset={resetWidth}
-                      className={col.column_key === 'name' ? 'sticky-left' : ''}
-                      style={col.column_key === 'name' ? { position: 'sticky', left: view === 'contact_details' ? 76 : 40, zIndex: 3 } : undefined}
-                    >
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {col.column_key === 'status' ? (
-                          <>
-                            Status
-                            <HelpPopover title="Status & Checkpoints" align="left">
-                              The checkpoint bubble next to Status tracks whether a lead has replied or needs a follow-up check. Click it to log outcomes and automatically schedule/cancel reminders.
-                            </HelpPopover>
-                          </>
-                        ) : col.column_key === 'platform' ? (
-                          <>
-                            Reach
-                            <HelpPopover title="Reach Link System" align="left">
-                              Click a lead's Reach icon to open their outreach channel (LinkedIn, email, etc.) and optionally select a template. The app tracks that you reached out and updates Last Contacted.
-                            </HelpPopover>
-                          </>
-                        ) : col.column_key === 'action_to_take' ? (
-                          'Next step'
-                        ) : col.column_label}
-                        {isProject && !isProjectUnlocked && (
-                          <Lock size={12} style={{ color: 'var(--text-muted)' }} title="Locked on Starter/Trial plans" />
+              </button>
+            }
+            renderSelectCell={(lead) => (
+              <button 
+                type="button"
+                onClick={() => handleToggleSelect(lead.id)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: 0 }}
+              >
+                {selectedIds.includes(lead.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+              </button>
+            )}
+            showRowNumbers={view === 'contact_details'}
+            getRowNumber={(lead, rowIndex) => (currentPage - 1) * pageSize + rowIndex + 1}
+            renderHeaderLabel={(col) => {
+              const isProject = col.column_key === 'project';
+              const isProjectUnlocked = !!getLimit(PLAN_LIMITS[getEffectivePlan(currentUser)], 'custom_columns');
+              return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {col.column_key === 'status' ? (
+                    <>
+                      Status
+                      <HelpPopover title="Status & Checkpoints" align="left">
+                        The checkpoint bubble next to Status tracks whether a lead has replied or needs a follow-up check. Click it to log outcomes and automatically schedule/cancel reminders.
+                      </HelpPopover>
+                    </>
+                  ) : col.column_key === 'platform' ? (
+                    <>
+                      Reach
+                      <HelpPopover title="Reach Link System" align="left">
+                        Click a lead's Reach icon to open their outreach channel (LinkedIn, email, etc.) and optionally select a template. The app tracks that you reached out and updates Last Contacted.
+                      </HelpPopover>
+                    </>
+                  ) : col.column_key === 'action_to_take' ? (
+                    'Next step'
+                  ) : col.column_label}
+                  {isProject && !isProjectUnlocked && (
+                    <Lock size={12} style={{ color: 'var(--text-muted)' }} title="Locked on Starter/Trial plans" />
+                  )}
+                </div>
+              );
+            }}
+            getHeaderText={(col) => (col.column_key === 'action_to_take' ? 'Next step' : col.column_label)}
+            getCellTitle={(lead, col) => getLeadCellCopyValue(lead, col)}
+            renderCell={(lead, col, cellProps, rowIndex) => {
+              const isCustom = !col.is_default;
+              const cellValue = isCustom ? lead.custom_fields?.[col.column_key] : lead[col.column_key];
+              const copyValue = getLeadCellCopyValue(lead, col);
+              const isLocked = lockedLeadCutoff !== null && new Date(lead.created_at).getTime() < lockedLeadCutoff;
+
+              if (col.column_key === 'name') {
+                const displayName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || '—';
+                return (
+                  <td {...cellProps}>
+                    <CopyableCell value={copyValue} onCopied={handleCopyCell}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
+                        {isLocked && (
+                          <span 
+                            className="badge" 
+                            style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'pointer', padding: '2px 6px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            onClick={(e) => { e.stopPropagation(); window.openUpgradeLockModal?.(); }}
+                            title="Locked: Limit exceeded"
+                          >
+                            <Lock size={10} />
+                            Upgrade to unlock
+                          </span>
                         )}
                       </div>
-                    </ResizableTh>
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'template_used') {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={lead.template_used || ''} onCopied={handleCopyCell} variant="inline">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <GroupedTemplateDropdown
+                            value={lead.template_used || ''}
+                            onChange={(val) => handleDropdownChange(lead.id, 'template_used', val)}
+                            templates={templates}
+                            placeholder="None"
+                          />
+                        </div>
+                        {lead.template_used && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPersonalizedMessage(lead, lead.template_used)}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              padding: '4px 6px',
+                              minHeight: 'auto',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderColor: 'var(--border)',
+                              borderRadius: '3px',
+                              flexShrink: 0,
+                            }}
+                            title="Copy personalized message"
+                          >
+                            <Copy size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'status') {
+                const currentStatus = cellValue || 'Lead';
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={currentStatus} onCopied={handleCopyCell} variant="inline">
+                      <GroupedStatusDropdown
+                        value={currentStatus}
+                        onChange={(newVal) => handleDropdownChange(lead.id, 'status', newVal)}
+                        isTableInline={true}
+                        onUpdate={fetchData}
+                      />
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={lead.outreach_channel || ''} onCopied={handleCopyCell} variant="inline">
+                      <GroupedChannelDropdown
+                        value={lead.outreach_channel}
+                        onChange={(newVal) => handleDropdownChange(lead.id, 'outreach_channel', newVal)}
+                        isTableInline={true}
+                        onUpdate={fetchData}
+                        channel="messaging"
+                      />
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'priority') {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={lead.priority || ''} onCopied={handleCopyCell} variant="inline">
+                      <PriorityDropdown
+                        value={lead.priority}
+                        onChange={(val) => handleDropdownChange(lead.id, 'priority', val)}
+                        onUpdate={fetchData}
+                      />
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (isCustom) {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CustomFieldCell
+                      lead={lead}
+                      col={col}
+                      onChange={(newCustomFields) => {
+                        setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, custom_fields: newCustomFields } : l)));
+                      }}
+                      currentUser={currentUser}
+                      templates={templates}
+                      suggestionRules={suggestionRules}
+                      setColumnDefs={setColumnDefs}
+                      onRefresh={fetchData}
+                    />
+                  </td>
+                );
+              }
+
+              if (col.column_type === 'dropdown') {
+                const isActionToTake = col.column_key === 'action_to_take';
+                const expectedSuggestion = isActionToTake ? getSuggestionForStatus(lead.status, suggestionRules, currentUser) : null;
+                const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
+                const remindersEnabled = currentUser?.reminders_enabled !== false;
+                const isSuggestionMismatch = suggestionsEnabled && expectedSuggestion && cellValue !== expectedSuggestion;
+                const isCheckpointDue = remindersEnabled && lead.next_checkpoint_at && new Date(lead.next_checkpoint_at) <= new Date();
+                const showLightbulb = isActionToTake && (isSuggestionMismatch || isCheckpointDue);
+
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <EditableDropdown
+                          value={cellValue}
+                          columnDef={col}
+                          onChange={(val) => {
+                            handleDropdownChange(lead.id, col.column_key, val);
+                          }}
+                          onUpdateColumnDef={(id, newOpts) => {
+                            setColumnDefs(prev => prev.map(c => c.id === id ? { ...c, dropdown_options: newOpts } : c));
+                          }}
+                        />
+                        {showLightbulb && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCheckpointPopoverLead(lead);
+                              setCheckpointPopoverAnchor(e.currentTarget);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              color: isCheckpointDue ? '#ef4444' : '#f59e0b',
+                            }}
+                            title={
+                              isCheckpointDue 
+                                ? 'Action checkpoint is due!' 
+                                : `Suggested action: "${expectedSuggestion}"`
+                            }
+                          >
+                            <Lightbulb size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_type === 'link') {
+                const linkHref = cellValue?.startsWith('http') ? cellValue : cellValue ? `https://${cellValue}` : null;
+                let domain = '—';
+                if (cellValue) {
+                  try { domain = new URL(linkHref).hostname.replace('www.', ''); }
+                  catch { domain = cellValue.slice(0, 22); }
+                }
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={cellValue || ''} onCopied={handleCopyCell}>
+                      {linkHref ? (
+                        <a href={linkHref} target="_blank" rel="noopener noreferrer"
+                          style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <ExternalLink size={11} />{domain}
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_type === 'date') {
+                let formatted = '—';
+                if (cellValue) {
+                  try {
+                    const d = new Date(cellValue);
+                    if (!isNaN(d)) {
+                      formatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                    }
+                  } catch {}
+                }
+                return (
+                  <td {...cellProps} style={{ ...cellProps.style, fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    <CopyableCell value={formatted === '—' ? '' : formatted} onCopied={handleCopyCell}>
+                      {formatted}
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'platform' || col.column_type === 'reach' || col.column_type === 'system') {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <ReachIcons lead={lead} columnDefs={columnDefs} onReachClick={handleReachClick} />
+                  </td>
+                );
+              }
+
+              // ── Clickable URL columns ──────────────────────────────
+              if (['linkedin_url', 'instagram_url', 'twitter_url', 'website'].includes(col.column_key) && cellValue) {
+                const url = cellValue.startsWith('http') ? cellValue : `https://${cellValue}`;
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                    <CopyableCell value={cellValue} onCopied={handleCopyCell}>
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
+                      >
+                        {cellValue}
+                      </a>
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              // ── Clickable email ────────────────────────────────────
+              if (col.column_key === 'email' && cellValue) {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CopyableCell value={cellValue} onCopied={handleCopyCell}>
+                      <a href={`mailto:${cellValue}`}
+                        style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
+                        data-ph-mask
+                      >
+                        {cellValue}
+                      </a>
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              // ── Lead local time (list setting) ───────────────────
+              if (col.column_key === 'local_time') {
+                const defaultCountryCode = currentUser?.default_country_code || '+92';
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <CallWindowBadge
+                      lead={lead}
+                      defaultCountryCode={defaultCountryCode}
+                      showLocalTime
+                      editable
+                      onTimezoneChange={(tz) => handleLeadFieldChange(lead.id, 'timezone', tz || '')}
+                    />
+                  </td>
+                );
+              }
+
+              // ── Phone popup ────────────────────────────────────────
+              if (col.column_key === 'phone') {
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                    <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
+                      <PhonePopup phone={cellValue} />
+                    </CopyableCell>
+                  </td>
+                );
+              }
+
+              return (
+                <td {...cellProps} data-ph-mask>
+                  <CopyableCell value={copyValue} onCopied={handleCopyCell}>
+                    {cellValue || '—'}
+                  </CopyableCell>
+                </td>
+              );
+            }}
+            trailingColumns={[
+              ...(isTeamView ? [{
+                key: '_added_by',
+                header: 'Added By',
+                resizable: true,
+                renderCell: (lead, cellProps) => {
+                  const addedByEmail = teamMemberEmail(teamProfilesMap[lead.user_id]);
+                  return (
+                    <td {...cellProps} style={{ ...cellProps.style, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <CopyableCell value={addedByEmail || ''} onCopied={handleCopyCell}>
+                        {addedByEmail || 'Unknown'}
+                      </CopyableCell>
+                    </td>
                   );
-                })}
-                {isTeamView && (
-                  <ResizableTh columnKey="_added_by" width={getWidth('_added_by')} onResize={setWidth} onReset={resetWidth}>
-                    Added By
-                  </ResizableTh>
-                )}
-                <th style={{ textAlign: 'right', width: 100, minWidth: 100 }}>
+                },
+              }] : []),
+              {
+                key: '_actions',
+                header: (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
                     <HelpPopover title="Column Manager" align="right">
                       Customise which columns appear in your CRM table, in what order, and for which view (Contact Details / Pipeline / Clients). Add custom columns on Pro/Teams.
@@ -3537,402 +3877,35 @@ export default function CRM({
                       <Gear size={16} />
                     </button>
                   </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedList.length === 0 ? (
-                <tr>
-                  <td colSpan={tableCols.length + (isTeamView ? 3 : 2) + (view === 'contact_details' ? 1 : 0)} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No records found matching current parameters.
-                  </td>
-                </tr>
-              ) : (
-                paginatedList.map((lead, rowIndex) => {
-                  const isSelected = selectedIds.includes(lead.id);
-                  const addedByEmail = teamMemberEmail(teamProfilesMap[lead.user_id]);
-                  const isLocked = lockedLeadCutoff !== null && new Date(lead.created_at).getTime() < lockedLeadCutoff;
-
-                  return (
-                    <ResizableTr
-                      key={lead.id}
-                      rowKey={lead.id}
-                      height={getRowHeight(lead.id)}
-                      onResize={setRowHeight}
-                      onReset={resetRowHeight}
-                      onClick={() => {
-                        if (isLocked) {
-                          window.openUpgradeLockModal?.();
-                        } else {
-                          setSelectedLead(lead);
-                        }
-                      }}
-                      style={{
-                        borderBottom: '1px solid var(--border-color)',
-                        background: isSelected ? 'rgba(91, 143, 185, 0.06)' : 'transparent',
-                        cursor: 'pointer',
-                        opacity: isLocked ? 0.6 : 1,
-                      }}
-                    >
-                      <td className="sticky-left" style={{ left: 0, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          onClick={() => handleToggleSelect(lead.id)}
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: 0 }}
+                ),
+                thStyle: { textAlign: 'right', width: 100, minWidth: 100 },
+                renderCell: (lead, cellProps) => (
+                  <td {...cellProps} style={{ ...cellProps.style, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleOpenEditLead(lead)} className="btn btn-secondary btn-sm" title="Edit Lead">
+                        <Edit3 size={12} />
+                      </button>
+                      
+                      {/* Folder dropdown selector directly from row */}
+                      {folders.length > 0 && (
+                        <select
+                          value={lead.folder_id || ''}
+                          onChange={(e) => handleBulkMoveToFolder(e.target.value)}
+                          style={{ width: '80px', fontSize: '0.75rem', padding: '0.1rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)' }}
+                          onClick={(e) => { e.stopPropagation(); setSelectedIds([lead.id]); }}
                         >
-                          {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                        </button>
-                      </td>
-                      {view === 'contact_details' && (
-                        <td className="sticky-left" style={{ padding: '0.75rem 0.5rem 0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', userSelect: 'none', fontVariantNumeric: 'tabular-nums', left: 40, zIndex: 2 }}>
-                          {(currentPage - 1) * pageSize + rowIndex + 1}
-                        </td>
+                          <option value="">Move...</option>
+                          <option value="">(All)</option>
+                          {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
                       )}
-                      
-                      {tableCols.map(col => {
-                        const isCustom = !col.is_default;
-                        const cellValue = isCustom ? lead.custom_fields?.[col.column_key] : lead[col.column_key];
-                        const copyValue = getLeadCellCopyValue(lead, col);
-                        const { key: tdKey, ...tdProps } = { 
-                          key: col.id, 
-                          style: col.column_key === 'name' ? { left: view === 'contact_details' ? 76 : 40, zIndex: 2, ...cellWidth(col.column_key) } : cellWidth(col.column_key),
-                          className: col.column_key === 'name' ? 'sticky-left' : ''
-                        };
-
-                        if (col.column_key === 'name') {
-                          const displayName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || '—';
-                          return (
-                            <td key={tdKey} {...tdProps}>
-                              <CopyableCell value={copyValue} onCopied={handleCopyCell}>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
-                                  {isLocked && (
-                                    <span 
-                                      className="badge" 
-                                      style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'pointer', padding: '2px 6px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                      onClick={(e) => { e.stopPropagation(); window.openUpgradeLockModal?.(); }}
-                                      title="Locked: Limit exceeded"
-                                    >
-                                      <Lock size={10} />
-                                      Upgrade to unlock
-                                    </span>
-                                  )}
-                                </div>
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_key === 'template_used') {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={lead.template_used || ''} onCopied={handleCopyCell} variant="inline">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <GroupedTemplateDropdown
-                                      value={lead.template_used || ''}
-                                      onChange={(val) => handleDropdownChange(lead.id, 'template_used', val)}
-                                      templates={templates}
-                                      placeholder="None"
-                                    />
-                                  </div>
-                                  {lead.template_used && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopyPersonalizedMessage(lead, lead.template_used)}
-                                      className="btn btn-secondary btn-sm"
-                                      style={{
-                                        padding: '4px 6px',
-                                        minHeight: 'auto',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        borderColor: 'var(--border)',
-                                        borderRadius: '3px',
-                                        flexShrink: 0,
-                                      }}
-                                      title="Copy personalized message"
-                                    >
-                                      <Copy size={13} />
-                                    </button>
-                                  )}
-                                </div>
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_key === 'status') {
-                          const currentStatus = cellValue || 'Lead';
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={currentStatus} onCopied={handleCopyCell} variant="inline">
-                                <GroupedStatusDropdown
-                                  value={currentStatus}
-                                  onChange={(newVal) => handleDropdownChange(lead.id, 'status', newVal)}
-                                  isTableInline={true}
-                                  onUpdate={fetchData}
-                                />
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={lead.outreach_channel || ''} onCopied={handleCopyCell} variant="inline">
-                                <GroupedChannelDropdown
-                                  value={lead.outreach_channel}
-                                  onChange={(newVal) => handleDropdownChange(lead.id, 'outreach_channel', newVal)}
-                                  isTableInline={true}
-                                  onUpdate={fetchData}
-                                  channel="messaging"
-                                />
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_key === 'priority') {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={lead.priority || ''} onCopied={handleCopyCell} variant="inline">
-                                <PriorityDropdown
-                                  value={lead.priority}
-                                  onChange={(val) => handleDropdownChange(lead.id, 'priority', val)}
-                                  onUpdate={fetchData}
-                                />
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (isCustom) {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CustomFieldCell
-                                lead={lead}
-                                col={col}
-                                onChange={() => fetchData()}
-                                currentUser={currentUser}
-                                templates={templates}
-                                suggestionRules={suggestionRules}
-                                setColumnDefs={setColumnDefs}
-                                onRefresh={fetchData}
-                              />
-                            </td>
-                          );
-                        }
-
-                        if (col.column_type === 'dropdown') {
-                          const isActionToTake = col.column_key === 'action_to_take';
-                          const expectedSuggestion = isActionToTake ? getSuggestionForStatus(lead.status, suggestionRules, currentUser) : null;
-                          const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
-                          const remindersEnabled = currentUser?.reminders_enabled !== false;
-                          const isSuggestionMismatch = suggestionsEnabled && expectedSuggestion && cellValue !== expectedSuggestion;
-                          const isCheckpointDue = remindersEnabled && lead.next_checkpoint_at && new Date(lead.next_checkpoint_at) <= new Date();
-                          const showLightbulb = isActionToTake && (isSuggestionMismatch || isCheckpointDue);
-
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                  <EditableDropdown
-                                  value={cellValue}
-                                  columnDef={col}
-                                  onChange={(val) => {
-                                    handleDropdownChange(lead.id, col.column_key, val);
-                                  }}
-                                  onUpdateColumnDef={(id, newOpts) => {
-                                    setColumnDefs(prev => prev.map(c => c.id === id ? { ...c, dropdown_options: newOpts } : c));
-                                  }}
-                                />
-                                {showLightbulb && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCheckpointPopoverLead(lead);
-                                      setCheckpointPopoverAnchor(e.currentTarget);
-                                    }}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      cursor: 'pointer',
-                                      padding: '2px',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      color: isCheckpointDue ? '#ef4444' : '#f59e0b',
-                                    }}
-                                    title={
-                                      isCheckpointDue 
-                                        ? 'Action checkpoint is due!' 
-                                        : `Suggested action: "${expectedSuggestion}"`
-                                    }
-                                  >
-                                    <Lightbulb size={16} />
-                                  </button>
-                                )}
-                                </div>
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_type === 'link') {
-                          const linkHref = cellValue?.startsWith('http') ? cellValue : cellValue ? `https://${cellValue}` : null;
-                          let domain = '—';
-                          if (cellValue) {
-                            try { domain = new URL(linkHref).hostname.replace('www.', ''); }
-                            catch { domain = cellValue.slice(0, 22); }
-                          }
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={cellValue || ''} onCopied={handleCopyCell}>
-                                {linkHref ? (
-                                  <a href={linkHref} target="_blank" rel="noopener noreferrer"
-                                    style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                  >
-                                    <ExternalLink size={11} />{domain}
-                                  </a>
-                                ) : (
-                                  <span style={{ color: 'var(--text-muted)' }}>—</span>
-                                )}
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_type === 'date') {
-                          let formatted = '—';
-                          if (cellValue) {
-                            try {
-                              const d = new Date(cellValue);
-                              if (!isNaN(d)) {
-                                formatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                              }
-                            } catch {}
-                          }
-                          return (
-                            <td key={tdKey} {...tdProps} style={{ ...tdProps.style, fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                              <CopyableCell value={formatted === '—' ? '' : formatted} onCopied={handleCopyCell}>
-                                {formatted}
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        if (col.column_key === 'platform' || col.column_type === 'reach' || col.column_type === 'system') {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <ReachIcons lead={lead} columnDefs={columnDefs} onReachClick={handleReachClick} />
-                            </td>
-                          );
-                        }
-
-                        // ── Clickable URL columns ──────────────────────────────
-                        if (['linkedin_url', 'instagram_url', 'twitter_url', 'website'].includes(col.column_key) && cellValue) {
-                          const url = cellValue.startsWith('http') ? cellValue : `https://${cellValue}`;
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
-                              <CopyableCell value={cellValue} onCopied={handleCopyCell}>
-                                <a href={url} target="_blank" rel="noopener noreferrer"
-                                  style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
-                                >
-                                  {cellValue}
-                                </a>
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        // ── Clickable email ────────────────────────────────────
-                        if (col.column_key === 'email' && cellValue) {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CopyableCell value={cellValue} onCopied={handleCopyCell}>
-                                <a href={`mailto:${cellValue}`}
-                                  style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
-                                  data-ph-mask
-                                >
-                                  {cellValue}
-                                </a>
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        // ── Lead local time (list setting) ───────────────────
-                        if (col.column_key === 'local_time') {
-                          const defaultCountryCode = currentUser?.default_country_code || '+92';
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()}>
-                              <CallWindowBadge
-                                lead={lead}
-                                defaultCountryCode={defaultCountryCode}
-                                showLocalTime
-                                editable
-                                onTimezoneChange={(tz) => handleLeadFieldChange(lead.id, 'timezone', tz || '')}
-                              />
-                            </td>
-                          );
-                        }
-
-                        // ── Phone popup ────────────────────────────────────────
-                        if (col.column_key === 'phone') {
-                          return (
-                            <td key={tdKey} {...tdProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
-                              <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
-                                <PhonePopup phone={cellValue} />
-                              </CopyableCell>
-                            </td>
-                          );
-                        }
-
-                        return (
-                          <td key={tdKey} {...tdProps} data-ph-mask>
-                            <CopyableCell value={copyValue} onCopied={handleCopyCell}>
-                              {cellValue || '—'}
-                            </CopyableCell>
-                          </td>
-                        );
-                      })}
-
-                      {isTeamView && (
-                        <td style={{ ...cellWidth('_added_by'), fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          <CopyableCell value={addedByEmail || ''} onCopied={handleCopyCell}>
-                            {addedByEmail || 'Unknown'}
-                          </CopyableCell>
-                        </td>
-                      )}
-                      
-                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
-                          <button onClick={() => handleOpenEditLead(lead)} className="btn btn-secondary btn-sm" title="Edit Lead">
-                            <Edit3 size={12} />
-                          </button>
-                          
-                          {/* Folder dropdown selector directly from row */}
-                          {folders.length > 0 && (
-                            <select
-                              value={lead.folder_id || ''}
-                              onChange={(e) => handleBulkMoveToFolder(e.target.value)}
-                              style={{ width: '80px', fontSize: '0.75rem', padding: '0.1rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)' }}
-                              onClick={(e) => { e.stopPropagation(); setSelectedIds([lead.id]); }}
-                            >
-                              <option value="">Move...</option>
-                              <option value="">(All)</option>
-                              {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                            </select>
-                          )}
-                        </div>
-                      </td>
-                    </ResizableTr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </td>
+                ),
+              },
+            ]}
+            emptyMessage="No records found matching current parameters."
+          />
         )}
         </>
         )}
@@ -5113,7 +5086,7 @@ export default function CRM({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px' }}>
                   {[
                     'Send first pitch', 'Wait for reply', 'Send a follow up',
-                    'Send a different pitch', 'Send proposal', 'Send Calendly',
+                    'Send a different pitch', 'Reply to lead', 'Send proposal', 'Send invite',
                     'Prepare for call', 'Send invoice', 'No action needed'
                   ].map(act => (
                     <label key={act} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>

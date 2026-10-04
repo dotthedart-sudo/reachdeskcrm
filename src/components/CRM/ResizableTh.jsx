@@ -56,7 +56,6 @@ export default function ResizableTh({
         width,
         minWidth: width,
         maxWidth: width,
-        position: style?.position || 'relative',
         overflow: 'hidden',
       }}
     >

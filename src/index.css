@@ -238,7 +238,8 @@ h3 { font-size: var(--text-md); }
 .main-content {
   flex: 1;
   padding: clamp(16px, 2vw, 24px) clamp(18px, 2.75vw, 34px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: clip;
   min-height: 0;
   display: flex;
   flex-direction: column;

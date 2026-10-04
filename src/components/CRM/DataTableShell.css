@@ -1,0 +1,358 @@
+/* ── Shared Leads table shell (Message Outreach + Cold Calls) ──────────────
+   Every rule is scoped to .rd-dt-shell so both tables render identically and
+   legacy .data-table overrides in index.css can't leak in. */
+
+.rd-dt-shell {
+  /* Header uses card/header token; body cells use solid page background */
+  --rd-dt-head-bg: var(--bg-card);
+  --rd-dt-bg: var(--bg-page, #FFFFFF);
+  --rd-dt-hover: var(--bg-card-hover);
+  --rd-dt-tint: rgb(91, 143, 185);
+  --rd-dt-selected: color-mix(in srgb, var(--rd-dt-tint) 9%, var(--rd-dt-bg));
+  --rd-dt-selected-hover: color-mix(in srgb, var(--rd-dt-tint) 12%, var(--rd-dt-hover));
+  --rd-dt-line: var(--border);
+  --rd-dt-accent: var(--status-cold);
+
+  position: relative;
+  overflow: auto;
+  max-width: 100%;
+  max-height: calc(100vh - var(--rd-dt-offset, 140px));
+  background: var(--rd-dt-bg);
+  border-radius: var(--radius-md);
+  overscroll-behavior-x: contain;
+  flex-shrink: 0;
+}
+
+.rd-dt-shell > table.rd-dt {
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* ── Grid: hairline dividers between every column, full height ─────────── */
+.rd-dt-shell .rd-dt > thead > tr > th,
+.rd-dt-shell .rd-dt > tbody > tr > td {
+  padding: 8px 14px;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: 1px solid var(--rd-dt-line) !important;
+  border-bottom: 1px solid var(--rd-dt-line) !important;
+  overflow: hidden;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.rd-dt-shell .rd-dt > thead > tr > th:last-child,
+.rd-dt-shell .rd-dt > tbody > tr > td:last-child {
+  border-right: none !important;
+}
+
+.rd-dt-shell .rd-dt > tbody > tr:last-child > td {
+  border-bottom: none !important;
+}
+
+/* ── Header: sticky, 38px, 12px/500 muted ──────────────────────────────── */
+.rd-dt-shell .rd-dt > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted) !important;
+  background-color: var(--rd-dt-head-bg) !important;
+  white-space: nowrap;
+  text-align: left;
+  user-select: none;
+  overflow: visible; /* lets the resize line sit on the divider */
+}
+
+.rd-dt-th__inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rd-dt-th__label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-dt-th__pin {
+  flex-shrink: 0;
+  color: var(--rd-dt-accent);
+}
+
+.rd-dt-shell .rd-dt th.rd-dt-draggable {
+  cursor: grab;
+}
+
+.rd-dt-menu-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.rd-dt-shell .rd-dt th:hover .rd-dt-menu-btn,
+.rd-dt-menu-btn[aria-expanded='true'],
+.rd-dt-menu-btn:focus-visible {
+  opacity: 1;
+}
+
+.rd-dt-menu-btn:hover,
+.rd-dt-menu-btn[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.rd-dt-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--status-cold) 35%, var(--border));
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--status-cold) 10%, transparent);
+  color: var(--status-cold);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.rd-dt-hidden-chip:hover {
+  background: color-mix(in srgb, var(--status-cold) 20%, transparent);
+  border-color: var(--status-cold);
+}
+
+/* ── Resize handle: on the divider, accent on hover / drag ─────────────── */
+.rd-dt-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.rd-dt-resize::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -1px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.12s ease, width 0.12s ease;
+}
+
+.rd-dt-resize:hover::after,
+.rd-dt-resize.is-active::after {
+  width: 2px;
+  background: var(--rd-dt-accent);
+}
+
+body.rd-dt-resizing,
+body.rd-dt-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* ── Body rows: 50px, 14px, solid backgrounds ──────────────────────────── */
+.rd-dt-shell .rd-dt > tbody > tr > td {
+  height: 50px;
+  font-size: 14px;
+  background-color: var(--rd-dt-bg) !important;
+}
+
+.rd-dt-shell .rd-dt > tbody > tr:hover > td {
+  background-color: var(--rd-dt-hover) !important;
+}
+
+.rd-dt-shell .rd-dt > tbody > tr.is-selected > td {
+  background-color: var(--rd-dt-selected) !important;
+}
+
+.rd-dt-shell .rd-dt > tbody > tr.is-selected:hover > td {
+  background-color: var(--rd-dt-selected-hover) !important;
+}
+
+.rd-dt-shell .rd-dt > tbody > tr.rd-dt-empty:hover > td {
+  background-color: var(--rd-dt-bg) !important;
+}
+
+/* ── Utility columns ───────────────────────────────────────────────────── */
+.rd-dt-shell .rd-dt > thead > tr > th.rd-dt-select,
+.rd-dt-shell .rd-dt > tbody > tr > td.rd-dt-select {
+  padding: 0 !important;
+  text-align: center;
+  overflow: visible;
+}
+
+.rd-dt-shell .rd-dt .rd-dt-select > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.rd-dt-shell .rd-dt > thead > tr > th.rd-dt-rownum,
+.rd-dt-shell .rd-dt > tbody > tr > td.rd-dt-rownum {
+  padding: 0 10px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Pinned columns ────────────────────────────────────────────────────── */
+.rd-dt-shell .rd-dt > tbody > tr > td.rd-dt-pinned {
+  position: sticky;
+  z-index: 2;
+}
+
+.rd-dt-shell .rd-dt > thead > tr > th.rd-dt-pinned {
+  z-index: 4;
+}
+
+.rd-dt-shell.is-scrolled-x .rd-dt .rd-dt-pin-last {
+  border-right-color: var(--border-strong) !important;
+  box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.28);
+}
+
+/* ── Clip (default): one line, ellipsis ────────────────────────────────── */
+.rd-dt-shell .rd-dt td.rd-dt-clip {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rd-dt-shell .rd-dt td.rd-dt-clip .copyable-cell__content,
+.rd-dt-shell .rd-dt td.rd-dt-clip .copyable-cell__slot {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Wrap: up to 3 lines, row grows ────────────────────────────────────── */
+.rd-dt-shell .rd-dt td.rd-dt-wrap {
+  white-space: normal;
+  line-height: 1.4;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.rd-dt-shell .rd-dt td.rd-dt-wrap .copyable-cell__content,
+.rd-dt-shell .rd-dt td.rd-dt-wrap .copyable-cell__slot {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  max-height: calc(1.4em * 3);
+}
+
+.rd-dt-shell .rd-dt td.rd-dt-wrap .copyable-cell__content > div {
+  display: inline !important;
+}
+
+/* ── Always clipped: pills/dropdowns keep natural size, cell hides overflow */
+.rd-dt-shell .rd-dt td.rd-dt-fixed {
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.rd-dt-shell .rd-dt td.rd-dt-fixed .copyable-cell__slot {
+  flex: 1 0 auto;
+  min-width: max-content;
+}
+
+/* ── Drag to reorder ───────────────────────────────────────────────────── */
+.rd-dt-shell .rd-dt .rd-dt-drag-source > * {
+  opacity: 0.35;
+}
+
+body.rd-dt-col-dragging,
+body.rd-dt-col-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.rd-dt-drop-line {
+  position: fixed;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--status-cold);
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.rd-dt-ghost {
+  position: fixed;
+  z-index: 2001;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised, var(--bg-card));
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+/* ── Header menu ───────────────────────────────────────────────────────── */
+.rd-dt-menu {
+  position: fixed;
+  z-index: 1500;
+}
+
+.rd-dt-menu .rd-menu__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.rd-dt-menu__lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rd-dt-menu__note {
+  padding: 2px 0.7rem 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

@@ -13,21 +13,11 @@
   vertical-align: middle;
 }
 
-.crm-leads-table-scroll,
-.call-queue-table-scroll {
+.rd-table-shell {
   padding: 0;
-  overflow: visible;
-  width: max-content;
-  min-width: 100%;
-  height: auto;
-}
-
-@media (max-width: 768px) {
-  .crm-leads-table-scroll,
-  .call-queue-table-scroll {
-    overflow-x: auto;
-    width: 100%;
-  }
+  overflow: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 280px);
 }
 
 .crm-resizable-th__label {
@@ -178,30 +168,33 @@ body.crm-resizing-row * {
 
 
 /* Sticky Left Columns */
-.data-table th.sticky-left,
-.data-table td.sticky-left {
+.rd-table-shell .data-table thead th {
   position: sticky;
-  z-index: 2;
-  background-color: var(--bg-primary);
-}
-
-.card .data-table th.sticky-left,
-.card .data-table td.sticky-left {
+  top: 0;
+  z-index: 10;
   background-color: var(--bg-card);
 }
 
-.data-table th.sticky-left {
-  z-index: 3;
+.rd-table-shell .data-table th.sticky-left,
+.rd-table-shell .data-table td.sticky-left {
+  position: sticky;
+  z-index: 11;
+  background-color: var(--bg-card);
+  border-right: 1px solid var(--border-color);
+}
+
+.rd-table-shell .data-table thead th.sticky-left {
+  z-index: 12;
 }
 
 /* Row Hover State for Sticky Left */
-.data-table tbody tr:hover td.sticky-left {
-  background-color: var(--bg-card-hover) !important;
+.rd-table-shell .data-table tbody tr:hover td.sticky-left {
+  background-color: var(--bg-hover) !important;
 }
 
 /* Row Selected State for Sticky Left */
-.data-table tbody tr[data-selected="true"] td.sticky-left,
-.data-table tbody tr.row-selected td.sticky-left {
+.rd-table-shell .data-table tbody tr[data-selected="true"] td.sticky-left,
+.rd-table-shell .data-table tbody tr.row-selected td.sticky-left {
   background-color: var(--bg-selected) !important;
 }
 

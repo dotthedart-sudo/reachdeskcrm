@@ -7,6 +7,8 @@ export default function ReportsFunnel({
   conversionRates,
   totalLeads,
   getStageLabel,
+  countMode,
+  colorsMap = {},
 }) {
   if (!stages?.length || totalLeads === 0) return null;
 
@@ -20,15 +22,16 @@ export default function ReportsFunnel({
         const count = counts[stage] ?? 0;
         const widthPct = Math.max(4, Math.round((count / maxCount) * 100));
         const prevStage = idx > 0 ? stages[idx - 1] : null;
-        const rate = prevStage ? conversionRates[stage] : null;
+        const ratePct = Math.min(100, Math.round((count / maxCount) * 100));
+        const color = colorsMap?.[stage?.toLowerCase()] || 'var(--text-muted)';
 
         return (
           <React.Fragment key={stage}>
             {idx > 0 && (
               <div className="reports-funnel__connector" aria-hidden="true">
                 <span className="reports-funnel__connector-line" />
-                {countMode === 'cumulative' && rate != null && (
-                  <span className="reports-funnel__rate">{Math.min(Number(rate), 100)}%</span>
+                {countMode === 'cumulative' && ratePct > 0 && (
+                  <span className="reports-funnel__rate">{ratePct}%</span>
                 )}
                 <span className="reports-funnel__connector-line" />
               </div>
@@ -48,7 +51,7 @@ export default function ReportsFunnel({
               <div className="reports-funnel__bar-track">
                 <div
                   className="reports-funnel__bar-fill"
-                  style={{ width: `${widthPct}%` }}
+                  style={{ width: `${widthPct}%`, backgroundColor: color }}
                 />
               </div>
             </div>

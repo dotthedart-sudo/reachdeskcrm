@@ -255,6 +255,43 @@ export default function GroupedStatusDropdown({
     setSearch('');
   };
 
+  const handleCreateAndSelect = async (labelText) => {
+    const trimmed = (labelText || '').trim();
+    if (!trimmed) return;
+    const existing = statuses.find(s => s.label.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      handleSelect(existing.label);
+      return;
+    }
+    const color = PRESET_COLORS[statuses.length % PRESET_COLORS.length];
+    const newStatusObj = { label: trimmed, color };
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from('custom_statuses')
+          .insert({
+            user_id: userId,
+            channel,
+            label: trimmed,
+            color,
+            sort_order: statuses.length,
+          })
+          .select()
+          .single();
+        if (!error && data) {
+          clearStatusCache(userId);
+          setStatuses(prev => [...prev, data]);
+          if (onUpdate) onUpdate();
+        }
+      } catch (err) {
+        console.error('Error adding custom status:', err);
+      }
+    } else {
+      setStatuses(prev => [...prev, newStatusObj]);
+    }
+    handleSelect(trimmed);
+  };
+
   const handleAdd = async () => {
     if (!newLabel.trim() || !userId) return;
     if (statuses.some(s => s.label.toLowerCase() === newLabel.trim().toLowerCase())) {
@@ -483,13 +520,35 @@ export default function GroupedStatusDropdown({
               placeholder="Search status..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (filteredOptions.length === 1) {
+                    handleSelect(filteredOptions[0].label);
+                  } else if (filteredOptions.length === 0 && search.trim()) {
+                    handleCreateAndSelect(search);
+                  }
+                }
+              }}
               autoFocus
             />
           </div>
 
           <div className="rd-menu__list">
             {filteredOptions.length === 0 ? (
-              <div className="rd-menu__empty">No matching statuses</div>
+              search.trim() ? (
+                <button
+                  type="button"
+                  className="rd-menu__item"
+                  onClick={() => handleCreateAndSelect(search)}
+                  style={{ color: 'var(--status-cold)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={13} />
+                  <span className="rd-menu__item-label">Add &quot;{search.trim()}&quot;</span>
+                </button>
+              ) : (
+                <div className="rd-menu__empty">No matching statuses</div>
+              )
             ) : (
               filteredOptions.map(opt => {
                 const isSelected = opt.label.toLowerCase() === displayValue.toLowerCase();
@@ -575,6 +634,12 @@ export default function GroupedStatusDropdown({
                       type="text"
                       value={editingLabel}
                       onChange={e => setEditingLabel(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveEdit(idx);
+                        }
+                      }}
                       style={{
                         background: 'var(--bg-secondary)',
                         border: '1px solid var(--border-color)',
@@ -621,6 +686,12 @@ export default function GroupedStatusDropdown({
                 placeholder="Label..."
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAdd();
+                  }
+                }}
                 style={{
                   background: 'var(--bg-secondary)',
                   border: '1px solid var(--border-color)',

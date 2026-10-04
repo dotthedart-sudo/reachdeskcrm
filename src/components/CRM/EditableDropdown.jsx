@@ -20,8 +20,9 @@ const PROTECTED_ACTION_VALUES = new Set([
   'Wait for reply',
   'Send a follow up',
   'Send a different pitch',
+  'Reply to lead',
   'Send proposal',
-  'Send Calendly',
+  'Send invite',
   'Prepare for call',
   'Send invoice',
   'No action needed',
@@ -36,8 +37,9 @@ export const DEFAULT_ACTION_OPTIONS = [
   { label: 'Wait for reply', color: '#6b7280' },
   { label: 'Send a follow up', color: '#f59e0b' },
   { label: 'Send a different pitch', color: '#8b5cf6' },
+  { label: 'Reply to lead', color: '#3b82f6' },
   { label: 'Send proposal', color: '#5B8FB9' },
-  { label: 'Send Calendly', color: '#6366f1' },
+  { label: 'Send invite', color: '#6366f1' },
   { label: 'Hand off to calls', color: '#8b5cf6' },
   { label: 'Send invoice', color: '#10b981' },
   { label: 'No action needed', color: '#6b7280' }
@@ -174,8 +176,9 @@ const ACTION_COLORS = {
   'Wait for reply': '#6b7280',
   'Send a follow up': '#f59e0b',
   'Send a different pitch': '#8b5cf6',
+  'Reply to lead': '#3b82f6',
   'Send proposal': '#5B8FB9',
-  'Send Calendly': '#6366f1',
+  'Send invite': '#6366f1',
   'Prepare for call': '#8b5cf6',
   'Send invoice': '#10b981',
   'No action needed': '#6b7280',
@@ -361,6 +364,12 @@ const ACTION_COLORS = {
                     type="text"
                     value={newOptionLabel}
                     onChange={e => setNewOptionLabel(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddOption();
+                      }
+                    }}
                     placeholder="e.g. High Priority"
                     className="form-input"
                     style={{ flex: 1 }}

@@ -12,8 +12,9 @@ const STATUS_RULES_KEY = (userId) => `crm_call_status_rules_${userId}`;
 export const DEFAULT_MESSAGING_ACTION_RULES = [
   { status: 'Lead', suggested_action: 'Send first pitch' },
   { status: 'Contacted', suggested_action: 'Wait for reply' },
+  { status: 'Replied', suggested_action: 'Reply to lead' },
   { status: 'Positive Reply', suggested_action: 'Send proposal' },
-  { status: 'Proposal Sent', suggested_action: 'Send Calendly' },
+  { status: 'Proposal Sent', suggested_action: 'Send invite' },
   { status: 'Invite Sent', suggested_action: 'Wait for reply' },
   { status: 'Booked', suggested_action: 'Prepare for call' },
   { status: 'Followed up', suggested_action: 'Wait for reply' },
@@ -22,7 +23,7 @@ export const DEFAULT_MESSAGING_ACTION_RULES = [
   { status: 'Closed Won', suggested_action: 'Send invoice' },
   { status: 'Waiting', suggested_action: 'Wait for reply' },
   { status: 'Rescheduled', suggested_action: 'Prepare for call' },
-  { status: 'Client', suggested_action: 'No action needed' },
+  { status: 'Client', suggested_action: 'Send invoice' },
 ];
 
 export const MESSAGING_STATUS_OPTIONS = DEFAULT_MESSAGING_ACTION_RULES.map((r) => r.status);

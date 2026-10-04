@@ -10,6 +10,7 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
   const isCustom = !col.is_default;
   // Fallback for non-custom fields (though this component is meant for custom_fields)
   const cellValue = isCustom ? lead.custom_fields?.[col.column_key] : lead[col.column_key];
+  const [localVal, setLocalVal] = useState(cellValue);
   const [editing, setEditing] = useState(false);
   const [tempVal, setTempVal] = useState(cellValue || '');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
@@ -17,14 +18,15 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
   
   const linkPopoverRef = useRef(null);
   
-  // Format link array for backwards compat
-  const linkArray = Array.isArray(cellValue) 
-    ? cellValue 
-    : (typeof cellValue === 'string' && cellValue ? [cellValue] : []);
-
   useEffect(() => {
+    setLocalVal(cellValue);
     setTempVal(cellValue || '');
   }, [cellValue]);
+
+  // Format link array for backwards compat
+  const linkArray = Array.isArray(localVal) 
+    ? localVal 
+    : (typeof localVal === 'string' && localVal ? [localVal] : []);
 
   useEffect(() => {
     if (!showLinkPopover) return undefined;
@@ -38,50 +40,47 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
   }, [showLinkPopover]);
 
   const handleSave = async (val) => {
-    if (val === cellValue) return;
+    if (val === localVal) return;
+    setLocalVal(val);
 
     if (isCustom) {
-      // Fetch latest lead to merge safely
-      const { data: latestLead, error } = await supabase
-        .from('leads')
-        .select('custom_fields')
-        .eq('id', lead.id)
-        .single();
-        
-      if (error) {
-        console.error('Error fetching latest lead for custom field update:', error);
-        return;
-      }
-
-      const mergedCustomFields = { ...(latestLead.custom_fields || {}) };
+      const mergedCustomFields = { ...(lead.custom_fields || {}) };
       mergedCustomFields[col.column_key] = val;
+      onChange?.(mergedCustomFields); // Optimistic immediate parent notification
 
-      const { error: updateErr } = await supabase
-        .from('leads')
-        .update({ custom_fields: mergedCustomFields })
-        .eq('id', lead.id);
+      try {
+        const { data: latestLead } = await supabase
+          .from('leads')
+          .select('custom_fields')
+          .eq('id', lead.id)
+          .single();
+          
+        const dbCustomFields = { ...(latestLead?.custom_fields || {}), [col.column_key]: val };
 
-      if (!updateErr) {
-        onChange?.(mergedCustomFields); // Notify parent (e.g. setLeads)
-        
-        logLeadTimelineEvent({
-          leadId: lead.id,
-          userId: currentUser?.id,
-          teamId: currentUser?.team_id || null,
-          eventType: 'field_updated',
-          summary: `Updated ${col.column_label || col.column_key}`,
-          detail: { field: col.column_key, from: cellValue || 'None', to: val }
-        });
-        
-        if (onRefresh) onRefresh();
+        const { error: updateErr } = await supabase
+          .from('leads')
+          .update({ custom_fields: dbCustomFields })
+          .eq('id', lead.id);
+
+        if (!updateErr) {
+          logLeadTimelineEvent({
+            leadId: lead.id,
+            userId: currentUser?.id,
+            teamId: currentUser?.team_id || null,
+            eventType: 'field_updated',
+            summary: `Updated ${col.column_label || col.column_key}`,
+            detail: { field: col.column_key, from: cellValue || 'None', to: val }
+          });
+        }
+      } catch (err) {
+        console.error('Error saving custom field:', err);
       }
     } else {
-      // For standard fields, though standard fields should probably use existing logic. 
-      // If we use this for standard text fields:
-      const { error } = await supabase.from('leads').update({ [col.column_key]: val }).eq('id', lead.id);
-      if (!error) {
-        onChange?.(val);
-        if (onRefresh) onRefresh();
+      onChange?.(val);
+      try {
+        await supabase.from('leads').update({ [col.column_key]: val }).eq('id', lead.id);
+      } catch (err) {
+        console.error('Error saving field:', err);
       }
     }
   };
@@ -131,7 +130,7 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
   if (col.column_type === 'dropdown') {
     return (
       <EditableDropdown
-        value={cellValue}
+        value={localVal}
         columnDef={col}
         onChange={(val) => handleSave(val)}
         onUpdateColumnDef={(id, newOpts) => {
@@ -147,7 +146,7 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
     return (
       <DateTimePickerCell
         compact
-        value={cellValue || null}
+        value={localVal || null}
         timeZone={currentUser?.timezone || 'UTC'}
         onChange={(iso) => handleSave(iso)}
         placeholder="—"
@@ -283,8 +282,8 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
       }}
       style={{ minHeight: '24px', display: 'flex', alignItems: 'center', cursor: 'text' }}
     >
-      <CopyableCell value={cellValue || ''} onCopied={() => {}} variant="inline">
-        {cellValue || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      <CopyableCell value={localVal || ''} onCopied={() => {}} variant="inline">
+        {localVal || <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </CopyableCell>
     </div>
   );

@@ -40,6 +40,54 @@ export function getTableColumns(columnDefs, view) {
     .sort((a, b) => a.sort_order - b.sort_order);
 }
 
+/** All column defs for a view (visible + hidden), deduped and sorted. */
+export function getAllViewColumns(columnDefs, view) {
+  return columnDefs
+    .filter((c) => c.table_view === view)
+    .filter((c, index, self) => self.findIndex((t) => t.column_key === c.column_key) === index)
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
+/**
+ * Default columns whose content is a pill / dropdown / icon set.
+ * They never wrap: content keeps its natural size and the cell just hides overflow.
+ * Custom columns are never always-clipped.
+ */
+export const ALWAYS_CLIPPED_KEYS = new Set([
+  'priority',
+  'status',
+  'action_to_take',
+  'call_action',
+  'outreach_channel',
+  'template_used',
+  'platform',
+  'script_used',
+  'outcome',
+  '_row_num',
+]);
+
+export function isAlwaysClipped(col) {
+  if (!col) return true;
+  if (col.column_key === '_row_num') return true;
+  if (!col.is_default) return false;
+  return ALWAYS_CLIPPED_KEYS.has(col.column_key);
+}
+
+/** Default column order per view — used by "Reset columns". */
+export const DEFAULT_COLUMN_ORDER = {
+  contact_details: [
+    'name', 'status', 'outreach_channel', 'action_to_take', 'platform', 'phone', 'last_contacted_at',
+    'email', 'company', 'instagram_url', 'website', 'priority', 'niche', 'template_used',
+    'linkedin_url', 'twitter_url', 'created_at',
+  ],
+  pipeline: [
+    'name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'last_contacted_at',
+    'template_used', 'platform', 'niche', 'email', 'phone', 'company',
+  ],
+  call_queue: CALL_QUEUE_DEFAULT_DEFS.map((d) => d.column_key),
+};
+
+
 export function getLeadCellCopyValue(lead, col) {
   if (!lead || !col) return '';
 

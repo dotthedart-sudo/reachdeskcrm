@@ -220,6 +220,43 @@ export default function GroupedChannelDropdown({
     setSearch('');
   };
 
+  const handleCreateAndSelect = async (labelText) => {
+    const trimmed = (labelText || '').trim();
+    if (!trimmed) return;
+    const existing = statuses.find(s => s.label.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      handleSelect(existing.label);
+      return;
+    }
+    const color = PRESET_COLORS[statuses.length % PRESET_COLORS.length];
+    const newChannelObj = { label: trimmed, name: trimmed, color };
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from('custom_channels')
+          .insert({
+            user_id: userId,
+            type: channel,
+            name: trimmed,
+            color,
+            sort_order: statuses.length,
+          })
+          .select()
+          .single();
+        if (!error && data) {
+          clearChannelCache(userId);
+          setStatuses(prev => [...prev, { ...data, label: data.name }]);
+          if (onUpdate) onUpdate();
+        }
+      } catch (err) {
+        console.error('Error creating custom channel:', err);
+      }
+    } else {
+      setStatuses(prev => [...prev, newChannelObj]);
+    }
+    handleSelect(trimmed);
+  };
+
   const handleAdd = async () => {
     if (!newLabel.trim() || !userId) return;
     if (statuses.some(s => s.label.toLowerCase() === newLabel.trim().toLowerCase())) {
@@ -410,13 +447,35 @@ export default function GroupedChannelDropdown({
               placeholder="Search channel..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (filteredOptions.length === 1) {
+                    handleSelect(filteredOptions[0].label);
+                  } else if (filteredOptions.length === 0 && search.trim()) {
+                    handleCreateAndSelect(search);
+                  }
+                }
+              }}
               autoFocus
             />
           </div>
 
           <div className="rd-menu__list">
             {filteredOptions.length === 0 ? (
-              <div className="rd-menu__empty">No matching channels</div>
+              search.trim() ? (
+                <button
+                  type="button"
+                  className="rd-menu__item"
+                  onClick={() => handleCreateAndSelect(search)}
+                  style={{ color: 'var(--status-cold)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={13} />
+                  <span className="rd-menu__item-label">Add &quot;{search.trim()}&quot;</span>
+                </button>
+              ) : (
+                <div className="rd-menu__empty">No matching channels</div>
+              )
             ) : (
               filteredOptions.map(opt => {
                 const isSelected = opt.label.toLowerCase() === displayValue.toLowerCase();
@@ -500,6 +559,12 @@ export default function GroupedChannelDropdown({
                       type="text"
                       value={editingLabel}
                       onChange={e => setEditingLabel(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveEdit(idx);
+                        }
+                      }}
                       style={{
                         background: 'var(--bg-secondary)',
                         border: '1px solid var(--border-color)',
@@ -545,6 +610,12 @@ export default function GroupedChannelDropdown({
                 placeholder="Label..."
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAdd();
+                  }
+                }}
                 style={{
                   background: 'var(--bg-secondary)',
                   border: '1px solid var(--border-color)',

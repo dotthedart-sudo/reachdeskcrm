@@ -247,8 +247,9 @@ export default function Reminders({ currentUser }) {
   const empty = groups.overdue.length + groups.today.length + groups.week.length + overdueInvoices.length === 0;
 
   return (
-    <div className="flex-col gap-4 page-stack rd-reminders-page">
-      <p className="rd-reminders-page__sub">
+    <div style={{ maxWidth: 760, margin: '0 auto', width: '100%' }}>
+      <div className="flex-col gap-4 page-stack rd-reminders-page">
+        <p className="rd-reminders-page__sub">
         Follow-ups due from your outreach schedule. Finish them here — they stay in ReachDesk unless you turn on Google Calendar sync in Settings.
       </p>
 
@@ -283,7 +284,7 @@ export default function Reminders({ currentUser }) {
             onOpen={openLead}
           />
           <ReminderGroup
-            title="This week"
+            title="Upcoming"
             tone="week"
             items={groups.week}
             callAttemptsByLead={callAttemptsByLead}
@@ -327,6 +328,7 @@ export default function Reminders({ currentUser }) {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as Gear, Trash2, Plus, ArrowUp, ArrowDown, X, RefreshCw } from 'lucide-react';
+import { Settings as Gear, Trash2, Plus, X, RefreshCw, GripVertical, Eye, EyeOff, Pin, PinOff, WrapText, Scissors } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { isAlwaysClipped, DEFAULT_COLUMN_ORDER } from './crmTableColumns';
 
 const TAB_CONFIG = [
   { id: 'contact_details', label: 'Message · Contact' },
@@ -28,7 +29,7 @@ export default function ColumnManager({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [newColType, setNewColType] = useState('text');
-  const [dragRealIdx, setDragRealIdx] = useState(null);
+  const [dragColId, setDragColId] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -41,7 +42,10 @@ export default function ColumnManager({
 
   const currentTabCols = allCols.filter((c) => c.table_view === activeTab);
 
-  const editableCols = currentTabCols.map((c, i) => ({ ...c, _realIdx: i }));
+  // Group into pinned and unpinned, preserving sort_order
+  const pinnedCols = currentTabCols.filter((c) => c.is_pinned).sort((a, b) => a.sort_order - b.sort_order);
+  const unpinnedCols = currentTabCols.filter((c) => !c.is_pinned).sort((a, b) => a.sort_order - b.sort_order);
+  const orderedTabCols = [...pinnedCols, ...unpinnedCols];
 
   const updateCurrentTabCols = (newTabCols) => {
     const otherCols = allCols.filter((c) => c.table_view !== activeTab);
@@ -50,13 +54,30 @@ export default function ColumnManager({
 
   const visibleCount = currentTabCols.filter((c) => c.is_visible).length;
 
-  const handleToggleVisible = (realIdx) => {
-    const col = currentTabCols[realIdx];
+  const handleToggleVisible = (colId) => {
+    const col = currentTabCols.find((c) => c.id === colId);
+    if (!col) return;
     if (col.is_visible && visibleCount <= 1) {
       alert('At least one column must stay visible.');
       return;
     }
-    const updated = currentTabCols.map((c, i) => (i === realIdx ? { ...c, is_visible: !c.is_visible } : c));
+    const updated = currentTabCols.map((c) => (c.id === colId ? { ...c, is_visible: !c.is_visible, ...(c.is_visible ? { is_pinned: false } : {}) } : c));
+    updateCurrentTabCols(updated);
+  };
+
+  const handleTogglePin = (colId) => {
+    const col = currentTabCols.find((c) => c.id === colId);
+    if (!col) return;
+    const nextPinned = !col.is_pinned;
+    const updated = currentTabCols.map((c) => (c.id === colId ? { ...c, is_pinned: nextPinned } : c));
+    updateCurrentTabCols(updated);
+  };
+
+  const handleToggleWrap = (colId) => {
+    const col = currentTabCols.find((c) => c.id === colId);
+    if (!col || isAlwaysClipped(col)) return;
+    const nextWrap = col.wrap_mode === 'wrap' ? 'clip' : 'wrap';
+    const updated = currentTabCols.map((c) => (c.id === colId ? { ...c, wrap_mode: nextWrap } : c));
     updateCurrentTabCols(updated);
   };
 
@@ -70,16 +91,6 @@ export default function ColumnManager({
     const updated = currentTabCols.map((c) => (c.id === id ? { ...c, column_label: editingLabel.trim() } : c));
     updateCurrentTabCols(updated);
     setEditingId(null);
-  };
-
-  const handleMove = (realIdx, direction) => {
-    const list = [...currentTabCols];
-    const targetIdx = realIdx + direction;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-    const temp = list[realIdx];
-    list[realIdx] = list[targetIdx];
-    list[targetIdx] = temp;
-    updateCurrentTabCols(list.map((c, idx) => ({ ...c, sort_order: idx })));
   };
 
   const handleDeleteCustom = (id) => {
@@ -103,6 +114,8 @@ export default function ColumnManager({
       column_type: newColType,
       is_visible: true,
       is_default: false,
+      is_pinned: false,
+      wrap_mode: 'clip',
       sort_order: currentTabCols.length,
       dropdown_options: newColType === 'dropdown'
         ? [{ label: 'Option 1', color: '#3b82f6' }, { label: 'Option 2', color: '#10b981' }]
@@ -111,6 +124,21 @@ export default function ColumnManager({
     updateCurrentTabCols([...currentTabCols, newCol]);
     setNewColLabel('');
     setShowAddForm(false);
+  };
+
+  const handleReset = () => {
+    const defaultOrder = DEFAULT_COLUMN_ORDER[activeTab] || [];
+    const updated = currentTabCols.map((c) => {
+      const idx = defaultOrder.indexOf(c.column_key);
+      return {
+        ...c,
+        is_visible: true,
+        is_pinned: false,
+        wrap_mode: 'clip',
+        sort_order: idx >= 0 ? idx : 999,
+      };
+    }).sort((a, b) => a.sort_order - b.sort_order);
+    updateCurrentTabCols(updated.map((c, i) => ({ ...c, sort_order: i })));
   };
 
   const handleSaveAll = async () => {
@@ -126,7 +154,11 @@ export default function ColumnManager({
       const upsertPayload = [];
       for (const tabId of TAB_CONFIG.map((t) => t.id)) {
         const tabCols = allCols.filter((c) => c.table_view === tabId);
-        tabCols.forEach((c, idx) => {
+        const p = tabCols.filter((c) => c.is_pinned).sort((a, b) => a.sort_order - b.sort_order);
+        const u = tabCols.filter((c) => !c.is_pinned).sort((a, b) => a.sort_order - b.sort_order);
+        const ordered = [...p, ...u];
+
+        ordered.forEach((c, idx) => {
           upsertPayload.push({
             id: c.id,
             user_id: userId,
@@ -136,6 +168,8 @@ export default function ColumnManager({
             column_type: c.column_type,
             is_visible: c.is_visible,
             is_default: c.is_default,
+            is_pinned: !!c.is_pinned,
+            wrap_mode: c.wrap_mode || 'clip',
             sort_order: idx,
             dropdown_options: c.dropdown_options,
           });
@@ -152,25 +186,25 @@ export default function ColumnManager({
     }
   };
 
-  const handleDragStart = (e, realIdx) => {
-    setDragRealIdx(realIdx);
+  const handleDragStart = (e, colId) => {
+    setDragColId(colId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e, realIdx) => {
+  const handleDragOver = (e, targetColId) => {
     e.preventDefault();
-    if (dragRealIdx === null || dragRealIdx === realIdx) return;
-    const list = [...currentTabCols];
-    const draggedItem = list[dragRealIdx];
-    list.splice(dragRealIdx, 1);
-    list.splice(realIdx, 0, draggedItem);
-    setDragRealIdx(realIdx);
+    if (!dragColId || dragColId === targetColId) return;
+    const list = [...orderedTabCols];
+    const dragIdx = list.findIndex((c) => c.id === dragColId);
+    const targetIdx = list.findIndex((c) => c.id === targetColId);
+    if (dragIdx === -1 || targetIdx === -1) return;
+
+    const [draggedItem] = list.splice(dragIdx, 1);
+    list.splice(targetIdx, 0, draggedItem);
     updateCurrentTabCols(list.map((c, idx) => ({ ...c, sort_order: idx })));
   };
 
-  const handleDragEnd = () => setDragRealIdx(null);
-
-  const canAddCustom = true;
+  const handleDragEnd = () => setDragColId(null);
 
   if (!isOpen) return null;
 
@@ -179,7 +213,7 @@ export default function ColumnManager({
       <div
         className="modal-content"
         style={{
-          maxWidth: '420px',
+          maxWidth: '440px',
           height: '100vh',
           borderRadius: 0,
           margin: 0,
@@ -222,88 +256,155 @@ export default function ColumnManager({
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1rem 1rem 0', paddingRight: '4px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
             <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Columns
+              Columns ({currentTabCols.length})
             </span>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Drag to reorder · toggle to show/hide · drag header edges in the table to resize
+              Drag grip to reorder · Toggle eye to show/hide · Pin keeps column at left · Wrap allows up to 3 lines
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            {editableCols.map((col, editIdx) => (
-              <div
-                key={col.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, col._realIdx)}
-                onDragOver={(e) => handleDragOver(e, col._realIdx)}
-                onDragEnd={handleDragEnd}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  padding: '0.5rem 0.75rem',
-                  background: dragRealIdx === col._realIdx ? 'rgba(91,143,185,0.08)' : 'var(--bg-card)',
-                  border: dragRealIdx === col._realIdx ? '0.5px solid var(--accent-blue)' : '0.5px solid var(--border)',
-                  borderRadius: '4px',
-                  cursor: 'grab',
-                }}
-              >
-                <div style={{ color: 'var(--text-muted)', fontSize: '1rem', cursor: 'grab', userSelect: 'none' }}>⋮⋮</div>
-                <input
-                  type="checkbox"
-                  checked={col.is_visible}
-                  onChange={() => handleToggleVisible(col._realIdx)}
-                  style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--accent-blue)' }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {editingId === col.id ? (
-                    <input
-                      type="text"
-                      value={editingLabel}
-                      onChange={(e) => setEditingLabel(e.target.value)}
-                      onBlur={() => handleSaveRename(col.id)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(col.id)}
-                      className="form-input"
-                      style={{ padding: '0.15rem 0.35rem', fontSize: '0.82rem', width: '100%' }}
-                      autoFocus
-                    />
-                  ) : (
-                    <span
-                      onClick={() => handleStartRename(col)}
-                      style={{ fontSize: '0.85rem', cursor: 'pointer', color: col.is_visible ? 'var(--text-primary)' : 'var(--text-muted)' }}
-                      title="Click to rename"
-                    >
-                      {col.column_label}
-                    </span>
-                  )}
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'capitalize' }}>
-                    {col.column_type}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
-                  <button type="button" onClick={() => handleMove(col._realIdx, -1)} disabled={editIdx === 0} className="btn-icon" style={{ padding: '0.15rem' }}>
-                    <ArrowUp size={13} />
-                  </button>
-                  <button type="button" onClick={() => handleMove(col._realIdx, 1)} disabled={editIdx === editableCols.length - 1} className="btn-icon" style={{ padding: '0.15rem' }}>
-                    <ArrowDown size={13} />
-                  </button>
-                  {!col.is_default && (
-                    <button type="button" onClick={() => handleDeleteCustom(col.id)} className="btn-icon" style={{ padding: '0.15rem', color: 'var(--status-hot)' }}>
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
+          {pinnedCols.length > 0 && (
+            <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--status-cold)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.35rem' }}>
+                <Pin size={11} /> PINNED COLUMNS ({pinnedCols.length})
               </div>
-            ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {orderedTabCols.map((col) => {
+              const alwaysClipped = isAlwaysClipped(col);
+              const isWrap = col.wrap_mode === 'wrap';
+              return (
+                <div
+                  key={col.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, col.id)}
+                  onDragOver={(e) => handleDragOver(e, col.id)}
+                  onDragEnd={handleDragEnd}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.6rem',
+                    background: dragColId === col.id ? 'rgba(91,143,185,0.08)' : 'var(--bg-card)',
+                    border: col.is_pinned ? '1px solid var(--status-cold)' : '0.5px solid var(--border)',
+                    borderRadius: '4px',
+                    cursor: 'grab',
+                    opacity: col.is_visible ? 1 : 0.6,
+                  }}
+                >
+                  <div style={{ color: 'var(--text-muted)', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center' }}>
+                    <GripVertical size={14} />
+                  </div>
+
+                  {/* Eye: show/hide */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleVisible(col.id)}
+                    className="btn-icon"
+                    style={{ padding: '2px', color: col.is_visible ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                    title={col.is_visible ? 'Hide column' : 'Show column'}
+                  >
+                    {col.is_visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {editingId === col.id ? (
+                      <input
+                        type="text"
+                        value={editingLabel}
+                        onChange={(e) => setEditingLabel(e.target.value)}
+                        onBlur={() => handleSaveRename(col.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(col.id)}
+                        className="form-input"
+                        style={{ padding: '0.15rem 0.35rem', fontSize: '0.82rem', width: '100%' }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        onClick={() => handleStartRename(col)}
+                        style={{ fontSize: '0.82rem', cursor: 'pointer', color: col.is_visible ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                        title="Click to rename"
+                      >
+                        {col.column_label}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'capitalize' }}>
+                      {col.column_type}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                    {/* Wrap toggle */}
+                    <button
+                      type="button"
+                      disabled={alwaysClipped}
+                      onClick={() => handleToggleWrap(col.id)}
+                      className="btn-icon"
+                      style={{
+                        padding: '3px 6px',
+                        fontSize: '11px',
+                        borderRadius: '3px',
+                        border: '1px solid var(--border)',
+                        background: isWrap ? 'var(--bg-card-hover)' : 'transparent',
+                        color: alwaysClipped ? 'var(--text-muted)' : (isWrap ? 'var(--text-primary)' : 'var(--text-secondary)'),
+                        opacity: alwaysClipped ? 0.4 : 1,
+                        cursor: alwaysClipped ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                      title={alwaysClipped ? 'Always clipped for this column' : (isWrap ? 'Wrapped (click to clip)' : 'Clipped (click to wrap)')}
+                    >
+                      {isWrap ? <WrapText size={12} /> : <Scissors size={12} />}
+                      <span style={{ fontSize: '10px' }}>{isWrap ? 'Wrap' : 'Clip'}</span>
+                    </button>
+
+                    {/* Pin toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePin(col.id)}
+                      className="btn-icon"
+                      style={{
+                        padding: '3px',
+                        color: col.is_pinned ? 'var(--status-cold)' : 'var(--text-muted)',
+                      }}
+                      title={col.is_pinned ? 'Unpin column' : 'Pin column'}
+                    >
+                      {col.is_pinned ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
+                    </button>
+
+                    {!col.is_default && (
+                      <button type="button" onClick={() => handleDeleteCustom(col.id)} className="btn-icon" style={{ padding: '3px', color: 'var(--status-hot)' }}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {canAddCustom && (showAddForm ? (
+          {showAddForm ? (
             <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--bg-card)', border: '0.5px solid var(--border)', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <h4 style={{ fontSize: '0.85rem', margin: 0 }}>Add custom column</h4>
-              <input type="text" placeholder="e.g. Lead Source" value={newColLabel} onChange={(e) => setNewColLabel(e.target.value)} className="form-input" />
+              <input
+                type="text"
+                placeholder="e.g. Lead Source"
+                value={newColLabel}
+                onChange={(e) => setNewColLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddColumn();
+                  }
+                }}
+                className="form-input"
+              />
               <select value={newColType} onChange={(e) => setNewColType(e.target.value)} className="form-select">
                 <option value="text">Text</option>
                 <option value="dropdown">Dropdown</option>
@@ -320,17 +421,17 @@ export default function ColumnManager({
             <button type="button" onClick={() => setShowAddForm(true)} className="btn btn-secondary w-full" style={{ marginTop: '1rem', justifyContent: 'center', fontSize: '0.8rem' }}>
               <Plus size={13} /> Add custom column
             </button>
-          ))}
+          )}
         </div>
 
         <div style={{ borderTop: '0.5px solid var(--border)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <button
             type="button"
-            onClick={() => onResetToDefault(activeTab)}
+            onClick={handleReset}
             className="btn btn-secondary"
             style={{ width: '100%', justifyContent: 'center', borderColor: 'rgba(239,68,68,0.2)', color: '#ef4444', fontSize: '0.8rem' }}
           >
-            <RefreshCw size={13} /> Reset {tabLabel(activeTab)} to default
+            <RefreshCw size={13} /> Reset {tabLabel(activeTab)} columns to default
           </button>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">Cancel</button>
