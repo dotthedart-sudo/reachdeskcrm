@@ -18,7 +18,7 @@ export default function ExportSheetsModal({ onClose, leads, currentUser, include
   const [writeMode, setWriteMode] = useState('overwrite'); // 'overwrite' | 'append'
 
   const prepareExportData = async () => {
-    const defaultCountryCode = currentUser?.default_country_code || '+92';
+    const defaultCountryCode = currentUser?.default_country_code || null;
     const { headers, rows } = await prepareLeadExportRows(leads, {
       includeLocalTime,
       defaultCountryCode,

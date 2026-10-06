@@ -481,11 +481,18 @@ export default function PriorityDropdown({ value, onChange, onUpdate }) {
         ref={triggerRef}
         type="button"
         onClick={openDropdown}
-        style={getPriorityStyle(currentPriority.color)}
+        className="rd-pill"
+        style={{
+          ...softBadgeStyle(currentPriority.color),
+          cursor: 'pointer',
+          outline: 'none',
+        }}
       >
-        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: currentPriority.color }} />
-        <span>{stripEmojis(currentPriority.label)}</span>
-        <ChevronDown size={12} style={{ opacity: 0.7 }} />
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: currentPriority.color, display: 'inline-block', flexShrink: 0 }} />
+        <span className="rd-pill__label">{stripEmojis(currentPriority.label)}</span>
+        <span className="rd-pill__chevron">
+          <ChevronDown size={11} />
+        </span>
       </button>
 
       {dropdownPanel}

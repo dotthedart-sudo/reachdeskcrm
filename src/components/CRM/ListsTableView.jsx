@@ -92,6 +92,7 @@ function ListRow({
   shareBadge,
   onClick,
   onRename,
+  onOpenSettings,
   onDelete,
   onExport,
   onExportSheets,
@@ -152,6 +153,7 @@ function ListRow({
           <ListRowMenu
             onOpen={onClick}
             onRename={onRename}
+            onOpenSettings={onOpenSettings}
             onDelete={onDelete}
             onExport={onExport}
             onExportSheets={onExportSheets}
@@ -177,6 +179,7 @@ function renderFolderRows({
   shareCountForFolder,
   onSelectFolder,
   onRenameFolder,
+  onOpenFolderSettings,
   onDeleteFolder,
   onExportFolder,
   onExportFolderSheets,
@@ -217,6 +220,7 @@ function renderFolderRows({
         shareBadge={shareBadge}
         onClick={() => onSelectFolder(f.id)}
         onRename={isOwn ? () => onRenameFolder?.(f.id, f.name) : undefined}
+        onOpenSettings={() => onOpenFolderSettings?.(f)}
         onDelete={isOwn ? () => onDeleteFolder?.(f.id) : undefined}
         onExport={() => onExportFolder?.(f.id)}
         onExportSheets={() => onExportFolderSheets?.(f.id)}
@@ -256,6 +260,7 @@ export default function ListsTableView({
   getLeadCount,
   onSelectFolder,
   onRenameFolder,
+  onOpenFolderSettings,
   onDeleteFolder,
   onDeleteSmartFolder,
   onExportFolder,
@@ -299,6 +304,7 @@ export default function ListsTableView({
 
   const rowProps = {
     getLeadCount,
+    onOpenFolderSettings,
     teamProfilesMap,
     currentUserId,
     shareCountForFolder,

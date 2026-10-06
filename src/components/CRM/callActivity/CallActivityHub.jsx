@@ -56,7 +56,7 @@ export default function CallActivityHub({
   const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
   const showTeamTab = hasTeamCallActivity(currentUser, teamIds)
     && (teamPerms?.call_activity_sharing || 'off') !== 'off';
-  const defaultCountryCode = currentUser?.default_country_code || '+92';
+  const defaultCountryCode = currentUser?.default_country_code || null;
   const showNoteSharing = !!teamId;
 
   useEffect(() => {

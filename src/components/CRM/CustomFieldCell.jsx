@@ -181,7 +181,7 @@ export default function CustomFieldCell({ lead, col, onChange, currentUser, temp
               background: 'var(--bg-hover)',
               borderRadius: '4px',
               fontSize: '0.75rem',
-              color: 'var(--accent-blue)',
+              color: 'var(--text-secondary)',
               textDecoration: 'none',
               border: '1px solid var(--border)'
             }}

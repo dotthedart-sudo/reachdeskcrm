@@ -10,7 +10,8 @@ import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu
 
 export default function CallWindowBadge({
   lead,
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
+  listCountry = null,
   showLocalTime = false,
   compact = false,
   at = new Date(),
@@ -23,9 +24,10 @@ export default function CallWindowBadge({
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
-  const { status, label } = getCallWindowStatus(lead, at, { defaultCountryCode });
+  const context = { userCountry: defaultCountryCode, listCountry: listCountry || lead?.folder_default_country };
+  const { status, label } = getCallWindowStatus(lead, at, context);
   const style = getCallWindowBadgeStyle(status);
-  const localTime = showLocalTime ? getLeadLocalTimeLabel(lead, at, defaultCountryCode) : null;
+  const localTime = showLocalTime ? getLeadLocalTimeLabel(lead, at, context) : null;
 
   const tooltip = localTime 
     ? `Their time: ${localTime}` 

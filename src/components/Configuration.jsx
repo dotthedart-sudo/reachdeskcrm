@@ -15,6 +15,7 @@ import {
 } from '../lib/teamWorkspace';
 import { exportLeads, exportNotes } from '../utils/exportUtils';
 import { BRAND_NAME } from '../config/brand';
+import { inferCountryFromUserEnvironment } from '../lib/leadTimezone';
 import { getDialerPrefs, setDialerPrefs } from '../lib/callDialer';
 import { getTeamIds } from '../lib/utils';
 import { fetchAllLeadsForScope } from '../lib/leadsQuery';
@@ -194,7 +195,7 @@ export default function Configuration({
   const [automationError, setAutomationError] = useState('');
   const [remindersEnabled, setRemindersEnabled] = useState(currentUser?.reminders_enabled !== false);
   const [reminderNotificationMode, setReminderNotificationMode] = useState(
-    currentUser?.reminder_notification_mode === 'instant' ? 'instant' : 'digest',
+    currentUser?.reminder_notification_mode || 'both',
   );
   const [reminderDigestHour, setReminderDigestHour] = useState(
     Number.isFinite(currentUser?.reminder_digest_hour) ? Number(currentUser.reminder_digest_hour) : 9,
@@ -212,7 +213,7 @@ export default function Configuration({
   );
   const [monthlyRevenueTarget, setMonthlyRevenueTarget] = useState(currentUser?.monthly_revenue_target || '');
   const [alwaysDraft, setAlwaysDraft] = useState(currentUser?.always_draft_before_sending !== false);
-  const [defaultCountryCode, setDefaultCountryCode] = useState(currentUser?.default_country_code || '+92');
+  const [defaultCountryCode, setDefaultCountryCode] = useState(() => currentUser?.default_country_code || inferCountryFromUserEnvironment().dialCode);
   const dialerPrefsInit = getDialerPrefs(currentUser?.id);
   const [defaultDialer, setDefaultDialer] = useState(dialerPrefsInit.dialer);
   const [ghlDialerUrl, setGhlDialerUrl] = useState(dialerPrefsInit.ghlUrl);
@@ -475,7 +476,7 @@ export default function Configuration({
       setProfileTimezone(currentUser.timezone || '');
       setRemindersEnabled(currentUser.reminders_enabled !== false);
       setReminderNotificationMode(
-        currentUser.reminder_notification_mode === 'instant' ? 'instant' : 'digest',
+        currentUser.reminder_notification_mode || 'both',
       );
       setReminderDigestHour(
         Number.isFinite(currentUser.reminder_digest_hour) ? Number(currentUser.reminder_digest_hour) : 9,
@@ -486,7 +487,7 @@ export default function Configuration({
       setCallSuggestionsAutoApply(currentUser.call_suggestions_auto_apply !== false);
       setMonthlyRevenueTarget(currentUser.monthly_revenue_target || '');
       setAlwaysDraft(currentUser.always_draft_before_sending !== false);
-      setDefaultCountryCode(currentUser.default_country_code || '+92');
+      setDefaultCountryCode(currentUser.default_country_code || inferCountryFromUserEnvironment().dialCode);
       setLocalBrand(brandName);
       setLocalCurrency(currencySymbol);
       setLocalWebhook(webhookUrl);
@@ -843,13 +844,13 @@ export default function Configuration({
       // Reminders + dialer prefs remain personal; automation rules are team-owned on Teams
       const profilePayload = {
         reminders_enabled: remindersEnabled,
-        reminder_notification_mode: reminderNotificationMode === 'instant' ? 'instant' : 'digest',
+        reminder_notification_mode: reminderNotificationMode || 'both',
         reminder_digest_hour: Math.min(23, Math.max(0, Number(reminderDigestHour) || 9)),
         sync_followups_to_google: !!syncFollowupsToGoogle,
         suggestions_enabled: suggestionsEnabled,
         suggestions_auto_apply: suggestionsAutoApply,
         always_draft_before_sending: alwaysDraft,
-        default_country_code: defaultCountryCode.trim() || '+92',
+        default_country_code: defaultCountryCode.trim() || inferCountryFromUserEnvironment().dialCode,
       };
 
       if (currentUser.team_id) {

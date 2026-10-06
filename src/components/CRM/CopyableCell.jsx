@@ -38,7 +38,7 @@ export default function CopyableCell({
         className={`copyable-cell copyable-cell--inline ${className}`.trim()}
         onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
       >
-        <div className="copyable-cell__slot">{children}</div>
+        <div className="copyable-cell__slot" title={text || undefined}>{children}</div>
         {btn}
       </div>
     );
@@ -49,7 +49,7 @@ export default function CopyableCell({
       className={`copyable-cell ${className}`.trim()}
       onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
     >
-      <span className="copyable-cell__content">{children ?? (text || '—')}</span>
+      <span className="copyable-cell__content" title={text || undefined}>{children ?? (text || '—')}</span>
       {btn}
     </div>
   );

@@ -39,6 +39,7 @@
     "gray-matter": "^4.0.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "libphonenumber-js": "^1.13.14",
     "lucide-react": "^1.21.0",
     "motion": "^12.42.2",
     "papaparse": "^5.5.3",

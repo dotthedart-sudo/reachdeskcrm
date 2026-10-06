@@ -3,6 +3,7 @@ import { X, Upload, ArrowRight, CheckCircle, AlertCircle, RefreshCw } from 'luci
 import { supabase } from '../../lib/supabase';
 import { fetchAllLeadsForScope } from '../../lib/leadsQuery';
 import { extractLinks } from '../../lib/linkRecognizer';
+import { COUNTRY_TIMEZONE_OPTIONS, inferTimezoneFromPhone, toCountryIso } from '../../lib/leadTimezone';
 
 function parseCSV(text) {
   const lines = [];
@@ -54,6 +55,10 @@ export default function CSVImporter({
   const [mapping, setMapping] = useState({});
   const [duplicateStrategy, setDuplicateStrategy] = useState('skip'); // 'skip' | 'overwrite'
   const [destinationFolderId, setDestinationFolderId] = useState(folderId || '');
+  const [importCountry, setImportCountry] = useState(() => {
+    const currentFolder = (folders || []).find(f => f.id === folderId);
+    return currentFolder?.default_country || toCountryIso(currentUser?.default_country_code) || 'US';
+  });
   
   // Progress & Stats
   const [totalRows, setTotalRows] = useState(0);
@@ -92,6 +97,12 @@ export default function CSVImporter({
   useEffect(() => {
     if (!isOpen) return;
     setDestinationFolderId(folderId || '');
+    const currentFolder = (folders || []).find(f => f.id === (folderId || destinationFolderId));
+    if (currentFolder?.default_country) {
+      setImportCountry(currentFolder.default_country);
+    } else {
+      setImportCountry(toCountryIso(currentUser?.default_country_code) || 'US');
+    }
   }, [isOpen, folderId]);
 
   const resolvedFolderId = destinationFolderId || folderId || null;
@@ -231,6 +242,14 @@ export default function CSVImporter({
       console.error('Error fetching existing leads for de-duplication:', err);
     }
 
+    if (resolvedFolderId && importCountry) {
+      try {
+        await supabase.from('folders').update({ default_country: importCountry }).eq('id', resolvedFolderId);
+      } catch (err) {
+        console.warn('Could not save folder default_country:', err);
+      }
+    }
+
     const batchSize = 10;
     for (let i = 0; i < dataRows.length; i += batchSize) {
       const batch = dataRows.slice(i, i + batchSize);
@@ -269,6 +288,17 @@ export default function CSVImporter({
         if (!leadObj.first_name || !leadObj.email) {
           errorCount++;
           continue;
+        }
+
+        if (leadObj.phone) {
+          const tzInfo = inferTimezoneFromPhone(leadObj.phone, {
+            listCountry: importCountry,
+            userCountry: currentUser?.default_country_code,
+          });
+          if (tzInfo.timezone) {
+            leadObj.timezone = tzInfo.timezone;
+            leadObj.timezone_source = 'phone';
+          }
         }
 
         const emailLower = leadObj.email.toLowerCase().trim();
@@ -571,6 +601,25 @@ export default function CSVImporter({
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>Updates existing leads with the data from the imported CSV.</p>
                 </div>
               </label>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="import-phone-country">Phone numbers are from: [country]</label>
+              <select
+                id="import-phone-country"
+                className="form-select"
+                value={importCountry}
+                onChange={(e) => setImportCountry(e.target.value)}
+              >
+                {COUNTRY_TIMEZONE_OPTIONS.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} (+{c.dial})
+                  </option>
+                ))}
+              </select>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                Numbers without a country prefix will be parsed as local to this country. Saved to list preferences.
+              </p>
             </div>
 
             {needsFolderPick && (

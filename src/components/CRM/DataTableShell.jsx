@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, EyeOff, Pin, PinOff, Scissors, WrapText } from 'lucide-react';
+import { Check, ChevronDown, EyeOff, GripVertical, Pin, PinOff, Scissors, WrapText } from 'lucide-react';
 import { isAlwaysClipped } from './crmTableColumns';
 import { isPersistableColumn } from './useColumnPrefs';
 import './DataTableShell.css';
@@ -14,10 +14,21 @@ const NO_DRAG_SELECTOR =
   '.rd-dt-resize, .rd-dt-menu-btn, input, button, select, textarea, a, [data-no-drag]';
 
 /* ── Column header menu (portal, rd-menu style) ─────────────────────────── */
-function ColumnHeaderMenu({ col, anchorRect, onClose, onTogglePin, onSetWrap, onHide, canHide }) {
+function ColumnHeaderMenu({
+  col,
+  anchorRect,
+  onClose,
+  onTogglePin,
+  onSetWrap,
+  onHide,
+  canHide,
+  reachMode = 'icons',
+  onSetReachMode,
+}) {
   const ref = useRef(null);
   const fixed = isAlwaysClipped(col);
   const wrapMode = col.wrap_mode === 'wrap' ? 'wrap' : 'clip';
+  const isReachCol = col.column_key === 'platform' || col.column_key === 'reach' || col.column_type === 'reach';
 
   useEffect(() => {
     const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -49,6 +60,33 @@ function ColumnHeaderMenu({ col, anchorRect, onClose, onTogglePin, onSetWrap, on
       style={{ left, top, width: MENU_W }}
       onClick={(e) => e.stopPropagation()}
     >
+      {isReachCol && (
+        <>
+          <div className="rd-menu__group-label">Show links as</div>
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={reachMode !== 'full_links'}
+            className="rd-menu__item"
+            onClick={run(() => onSetReachMode?.('icons'))}
+          >
+            <span className="rd-dt-menu__lead">Icons</span>
+            {reachMode !== 'full_links' && <Check size={14} />}
+          </button>
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={reachMode === 'full_links'}
+            className="rd-menu__item"
+            onClick={run(() => onSetReachMode?.('full_links'))}
+          >
+            <span className="rd-dt-menu__lead">Full links</span>
+            {reachMode === 'full_links' && <Check size={14} />}
+          </button>
+          <div className="rd-menu__sep" />
+        </>
+      )}
+
       <button type="button" role="menuitem" className="rd-menu__item" onClick={run(onTogglePin)}>
         <span className="rd-dt-menu__lead">
           {col.is_pinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -99,7 +137,7 @@ function ColumnHeaderMenu({ col, anchorRect, onClose, onTogglePin, onSetWrap, on
 }
 
 /* ── Resize handle (sits on the column divider) ─────────────────────────── */
-function ResizeHandle({ columnKey, width, onResize, onReset }) {
+function ResizeHandle({ columnKey, width, minWidth = 80, onResize, onReset, onAutoFit }) {
   const [active, setActive] = useState(false);
 
   const onMouseDown = (e) => {
@@ -109,7 +147,10 @@ function ResizeHandle({ columnKey, width, onResize, onReset }) {
     const startW = width;
     setActive(true);
     document.body.classList.add('rd-dt-resizing');
-    const onMove = (ev) => onResize(columnKey, startW + (ev.clientX - startX));
+    const onMove = (ev) => {
+      const nextW = Math.max(minWidth, Math.min(560, startW + (ev.clientX - startX)));
+      onResize(columnKey, nextW);
+    };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
@@ -125,11 +166,19 @@ function ResizeHandle({ columnKey, width, onResize, onReset }) {
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize column"
-      title="Drag to resize · Double-click to reset"
+      title="Drag to resize · Double-click to auto-fit"
       className={`rd-dt-resize${active ? ' is-active' : ''}`}
       onMouseDown={onMouseDown}
       onPointerDown={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); onReset(columnKey); }}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onAutoFit) {
+          onAutoFit(columnKey);
+        } else if (onReset) {
+          onReset(columnKey);
+        }
+      }}
       onClick={(e) => e.stopPropagation()}
     />
   );
@@ -161,6 +210,9 @@ export default function DataTableShell({
   emptyMessage = 'No records found.',
   className = '',
   maxHeightOffset = 140,
+  topRow = null,
+  reachMode = 'icons',
+  onSetReachMode,
 }) {
   const wrapRef = useRef(null);
   const tableRef = useRef(null);
@@ -451,17 +503,28 @@ export default function DataTableShell({
                 <th
                   key={col.id || key}
                   ref={(el) => { thRefs.current[key] = el; }}
-                  className={`rd-dt-th ${cls}${persistable ? ' rd-dt-draggable' : ''}`}
+                  className={`rd-dt-th ${cls}`}
                   style={style}
                   data-col={key}
-                  onPointerDown={persistable ? (e) => onHeaderPointerDown(e, col, headerText) : undefined}
                   onClick={() => {
                     if (suppressClickRef.current) return;
                     onHeaderClick?.(col);
                   }}
                 >
                   <div className="rd-dt-th__inner">
-                    <span className="rd-dt-th__label">
+                    {persistable && (
+                      <span
+                        className="rd-dt-grip"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          onHeaderPointerDown(e, col, headerText);
+                        }}
+                        title="Drag to reorder column"
+                      >
+                        <GripVertical size={12} />
+                      </span>
+                    )}
+                    <span className="rd-dt-th__label" title={headerText}>
                       {renderHeaderLabel ? renderHeaderLabel(col) : col.column_label}
                     </span>
                     {pinned && <Pin size={11} className="rd-dt-th__pin" aria-label="Pinned" />}
@@ -482,7 +545,14 @@ export default function DataTableShell({
                       </button>
                     )}
                   </div>
-                  <ResizeHandle columnKey={key} width={w} onResize={prefs.setWidth} onReset={prefs.resetWidth} />
+                  <ResizeHandle
+                    columnKey={key}
+                    width={w}
+                    minWidth={prefs.getColMinWidth ? prefs.getColMinWidth(col) : 80}
+                    onResize={prefs.setWidth}
+                    onReset={prefs.resetWidth}
+                    onAutoFit={prefs.autoFitWidth || prefs.resetWidth}
+                  />
                 </th>
               );
             })}
@@ -500,7 +570,14 @@ export default function DataTableShell({
                     <span className="rd-dt-th__label" style={tc.labelStyle}>{tc.header}</span>
                   </div>
                   {tc.resizable && !isLast && (
-                    <ResizeHandle columnKey={tc.key} width={w} onResize={prefs.setWidth} onReset={prefs.resetWidth} />
+                    <ResizeHandle
+                      columnKey={tc.key}
+                      width={w}
+                      minWidth={tc.minWidth || 80}
+                      onResize={prefs.setWidth}
+                      onReset={prefs.resetWidth}
+                      onAutoFit={prefs.autoFitWidth || prefs.resetWidth}
+                    />
                   )}
                 </th>
               );
@@ -509,6 +586,7 @@ export default function DataTableShell({
         </thead>
 
         <tbody>
+          {topRow}
           {rows.length === 0 ? (
             <tr className="rd-dt-row rd-dt-empty">
               <td colSpan={totalCols} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -576,6 +654,8 @@ export default function DataTableShell({
           onSetWrap={(mode) => prefs.setWrap(menuCol.column_key, mode)}
           onHide={() => prefs.hideColumn(menuCol.column_key)}
           canHide={visibleCount > 1}
+          reachMode={reachMode}
+          onSetReachMode={onSetReachMode}
         />
       )}
 

@@ -114,55 +114,95 @@ body.crm-resizing-row * {
 }
 
 .copyable-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
+  position: relative;
   width: 100%;
+  min-width: 0;
+  display: block;
 }
 
 .copyable-cell__content {
-  flex: 1;
+  display: block;
+  width: 100%;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
+  color: inherit;
 }
 
 .copyable-cell--inline {
-  align-items: center;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: block;
 }
 
 .copyable-cell__slot {
-  flex: 1;
+  display: block;
+  width: 100%;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  color: inherit;
 }
 
 .copyable-cell__btn {
-  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  background: var(--rd-dt-bg, var(--bg-card, #ffffff));
+  padding: 2px;
+  border: 1px solid var(--rd-dt-line, var(--border, rgba(0, 0, 0, 0.08)));
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 4px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
   transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
 .copyable-cell__btn:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: var(--rd-dt-hover, var(--bg-secondary));
 }
 
-/* Only reveal copy on that cell (or while focusing the icon)  not on whole-row hover */
+td:hover .copyable-cell__btn,
 .copyable-cell:hover .copyable-cell__btn,
 .copyable-cell:focus-within .copyable-cell__btn,
 .copyable-cell__btn:focus-visible {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.dt-picker-icon {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  background: var(--rd-dt-bg, var(--bg-card, #ffffff));
+  padding: 2px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: opacity 0.12s ease;
+}
+
+td:hover .dt-picker-icon,
+.dt-picker-cell:hover .dt-picker-icon,
+.dt-picker-icon:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 

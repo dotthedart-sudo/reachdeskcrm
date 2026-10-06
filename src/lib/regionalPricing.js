@@ -3,17 +3,17 @@
 export const EXCLUDED_COUNTRY_CODES = ['IL'];
 
 export const REGIONAL_MONTHLY = {
-  US: { currency: 'USD', starter: 5, pro: 15, symbol: '$', prefix: true },
-  CA: { currency: 'CAD', starter: 7, pro: 19, symbol: 'CA$', prefix: true },
-  GB: { currency: 'GBP', starter: 3.99, pro: 11.99, symbol: '£', prefix: true },
-  EU: { currency: 'EUR', starter: 4.99, pro: 13.99, symbol: '€', prefix: true },
-  AU: { currency: 'AUD', starter: 8, pro: 22, symbol: 'A$', prefix: true },
-  PK: { currency: 'PKR', starter: 350, pro: 999, symbol: 'Rs ', prefix: true },
-  BD: { currency: 'BDT', starter: 209, pro: 599, symbol: '৳', prefix: true },
-  IN: { currency: 'INR', starter: 350, pro: 999, symbol: '₹', prefix: true },
-  PH: { currency: 'PHP', starter: 209, pro: 599, symbol: '₱', prefix: true },
-  NG: { currency: 'NGN', starter: 2099, pro: 5999, symbol: '₦', prefix: true },
-  KE: { currency: 'KES', starter: 350, pro: 999, symbol: 'KSh ', prefix: true },
+  US: { currency: 'USD', starter: 5, pro: 15, teams: 29, symbol: '$', prefix: true },
+  CA: { currency: 'CAD', starter: 7, pro: 19, teams: 39, symbol: 'CA$', prefix: true },
+  GB: { currency: 'GBP', starter: 3.99, pro: 11.99, teams: 22.99, symbol: '£', prefix: true },
+  EU: { currency: 'EUR', starter: 4.99, pro: 13.99, teams: 27.99, symbol: '€', prefix: true },
+  AU: { currency: 'AUD', starter: 8, pro: 22, teams: 44.99, symbol: 'A$', prefix: true },
+  PK: { currency: 'PKR', starter: 350, pro: 999, teams: 1950, symbol: 'Rs ', prefix: true },
+  BD: { currency: 'BDT', starter: 209, pro: 599, teams: 1199, symbol: '৳', prefix: true },
+  IN: { currency: 'INR', starter: 350, pro: 999, teams: 1999, symbol: '₹', prefix: true },
+  PH: { currency: 'PHP', starter: 209, pro: 599, teams: 1199, symbol: '₱', prefix: true },
+  NG: { currency: 'NGN', starter: 2099, pro: 5999, teams: 11999, symbol: '₦', prefix: true },
+  KE: { currency: 'KES', starter: 350, pro: 999, teams: 1999, symbol: 'KSh ', prefix: true },
 };
 
 const COUNTRY_TO_REGION = {
@@ -50,7 +50,8 @@ export function formatRegionalPrice(amount, regionConfig) {
 
 export function getRegionalPlanPrice(regionKey, planId, cycle = 'monthly') {
   const region = REGIONAL_MONTHLY[regionKey] || REGIONAL_MONTHLY.US;
-  const base = planId === 'pro' ? region.pro : region.starter;
+  const pKey = (planId || 'starter').toLowerCase();
+  const base = region[pKey] ?? (pKey === 'teams' ? region.teams : pKey === 'pro' ? region.pro : region.starter);
   const { months, discount, badge } = cycleMultiplier(cycle);
   const monthlyEffective = base * (1 - discount);
   const total = monthlyEffective * months;

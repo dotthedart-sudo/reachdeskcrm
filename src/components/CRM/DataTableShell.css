@@ -3,24 +3,53 @@
    legacy .data-table overrides in index.css can't leak in. */
 
 .rd-dt-shell {
-  /* Header uses card/header token; body cells use solid page background */
-  --rd-dt-head-bg: var(--bg-card);
-  --rd-dt-bg: var(--bg-page, #FFFFFF);
-  --rd-dt-hover: var(--bg-card-hover);
-  --rd-dt-tint: rgb(91, 143, 185);
-  --rd-dt-selected: color-mix(in srgb, var(--rd-dt-tint) 9%, var(--rd-dt-bg));
-  --rd-dt-selected-hover: color-mix(in srgb, var(--rd-dt-tint) 12%, var(--rd-dt-hover));
-  --rd-dt-line: var(--border);
-  --rd-dt-accent: var(--status-cold);
+  /* Default dark theme tokens (matching ReachDesk core dark design) */
+  --rd-dt-head-bg: #1A1A1A;
+  --rd-dt-bg: #141414;
+  --rd-dt-text: #C2C0B6;
+  --rd-dt-line: #262626;
+  --rd-dt-selected: #1E1E1E;
+  --rd-dt-hover: color-mix(in srgb, var(--text-primary, #fff) 3.5%, var(--rd-dt-bg));
+  --rd-dt-selected-hover: color-mix(in srgb, var(--text-primary, #fff) 3.5%, var(--rd-dt-selected));
+  --rd-dt-accent: var(--accent-blue, #5B8FB9);
 
   position: relative;
   overflow: auto;
   max-width: 100%;
   max-height: calc(100vh - var(--rd-dt-offset, 140px));
   background: var(--rd-dt-bg);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--rd-dt-line);
+  border-radius: 6px;
   overscroll-behavior-x: contain;
   flex-shrink: 0;
+}
+
+/* Light theme tokens */
+html.light .rd-dt-shell,
+:root.light .rd-dt-shell,
+[data-theme='light'] .rd-dt-shell,
+.light .rd-dt-shell {
+  --rd-dt-head-bg: #F7F7F5;
+  --rd-dt-bg: #FFFFFF;
+  --rd-dt-text: #3F3F3F;
+  --rd-dt-line: #E8E8E6;
+  --rd-dt-selected: #F6F5F1;
+  --rd-dt-hover: color-mix(in srgb, var(--text-primary, #000) 3.5%, var(--rd-dt-bg));
+  --rd-dt-selected-hover: color-mix(in srgb, var(--text-primary, #000) 3.5%, var(--rd-dt-selected));
+}
+
+/* Dark theme tokens (explicit) */
+html.dark .rd-dt-shell,
+:root.dark .rd-dt-shell,
+[data-theme='dark'] .rd-dt-shell,
+.dark .rd-dt-shell {
+  --rd-dt-head-bg: #1A1A1A;
+  --rd-dt-bg: #141414;
+  --rd-dt-text: #C2C0B6;
+  --rd-dt-line: #262626;
+  --rd-dt-selected: #1E1E1E;
+  --rd-dt-hover: color-mix(in srgb, var(--text-primary, #fff) 3.5%, var(--rd-dt-bg));
+  --rd-dt-selected-hover: color-mix(in srgb, var(--text-primary, #fff) 3.5%, var(--rd-dt-selected));
 }
 
 .rd-dt-shell > table.rd-dt {
@@ -32,34 +61,46 @@
   border-spacing: 0;
 }
 
-/* ── Grid: hairline dividers between every column, full height ─────────── */
+/* ── Grid: full-height vertical column lines (border-left on every th/td) ── */
 .rd-dt-shell .rd-dt > thead > tr > th,
 .rd-dt-shell .rd-dt > tbody > tr > td {
-  padding: 8px 14px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--rd-dt-text);
   border-top: none !important;
-  border-left: none !important;
-  border-right: 1px solid var(--rd-dt-line) !important;
+  border-right: none !important;
+  border-left: 1px solid var(--rd-dt-line) !important;
   border-bottom: 1px solid var(--rd-dt-line) !important;
   overflow: hidden;
   vertical-align: middle;
   box-sizing: border-box;
 }
 
-.rd-dt-shell .rd-dt > thead > tr > th:last-child,
-.rd-dt-shell .rd-dt > tbody > tr > td:last-child {
-  border-right: none !important;
+.rd-dt-shell .rd-dt > thead > tr > th:first-child,
+.rd-dt-shell .rd-dt > tbody > tr > td:first-child {
+  border-left: none !important;
 }
 
 .rd-dt-shell .rd-dt > tbody > tr:last-child > td {
   border-bottom: none !important;
 }
 
-/* ── Header: sticky, 38px, 12px/500 muted ──────────────────────────────── */
+.rd-dt-shell .rd-dt a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.rd-dt-shell .rd-dt a:hover {
+  text-decoration: underline;
+}
+
+/* ── Header: sticky, 34px, 12px/500 muted ──────────────────────────────── */
 .rd-dt-shell .rd-dt > thead > tr > th {
   position: sticky;
   top: 0;
   z-index: 3;
-  height: 38px;
+  height: 34px;
   padding-top: 0;
   padding-bottom: 0;
   font-size: 12px;
@@ -73,9 +114,9 @@
 }
 
 .rd-dt-th__inner {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   width: 100%;
   height: 100%;
@@ -83,11 +124,36 @@
 }
 
 .rd-dt-th__label {
-  flex: 0 1 auto;
+  display: block;
+  width: 100%;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
+}
+
+.rd-dt-grip {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  background: var(--rd-dt-head-bg);
+  padding: 2px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: grab;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.12s ease;
+}
+
+.rd-dt-shell .rd-dt th:hover .rd-dt-grip {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .rd-dt-th__pin {
@@ -100,20 +166,22 @@
 }
 
 .rd-dt-menu-btn {
-  flex-shrink: 0;
-  margin-left: auto;
-  width: 20px;
-  height: 20px;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  background: var(--rd-dt-head-bg);
+  padding: 2px;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 
@@ -121,11 +189,12 @@
 .rd-dt-menu-btn[aria-expanded='true'],
 .rd-dt-menu-btn:focus-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .rd-dt-menu-btn:hover,
 .rd-dt-menu-btn[aria-expanded='true'] {
-  background: var(--bg-hover);
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--text-primary);
 }
 
@@ -135,10 +204,10 @@
   gap: 5px;
   height: 28px;
   padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--status-cold) 35%, var(--border));
-  border-radius: var(--radius-sm, 6px);
-  background: color-mix(in srgb, var(--status-cold) 10%, transparent);
-  color: var(--status-cold);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -147,8 +216,9 @@
 }
 
 .rd-dt-hidden-chip:hover {
-  background: color-mix(in srgb, var(--status-cold) 20%, transparent);
-  border-color: var(--status-cold);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+  border-color: var(--border-strong, #888);
+  color: var(--text-primary);
 }
 
 /* ── Resize handle: on the divider, accent on hover / drag ─────────────── */
@@ -185,10 +255,10 @@ body.rd-dt-resizing * {
   user-select: none !important;
 }
 
-/* ── Body rows: 50px, 14px, solid backgrounds ──────────────────────────── */
+/* ── Body rows: 40px, 13px, solid backgrounds ──────────────────────────── */
 .rd-dt-shell .rd-dt > tbody > tr > td {
-  height: 50px;
-  font-size: 14px;
+  height: 40px;
+  font-size: 13px;
   background-color: var(--rd-dt-bg) !important;
 }
 
@@ -206,6 +276,52 @@ body.rd-dt-resizing * {
 
 .rd-dt-shell .rd-dt > tbody > tr.rd-dt-empty:hover > td {
   background-color: var(--rd-dt-bg) !important;
+}
+
+/* ── Quick Add Row ─────────────────────────────────────────────────────── */
+.rd-dt-quick-add {
+  height: 38px;
+  background: var(--rd-dt-bg);
+}
+
+.rd-dt-quick-add td {
+  padding: 0 12px !important;
+  height: 38px !important;
+  vertical-align: middle;
+  background-color: var(--rd-dt-bg) !important;
+}
+
+.rd-dt-quick-add__input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--rd-dt-text);
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.rd-dt-quick-add__input:hover {
+  border-color: var(--rd-dt-line);
+}
+
+.rd-dt-quick-add__input:focus {
+  border-color: var(--rd-dt-accent);
+  background: var(--bg-primary, var(--rd-dt-bg));
+  box-shadow: 0 0 0 1px var(--rd-dt-accent);
+}
+
+.rd-dt-quick-add__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ── Utility columns ───────────────────────────────────────────────────── */
@@ -244,20 +360,21 @@ body.rd-dt-resizing * {
 }
 
 .rd-dt-shell.is-scrolled-x .rd-dt .rd-dt-pin-last {
-  border-right-color: var(--border-strong) !important;
+  border-right: 1px solid var(--border-strong, #888) !important;
   box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.28);
 }
 
-/* ── Clip (default): one line, ellipsis ────────────────────────────────── */
+/* ── Clip (default): one line, cut at padding edge ────────────────────── */
 .rd-dt-shell .rd-dt td.rd-dt-clip {
   white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 .rd-dt-shell .rd-dt td.rd-dt-clip .copyable-cell__content,
 .rd-dt-shell .rd-dt td.rd-dt-clip .copyable-cell__slot {
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -265,8 +382,8 @@ body.rd-dt-resizing * {
 .rd-dt-shell .rd-dt td.rd-dt-wrap {
   white-space: normal;
   line-height: 1.4;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .rd-dt-shell .rd-dt td.rd-dt-wrap .copyable-cell__content,
@@ -312,7 +429,7 @@ body.rd-dt-col-dragging * {
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
-  background: var(--status-cold);
+  background: var(--rd-dt-accent);
   z-index: 2000;
   pointer-events: none;
 }
@@ -323,7 +440,7 @@ body.rd-dt-col-dragging * {
   pointer-events: none;
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-strong, #888);
   background: var(--bg-raised, var(--bg-card));
   color: var(--text-primary);
   font-size: 12px;

@@ -1,21 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { computePillColumnMinWidth, computePillColumnAutoFitWidth } from '../../lib/pillColumnWidths';
 
 const WIDTH_PREFIX = 'crm_column_widths_';
 const ROW_PREFIX = 'crm_row_heights_';
 
 const DEFAULT_WIDTHS = {
-  name: 200,
+  name: 180,
+  priority: 110,
   status: 140,
-  platform: 100,
-  email: 220,
-  phone: 150,
-  company: 160,
-  priority: 120,
-  action_to_take: 160,
+  call_status: 140,
+  outcome: 140,
+  outreach_channel: 110,
+  channel: 110,
+  action_to_take: 150,
+  call_action: 150,
+  next_checkpoint_at: 130,
+  due: 130,
   last_contacted_at: 130,
-  template_used: 160,
-  script_used: 160,
+  last_called: 160,
+  last_activity: 160,
+  platform: 90,
+  reach: 90,
+  phone: 140,
+  local_time: 166,
+  email: 180,
+  company: 160,
   niche: 140,
+  template_used: 150,
+  script_used: 150,
+  attempts: 80,
   created_at: 130,
   linkedin_url: 160,
   instagram_url: 160,
@@ -23,21 +36,6 @@ const DEFAULT_WIDTHS = {
   website: 160,
   project: 140,
   _added_by: 140,
-  local_time: 140,
-  call_action: 160,
-  last_called: 120,
-  outcome: 120,
-  attempts: 80,
-  _actions: 180,
-  lead: 200,
-  when: 160,
-  member: 140,
-  note: 200,
-  followup: 130,
-  type: 100,
-  leads_count: 80,
-  list_name: 280,
-  created_by: 140,
 };
 
 const DEFAULT_ROW_HEIGHT = 44;
@@ -68,9 +66,9 @@ function loadLayout(view) {
 
 /**
  * Persisted column widths + row heights for a CRM table view.
- * Row heights: shared default + optional per-row overrides (by id).
+ * Computes minimum widths to prevent any pill clipping.
  */
-export function useCrmTableLayout(view) {
+export function useCrmTableLayout(view, context = {}) {
   const [layout, setLayout] = useState(() => loadLayout(view));
   const viewRef = useRef(view);
   const hydrated = useRef(true);
@@ -93,26 +91,57 @@ export function useCrmTableLayout(view) {
     } catch { /* ignore */ }
   }, [layout, view]);
 
+  const getColMinWidth = useCallback(
+    (colOrKey) => {
+      const colObj = typeof colOrKey === 'string' ? { column_key: colOrKey } : (colOrKey || {});
+      return computePillColumnMinWidth(colObj, context);
+    },
+    [context]
+  );
+
   const getWidth = useCallback(
-    (key) => layout.widths[key] || DEFAULT_WIDTHS[key] || 130,
-    [layout.widths],
+    (key) => {
+      const colObj = typeof key === 'string' ? { column_key: key } : (key || {});
+      const colKey = colObj.column_key || colObj.key || key;
+      const minW = computePillColumnMinWidth(colObj, context);
+      const specDefault = DEFAULT_WIDTHS[colKey] || 130;
+      const effectiveDefault = Math.max(specDefault, minW);
+      const stored = layout.widths[colKey];
+      if (stored != null) {
+        return Math.max(stored, minW);
+      }
+      return effectiveDefault;
+    },
+    [layout.widths, context],
   );
 
   const setWidth = useCallback((key, width) => {
-    const next = Math.max(MIN_COL, Math.min(MAX_COL, Math.round(width)));
+    const colObj = typeof key === 'string' ? { column_key: key } : (key || {});
+    const colKey = colObj.column_key || colObj.key || key;
+    const minW = computePillColumnMinWidth(colObj, context);
+    const next = Math.max(minW, Math.min(MAX_COL, Math.round(width)));
     setLayout((prev) => ({
       ...prev,
-      widths: { ...prev.widths, [key]: next },
+      widths: { ...prev.widths, [colKey]: next },
     }));
-  }, []);
+  }, [context]);
 
   const resetWidth = useCallback((key) => {
+    const colObj = typeof key === 'string' ? { column_key: key } : (key || {});
+    const colKey = colObj.column_key || colObj.key || key;
     setLayout((prev) => {
       const widths = { ...prev.widths };
-      delete widths[key];
+      delete widths[colKey];
       return { ...prev, widths };
     });
   }, []);
+
+  const autoFitWidth = useCallback((key) => {
+    const colObj = typeof key === 'string' ? { column_key: key } : (key || {});
+    const colKey = colObj.column_key || colObj.key || key;
+    const autoW = computePillColumnAutoFitWidth(colObj, context);
+    setWidth(colKey, autoW);
+  }, [context, setWidth]);
 
   const getRowHeight = useCallback(
     (rowId) => {
@@ -161,6 +190,8 @@ export function useCrmTableLayout(view) {
     getWidth,
     setWidth,
     resetWidth,
+    autoFitWidth,
+    getColMinWidth,
     getRowHeight,
     setRowHeight,
     resetRowHeight,

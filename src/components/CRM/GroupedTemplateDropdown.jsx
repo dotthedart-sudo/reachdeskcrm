@@ -12,8 +12,9 @@ export default function GroupedTemplateDropdown({
   value,
   onChange,
   templates = [],
-  placeholder = '-- Select template (optional) --',
+  placeholder = 'None',
   kind = TEMPLATE_KINDS.MESSAGING,
+  isTableInline = true,
 }) {
   const SECTIONS = sectionsForKind(kind);
   const mySectionName = myLibrarySectionName(kind);
@@ -207,22 +208,54 @@ export default function GroupedTemplateDropdown({
         ref={triggerRef}
         type="button"
         onClick={openDropdown}
-        className="form-select"
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          textAlign: 'left',
-          cursor: 'pointer',
-          padding: '0.5rem 0.75rem',
-          height: 'auto',
+        className={isTableInline ? 'rd-template-inline-btn' : 'form-select'}
+        style={
+          isTableInline
+            ? {
+                width: '100%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                textAlign: 'left',
+                cursor: 'pointer',
+                padding: '2px 6px',
+                height: '24px',
+                background: 'transparent',
+                border: '1px solid transparent',
+                borderRadius: '4px',
+                color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontSize: '13px',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.12s ease, background 0.12s ease',
+              }
+            : {
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                textAlign: 'left',
+                cursor: 'pointer',
+                padding: '0.5rem 0.75rem',
+                height: 'auto',
+              }
+        }
+        onMouseEnter={(e) => {
+          if (isTableInline) {
+            e.currentTarget.style.borderColor = 'var(--border)';
+            e.currentTarget.style.background = 'var(--bg-hover, rgba(255,255,255,0.04))';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isTableInline) {
+            e.currentTarget.style.borderColor = 'transparent';
+            e.currentTarget.style.background = 'transparent';
+          }
         }}
       >
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginRight: '8px' }}>
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginRight: '6px' }}>
           {triggerLabel}
         </span>
-        <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+        <ChevronDown size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.6 }} />
       </button>
       {dropdownPanel}
     </div>

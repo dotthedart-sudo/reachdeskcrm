@@ -80,52 +80,74 @@ export function mergeTemplateFields(bodyText, lead, snippets = [], columnDefs = 
   });
 }
 
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { toCountryIso, normalizeInternationalPrefix } from '../lib/leadTimezone';
+
 /**
- * Normalizes a phone number for international destination formats (wa.me, sms).
+ * Normalizes a phone number for international destination formats (wa.me, sms, E.164).
  * 
  * @param {string} phone - The raw phone number stored on the lead.
- * @param {string} defaultCountryCode - The default country code (e.g. '+92') to prepend if missing.
- * @param {string} leadRegion - Optional region/country code stored on the lead.
- * @returns {object} { normalized, isValid, error }
+ * @param {string} defaultCountryCode - The user's default country code or calling code (e.g. '+1', 'US').
+ * @param {string} listCountry - Optional list/folder country code (e.g. 'US', 'GB').
+ * @returns {object} { normalized, isValid, country, error }
  */
-export function normalizePhoneNumber(phone, defaultCountryCode = '+92', leadRegion = null) {
-  if (!phone) {
-    return { normalized: '', isValid: false, error: 'No phone number provided' };
+export function normalizePhoneNumber(phone, defaultCountryCode = null, listCountry = null) {
+  if (!phone || typeof phone !== 'string' || !phone.trim()) {
+    return { normalized: '', isValid: false, country: null, error: 'No phone number provided' };
   }
 
-  // Strip spaces, dashes, parentheses, dots
-  let clean = phone.replace(/[\s\-\(\)\.]/g, '');
+  const raw = phone.trim();
+  const normalizedPrefix = normalizeInternationalPrefix(raw);
 
-  if (clean.startsWith('+')) {
-    const digitsOnly = clean.replace(/\D/g, '');
-    const isValid = digitsOnly.length >= 8 && digitsOnly.length <= 15;
+  if (normalizedPrefix.startsWith('+')) {
+    const parsed = parsePhoneNumberFromString(normalizedPrefix);
+    if (parsed && parsed.isValid()) {
+      return {
+        normalized: parsed.format('E.164'),
+        isValid: true,
+        country: parsed.country || null,
+        error: null,
+      };
+    }
+    // Fallback if parsing failed but starts with +
+    const cleanDigits = normalizedPrefix.replace(/\D/g, '');
+    const isValid = cleanDigits.length >= 8 && cleanDigits.length <= 15;
     return {
-      normalized: clean,
+      normalized: `+${cleanDigits}`,
       isValid,
-      error: isValid ? null : `Normalized phone "${clean}" length is invalid (must be 8-15 digits)`
+      country: null,
+      error: isValid ? null : `Phone "${raw}" is invalid (must be 8-15 digits with valid country code)`,
     };
   }
 
-  // Strip leading 0
-  if (clean.startsWith('0')) {
-    clean = clean.substring(1);
+  // Local/national candidate testing: listCountry -> defaultCountryCode -> 'US'
+  const listIso = toCountryIso(listCountry);
+  const userIso = toCountryIso(defaultCountryCode);
+  const candidates = [listIso, userIso, 'US'].filter(Boolean).filter((c, i, s) => s.indexOf(c) === i);
+
+  for (const candidateIso of candidates) {
+    try {
+      const parsed = parsePhoneNumberFromString(raw, candidateIso);
+      if (parsed && parsed.isValid()) {
+        return {
+          normalized: parsed.format('E.164'),
+          isValid: true,
+          country: parsed.country || candidateIso,
+          error: null,
+        };
+      }
+    } catch {
+      // ignore
+    }
   }
 
-  // Select prefix
-  let prefix = leadRegion || defaultCountryCode || '+92';
-  prefix = prefix.trim();
-  if (!prefix.startsWith('+')) {
-    prefix = `+${prefix}`;
-  }
-
-  const normalized = `${prefix}${clean}`;
-  const digitsOnly = normalized.replace(/\D/g, '');
-  const isValid = digitsOnly.length >= 8 && digitsOnly.length <= 15;
-
+  // Fallback: clean non-digits
+  const clean = raw.replace(/[\s\-\(\)\.]/g, '');
   return {
-    normalized,
-    isValid,
-    error: isValid ? null : `Normalized phone "${normalized}" length is invalid (must be 8-15 digits)`
+    normalized: clean,
+    isValid: false,
+    country: null,
+    error: `Could not determine valid country prefix for "${raw}". Include country code (e.g. +1...)`,
   };
 }
 
@@ -138,10 +160,10 @@ export function normalizePhoneNumber(phone, defaultCountryCode = '+92', leadRegi
  * @param {string} subject - The message subject.
  * @param {string} body - The message body.
  * @param {string} defaultCountryCode - Default country prefix.
- * @param {string} leadRegion - Optional lead region.
+ * @param {string} listCountry - Optional list country.
  * @returns {object} { url, warning }
  */
-export function generatePrefilledUrl(channelKey, destination, contactInfo, subject = '', body = '', defaultCountryCode = '+92', leadRegion = null) {
+export function generatePrefilledUrl(channelKey, destination, contactInfo, subject = '', body = '', defaultCountryCode = null, listCountry = null) {
   const encSubject = encodeURIComponent(subject);
   const encBody = encodeURIComponent(body);
 
@@ -157,21 +179,21 @@ export function generatePrefilledUrl(channelKey, destination, contactInfo, subje
   }
 
   if (channelKey === 'whatsapp') {
-    const { normalized, isValid, error } = normalizePhoneNumber(contactInfo.phone, defaultCountryCode, leadRegion);
+    const { normalized, isValid, error } = normalizePhoneNumber(contactInfo.phone, defaultCountryCode, listCountry);
     const cleanPhone = normalized.replace(/\+/g, '');
     return {
       url: `https://wa.me/${cleanPhone}?text=${encBody}`,
-      warning: isValid ? null : error
+      warning: isValid ? null : error,
     };
   }
 
   if (channelKey === 'sms') {
-    const { normalized, isValid, error } = normalizePhoneNumber(contactInfo.phone, defaultCountryCode, leadRegion);
+    const { normalized, isValid, error } = normalizePhoneNumber(contactInfo.phone, defaultCountryCode, listCountry);
     const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
     const separator = isIOS ? '&' : '?';
     return {
       url: `sms:${normalized}${separator}body=${encBody}`,
-      warning: isValid ? null : error
+      warning: isValid ? null : error,
     };
   }
 

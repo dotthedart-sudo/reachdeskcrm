@@ -223,18 +223,32 @@ export const PhonePopup = ({ phone }) => {
 };
 
 // ── ReachIcons — shown in the "Reach" column of the CRM table ─────────────────
-export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
+export const ReachIcons = ({ lead, columnDefs = [], onReachClick, reachMode = 'icons' }) => {
   const allLinks = [];
 
-  // 1. Standard Link Fields
-  if (lead.linkedin_url) allLinks.push(...extractLinks(lead.linkedin_url, { isLinkField: true }));
-  if (lead.instagram_url) allLinks.push(...extractLinks(lead.instagram_url, { isLinkField: true }));
-  if (lead.twitter_url) allLinks.push(...extractLinks(lead.twitter_url, { isLinkField: true }));
-  if (lead.website) allLinks.push(...extractLinks(lead.website, { isLinkField: true }));
+  // 0. Primary source: leads.links (jsonb array of {url, platform})
+  if (Array.isArray(lead?.links)) {
+    lead.links.forEach((item) => {
+      if (typeof item === 'string') {
+        allLinks.push(...extractLinks(item, { isLinkField: true }));
+      } else if (item && item.url) {
+        allLinks.push({
+          platform: item.platform || detectPlatformLabel(item.url),
+          url: item.url,
+        });
+      }
+    });
+  }
+
+  // 1. Standard Link Fields (fallback if not already present)
+  if (lead?.linkedin_url) allLinks.push(...extractLinks(lead.linkedin_url, { isLinkField: true }));
+  if (lead?.instagram_url) allLinks.push(...extractLinks(lead.instagram_url, { isLinkField: true }));
+  if (lead?.twitter_url) allLinks.push(...extractLinks(lead.twitter_url, { isLinkField: true }));
+  if (lead?.website) allLinks.push(...extractLinks(lead.website, { isLinkField: true }));
 
   // 2. Custom Fields
-  if (lead.custom_fields && columnDefs) {
-    columnDefs.forEach(col => {
+  if (lead?.custom_fields && columnDefs) {
+    columnDefs.forEach((col) => {
       if (!col.is_default) {
         const val = lead.custom_fields[col.column_key];
         if (val) {
@@ -250,32 +264,23 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
     });
   }
 
-  // 3. Links array (custom fields)
-  if (lead.custom_fields && Array.isArray(lead.custom_fields.links)) {
-    lead.custom_fields.links.forEach(item => {
-      if (item && item.url) {
-        allLinks.push(...extractLinks(item.url, { isLinkField: true }));
-      }
-    });
-  }
-
-  // 4. Phone standard field (always adds WhatsApp, SMS, Call)
-  if (lead.phone) {
+  // 3. Phone standard field (adds WhatsApp, SMS, Call if icons mode)
+  if (lead?.phone) {
     allLinks.push({ platform: 'whatsapp', url: `whatsapp:${lead.phone}` });
     allLinks.push({ platform: 'sms', url: `sms:${lead.phone}` });
     allLinks.push({ platform: 'phone', url: `tel:${lead.phone}` });
   }
 
-  // 5. Email standard field
-  if (lead.email) {
+  // 4. Email standard field
+  if (lead?.email) {
     allLinks.push({ platform: 'email', url: `mailto:${lead.email}` });
   }
 
-  // Final dedupe on URL to avoid duplicating a link that was found in multiple places
+  // Final dedupe on normalized URL
   const uniqueLinks = [];
   const addedUrls = new Set();
-  allLinks.forEach(link => {
-    // Normalization logic for deduping
+  allLinks.forEach((link) => {
+    if (!link || !link.url) return;
     let normalized = link.url.toLowerCase();
     if (link.platform !== 'email' && link.platform !== 'phone' && link.platform !== 'whatsapp' && link.platform !== 'sms') {
       normalized = normalized.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
@@ -290,21 +295,79 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
   });
 
   if (uniqueLinks.length === 0) {
-    return <span style={{ color: '#6B7280', fontSize: '0.85rem' }}>—</span>;
+    return <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>—</span>;
   }
 
+  // ── Full links display mode: text like linkedin.com/in/name, clipped with ellipsis ──
+  if (reachMode === 'full_links') {
+    const webLinks = uniqueLinks.filter(
+      (l) => !['whatsapp', 'sms', 'phone'].includes(l.platform) || l.url.startsWith('http'),
+    );
+    const linksToShow = webLinks.length > 0 ? webLinks : uniqueLinks;
+
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          maxWidth: '100%',
+          overflow: 'hidden',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {linksToShow.map(({ platform, url }) => {
+          const cleanText = url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '');
+          const targetUrl = url.startsWith('http') || url.includes(':') ? url : `https://${url}`;
+
+          return (
+            <a
+              key={url}
+              href={targetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={targetUrl}
+              style={{
+                color: 'var(--text-secondary)',
+                textDecoration: 'none',
+                fontSize: 12,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'block',
+                maxWidth: '100%',
+              }}
+              onClick={(e) => {
+                if (onReachClick) onReachClick(e, platform, targetUrl, lead);
+              }}
+            >
+              {cleanText}
+            </a>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Icons display mode: icons with platform colors ──
   return (
     <div
-      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        overflow: 'hidden',
+        maxWidth: '100%',
+      }}
       onClick={(e) => e.stopPropagation()}
     >
-      {uniqueLinks.map(({ platform, url, isCustom }) => {
+      {uniqueLinks.map(({ platform, url }) => {
         let IconComp = null;
         let iconColor = '#6B7280';
 
-        const mapKey = platform.toLowerCase();
-        let displayPlatform = platform;
-        
+        const mapKey = (platform || '').toLowerCase();
+        let displayPlatform = platform || 'Website';
+
         if (mapKey.includes('linkedin')) {
           IconComp = PLATFORM_MAP.linkedin.icon;
           iconColor = PLATFORM_MAP.linkedin.color;
@@ -317,6 +380,18 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
           IconComp = PLATFORM_MAP.twitter.icon;
           iconColor = PLATFORM_MAP.twitter.color;
           displayPlatform = 'Twitter/X';
+        } else if (mapKey.includes('facebook')) {
+          IconComp = SiFacebook;
+          iconColor = '#1877F2';
+          displayPlatform = 'Facebook';
+        } else if (mapKey.includes('tiktok')) {
+          IconComp = SiTiktok;
+          iconColor = '#000000';
+          displayPlatform = 'TikTok';
+        } else if (mapKey.includes('youtube')) {
+          IconComp = SiYoutube;
+          iconColor = '#FF0000';
+          displayPlatform = 'YouTube';
         } else if (mapKey.includes('email')) {
           IconComp = PLATFORM_MAP.email.icon;
           iconColor = PLATFORM_MAP.email.color;
@@ -352,17 +427,22 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick }) => {
           }
         };
 
+        const targetHref = url.startsWith('http') || url.includes(':') ? url : `https://${url}`;
+
         return (
           <a
             key={url}
-            href={url}
+            href={targetHref}
             onClick={handleIconClick}
             target="_blank"
             rel="noopener noreferrer"
             title={displayPlatform}
             style={{
-              display: 'flex', alignItems: 'center', lineHeight: 1,
-              opacity: 0.85, transition: 'opacity 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              lineHeight: 1,
+              opacity: 0.85,
+              transition: 'opacity 0.15s ease',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.85')}

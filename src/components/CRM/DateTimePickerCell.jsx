@@ -17,10 +17,14 @@ export default function DateTimePickerCell({
   value,
   timeZone,
   onChange,
+  mode = 'future',
   placeholder = '—',
   disabled = false,
   compact = false,
   autoOpen = false,
+  customLabel,
+  isOverdue = false,
+  isPlaceholder = false,
 }) {
   const [open, setOpen] = useState(autoOpen);
   const [draft, setDraft] = useState('');
@@ -40,7 +44,7 @@ export default function DateTimePickerCell({
     if (!triggerRef.current) return;
     setMenuPos(computePortalMenuPosition(triggerRef.current, {
       menuWidth: 260,
-      menuHeight: 180,
+      menuHeight: 220,
     }));
   };
 
@@ -63,7 +67,7 @@ export default function DateTimePickerCell({
     };
   }, [open]);
 
-  const label = value ? formatActivityDateTime(value, { timeZone: tz, showZone: false }) : placeholder;
+  const label = customLabel || (value ? formatActivityDateTime(value, { timeZone: tz, showZone: false }) : placeholder);
 
   const commit = () => {
     if (!draft) {
@@ -78,21 +82,55 @@ export default function DateTimePickerCell({
 
   const handleQuickOption = (option) => {
     const now = new Date();
-    if (option === '1hour') {
-      onChange?.(new Date(now.getTime() + 60 * 60 * 1000).toISOString());
+    if (option === 'justNow') {
+      onChange?.(now.toISOString());
       setOpen(false);
-    } else if (option === 'tomorrow' || option === 'nextWeek') {
-      const tzDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-      if (option === 'tomorrow') tzDate.setDate(tzDate.getDate() + 1);
-      if (option === 'nextWeek') tzDate.setDate(tzDate.getDate() + 7);
-      const yyyy = tzDate.getFullYear();
-      const mm = String(tzDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(tzDate.getDate()).padStart(2, '0');
-      const localStr = `${yyyy}-${mm}-${dd}T10:00`;
-      const iso = datetimeLocalValueToIso(localStr, tz);
-      onChange?.(iso);
-      setOpen(false);
+      return;
     }
+    if (option === '1hourAgo') {
+      onChange?.(new Date(now.getTime() - 60 * 60 * 1000).toISOString());
+      setOpen(false);
+      return;
+    }
+    if (option === 'in4hours') {
+      onChange?.(new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString());
+      setOpen(false);
+      return;
+    }
+
+    const tzDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    let hour = 10;
+    if (option === 'yesterday3pm') {
+      tzDate.setDate(tzDate.getDate() - 1);
+      hour = 15;
+    } else if (option === '2daysAgo') {
+      tzDate.setDate(tzDate.getDate() - 2);
+      hour = 15;
+    } else if (option === 'lastWeek') {
+      tzDate.setDate(tzDate.getDate() - 7);
+      hour = 15;
+    } else if (option === 'tomorrow') {
+      tzDate.setDate(tzDate.getDate() + 1);
+      hour = 10;
+    } else if (option === 'in3days') {
+      tzDate.setDate(tzDate.getDate() + 3);
+      hour = 10;
+    } else if (option === 'nextWeek') {
+      tzDate.setDate(tzDate.getDate() + 7);
+      hour = 10;
+    } else if (option === 'in2weeks') {
+      tzDate.setDate(tzDate.getDate() + 14);
+      hour = 10;
+    }
+
+    const yyyy = tzDate.getFullYear();
+    const mm = String(tzDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(tzDate.getDate()).padStart(2, '0');
+    const hh = String(hour).padStart(2, '0');
+    const localStr = `${yyyy}-${mm}-${dd}T${hh}:00`;
+    const iso = datetimeLocalValueToIso(localStr, tz);
+    if (iso) onChange?.(iso);
+    setOpen(false);
   };
 
   const panel = open && menuPos && createPortal(
@@ -114,9 +152,23 @@ export default function DateTimePickerCell({
         Quick options
       </label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: '0.75rem' }}>
-        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('1hour')}>In 1 hour</button>
-        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('tomorrow')}>Tomorrow 10am</button>
-        <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('nextWeek')}>Next week</button>
+        {mode === 'past' ? (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('justNow')}>Just now</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('1hourAgo')}>1 hour ago</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('yesterday3pm')}>Yesterday 3pm</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('2daysAgo')}>2 days ago</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('lastWeek')}>Last week</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('in4hours')}>In 4 hours</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('tomorrow')}>Tomorrow 10am</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('in3days')}>In 3 days</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('nextWeek')}>Next week</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => handleQuickOption('in2weeks')}>In 2 weeks</button>
+          </>
+        )}
       </div>
       <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4 }}>
         Custom Date & Time
@@ -152,8 +204,12 @@ export default function DateTimePickerCell({
     document.body,
   );
 
+  const displayColor = isOverdue
+    ? 'var(--accent-red, #ef4444)'
+    : (isPlaceholder || !value ? 'var(--text-muted)' : 'var(--text-secondary)');
+
   return (
-    <div ref={wrapRef} style={{ position: 'relative', display: 'inline-block', minWidth: compact ? 110 : 140 }}>
+    <div ref={wrapRef} className="dt-picker-cell" style={{ position: 'relative', width: '100%', minWidth: 0, display: 'block' }}>
       <button
         ref={triggerRef}
         type="button"
@@ -162,23 +218,29 @@ export default function DateTimePickerCell({
           e.stopPropagation();
           if (!disabled) setOpen((v) => !v);
         }}
-        title={value ? formatActivityDateTime(value, { timeZone: tz, showZone: true }) : 'Set date & time'}
+        title={value ? formatActivityDateTime(value, { timeZone: tz, showZone: true }) : (label || 'Set date & time')}
         style={{
           background: 'transparent',
-          border: '1px solid transparent',
-          borderRadius: 4,
-          padding: '2px 6px',
+          border: 'none',
+          padding: 0,
           cursor: disabled ? 'default' : 'pointer',
-          color: value ? 'var(--text-secondary)' : 'var(--text-muted)',
-          fontSize: compact ? '0.8rem' : '0.85rem',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          maxWidth: 200,
+          color: displayColor,
+          fontWeight: isOverdue ? 500 : 400,
+          fontSize: '13px',
+          width: '100%',
+          display: 'block',
+          textAlign: 'left',
+          overflow: 'hidden',
+          textOverflow: 'clip',
+          whiteSpace: 'nowrap',
         }}
       >
-        <CalendarClock size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <span style={{ display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'clip', whiteSpace: 'nowrap' }}>
+          {label}
+        </span>
+        <span className="dt-picker-icon">
+          <CalendarClock size={12} />
+        </span>
       </button>
       {panel}
     </div>

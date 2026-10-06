@@ -1,78 +1,104 @@
 /* eslint-disable no-unused-vars, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect, no-extra-boolean-cast */
-import { useState, useEffect, useRef } from 'react';
-import { X, Calendar, User, FileText, Activity as ActivityIcon, Plus, Trash2, Pencil, Check, Receipt, Lock, Copy, Phone, Mail } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { 
+  X, 
+  ChevronLeft, 
+  ChevronRight, 
+  MoreHorizontal, 
+  Phone, 
+  Mail, 
+  Calendar, 
+  Clock, 
+  Building, 
+  Folder, 
+  Check, 
+  Plus, 
+  Trash2, 
+  Pencil, 
+  FileText, 
+  Receipt, 
+  Activity as ActivityIcon, 
+  Copy, 
+  ExternalLink,
+  MessageSquare,
+  UserCheck
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAppContext } from '../../App';
 import { fetchLeadCallTimeline } from '../../lib/callActivity';
 import { isTeamOwner } from '../../lib/teamWorkspace';
 import LogCallModal from './callActivity/LogCallModal';
 import LogMessageModal from './LogMessageModal';
-import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './EditableDropdown';
-import RichTextEditor from './RichTextEditor';
 import GroupedStatusDropdown from './GroupedStatusDropdown';
-import GroupedTemplateDropdown from './GroupedTemplateDropdown';
 import GroupedChannelDropdown from './GroupedChannelDropdown';
-import {
-  updateLeadStatusAndCheckpoint,
-  getSuggestionForStatus,
-  isClientStatus,
-  REPLY_CHECK_STATUSES,
-  FOLLOW_UP_CHECK_STATUSES,
-} from '../../lib/reminders';
-import { isCheckpointDue } from '../../lib/checkpointNotifications';
-import { getCallActionForStatus, displayCallStatus } from '../../lib/callOutcomeRules';
-import { CALL_ACTION_DEFAULT_OPTIONS } from './crmTableColumns';
 import PriorityDropdown from './PriorityDropdown';
 import DateTimePickerCell from './DateTimePickerCell';
 import ActivityTimelineRow from './ActivityTimelineRow';
+import LocalTimeCell from './LocalTimeCell';
+import LeadLinkChips from './LeadLinkChips';
+import RichTextEditor from './RichTextEditor';
+import { PhonePopup } from '../icons/PlatformIcons';
+import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
+import { 
+  updateLeadStatusAndCheckpoint, 
+  getSuggestionForStatus, 
+  isClientStatus,
+  REPLY_CHECK_STATUSES,
+  FOLLOW_UP_CHECK_STATUSES
+} from '../../lib/reminders';
+import { isCheckpointDue } from '../../lib/checkpointNotifications';
+import { getCallActionForStatus, displayCallStatus } from '../../lib/callOutcomeRules';
 import { fetchLeadTimeline, logLeadTimelineEvent, updateTimelineEventOccurredAt } from '../../lib/leadTimeline';
 import { getEffectiveUserTimeZone } from '../../lib/dateTime';
-import { mergeTemplateFields } from '../../utils/templateMerge';
+import { getLeadTimezone, inferTimezoneFromPhone } from '../../lib/leadTimezone';
+import { 
+  extractLeadLinksArray, 
+  syncLegacyLinkColumns, 
+  normalizeUrl, 
+  detectPlatform 
+} from '../../lib/linkUtils';
 import { celebrateClosedWon } from '../../utils/celebrateWin';
-import { TEMPLATE_KINDS } from '../../lib/templateKinds';
 import './LeadDrawer.css';
+
 export default function LeadDrawer({
   lead,
+  leadsList = [],
+  onSelectLead,
   onClose,
   onUpdateLead,
-  columnDefs,
+  onDeleteLead,
+  columnDefs = [],
   currentUser,
   templates = [],
+  folders = [],
+  userFolders = [],
   onConvertToClient,
-  isClientView,
+  isClientView = false,
+  currentViewName = null,
   onRefresh,
   statuses = [],
   suggestionRules = [],
   initialTab = null,
 }) {
-  const [activeTab, setActiveTab] = useState('contact'); // 'contact' | 'pipeline' | 'notes' | 'activity'
   const { showToast, userSnippets, teamProfilesMap = {} } = useAppContext() || {};
   const isOwner = isTeamOwner(currentUser);
+
   const [formData, setFormData] = useState({});
-  const [invoices, setInvoices] = useState([]);
+  const [activeTab, setActiveTab] = useState(initialTab === 'calls' ? 'calls' : 'activity'); // 'activity' | 'notes' | 'calls' | 'invoices'
 
-  useEffect(() => {
-    if (lead?.id) {
-      fetchInvoices();
-    }
-  }, [lead?.id]);
+  // More menu portal
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [moreMenuPos, setMoreMenuPos] = useState(null);
+  const moreTriggerRef = useRef(null);
 
-  const fetchInvoices = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('lead_id', lead.id)
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setInvoices(data);
-      }
-    } catch (e) {
-      console.error('Error fetching invoices:', e);
-    }
-  };
+  // Move to list menu portal
+  const [listMenuOpen, setListMenuOpen] = useState(false);
+  const [listMenuPos, setListMenuPos] = useState(null);
+  const listTriggerRef = useRef(null);
+
+  // Convert modal
   const [showConvertModal, setShowConvertModal] = useState(false);
-  const [showSuggestion, setShowSuggestion] = useState(true);
   const [convertForm, setConvertForm] = useState({
     company: '',
     phone: '',
@@ -82,49 +108,11 @@ export default function LeadDrawer({
     invoice_link: ''
   });
 
-  const handleConvertSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const data = await updateLeadStatusAndCheckpoint({
-        lead,
-        newStatus: 'Client',
-        suggestionRules,
-        currentUser,
-        extraUpdates: {
-          lifecycle_stage: 'client',
-          project_status: convertForm.project_status,
-          start_date: convertForm.start_date || null,
-          contract_value: convertForm.contract_value ? parseFloat(convertForm.contract_value) : null,
-          invoice_link: convertForm.invoice_link || null,
-          company: convertForm.company || null,
-          phone: convertForm.phone || null
-        }
-      });
+  // Action modals
+  const [logCallOpen, setLogCallOpen] = useState(false);
+  const [logMessageOpen, setLogMessageOpen] = useState(false);
 
-      setFormData(prev => ({
-        ...prev,
-        status: 'Client',
-        lifecycle_stage: 'client',
-        project_status: convertForm.project_status,
-        start_date: convertForm.start_date,
-        contract_value: convertForm.contract_value,
-        invoice_link: convertForm.invoice_link,
-        company: convertForm.company,
-        phone: convertForm.phone
-      }));
-
-      if (onUpdateLead) {
-        onUpdateLead(data);
-      }
-      setShowConvertModal(false);
-      alert('Successfully converted to client!');
-    } catch (err) {
-      console.error('Error converting lead to client:', err);
-      alert('Failed to convert: ' + err.message);
-    }
-  };
-
-  // Multi-note state
+  // Notes state
   const [leadNotes, setLeadNotes] = useState([]);
   const [selectedNoteId, setSelectedNoteId] = useState(null);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -133,86 +121,241 @@ export default function LeadDrawer({
   const [selectedNoteContent, setSelectedNoteContent] = useState('');
   const [noteSaveStatus, setNoteSaveStatus] = useState('');
   const noteSaveTimeoutRef = useRef(null);
+  const titleInputRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (noteSaveTimeoutRef.current) clearTimeout(noteSaveTimeoutRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    setNoteSaveStatus('');
-    if (noteSaveTimeoutRef.current) clearTimeout(noteSaveTimeoutRef.current);
-  }, [selectedNoteId]);
-
+  // Timeline / Activity state
   const [activities, setActivities] = useState([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [timeline, setTimeline] = useState([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [callAttempts, setCallAttempts] = useState([]);
   const [callAttemptsLoading, setCallAttemptsLoading] = useState(false);
-  const [logCallOpen, setLogCallOpen] = useState(false);
-  const [logMessageOpen, setLogMessageOpen] = useState(false);
 
-  const titleInputRef = useRef(null);
+  // Quick activity/note composer in Activity tab
+  const [composerText, setComposerText] = useState('');
+  const [composerSubmitting, setComposerSubmitting] = useState(false);
 
+  // Invoices state
+  const [invoices, setInvoices] = useState([]);
+
+  // Follow-up popover state
+  const [showFollowupPicker, setShowFollowupPicker] = useState(false);
+
+  // Sync state when lead changes
   useEffect(() => {
     if (lead) {
+      const parsedLinks = extractLeadLinksArray(lead);
       setFormData({
         ...lead,
-        name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim()
+        name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+        links: parsedLinks,
       });
+
       fetchNotes();
       fetchActivities();
       fetchCallAttempts();
       fetchTimeline();
-      setShowSuggestion(true);
-      if (initialTab === 'calls') {
-        setActiveTab('activity');
-      } else if (
-        isCheckpointDue(lead, {
-          remindersEnabled: currentUser?.reminders_enabled !== false,
-        })
-      ) {
-        // Deep-link from bell/push: show checkpoint actions on Pipeline tab
-        setActiveTab('pipeline');
+      fetchInvoices();
+
+      if (initialTab) {
+        setActiveTab(initialTab);
       }
     }
-  }, [lead, initialTab]);
+  }, [lead?.id]);
 
-  // Focus title input when entering edit mode
-  useEffect(() => {
-    if (editingTitleId && titleInputRef.current) {
-      titleInputRef.current.focus();
+  // Lead navigation (prev / next)
+  const currentLeadIndex = useMemo(() => {
+    if (!leadsList || !leadsList.length || !lead) return -1;
+    return leadsList.findIndex((l) => l.id === lead.id);
+  }, [leadsList, lead?.id]);
+
+  const totalLeadsCount = leadsList?.length || 0;
+  const hasPrev = currentLeadIndex > 0;
+  const hasNext = currentLeadIndex >= 0 && currentLeadIndex < totalLeadsCount - 1;
+
+  const handlePrevLead = () => {
+    if (hasPrev && onSelectLead) {
+      onSelectLead(leadsList[currentLeadIndex - 1]);
     }
-  }, [editingTitleId]);
+  };
 
-  // ── Multi-note helpers ──
+  const handleNextLead = () => {
+    if (hasNext && onSelectLead) {
+      onSelectLead(leadsList[currentLeadIndex + 1]);
+    }
+  };
+
+  // List folder lookup
+  const currentFolder = (folders || []).find((f) => f.id === (formData.folder_id || lead?.folder_id))
+    || (userFolders || []).find((f) => f.id === (formData.folder_id || lead?.folder_id))
+    || null;
+
+  const listName = currentFolder?.name || 'Main List';
+  const listCountry = currentFolder?.default_country || null;
+  const userCountry = currentUser?.default_country_code || null;
+
+  // Avatar Initials
+  const leadName = (formData.name !== undefined ? formData.name : `${formData.first_name || ''} ${formData.last_name || ''}`).trim() || 'Unnamed';
+  const initials = useMemo(() => {
+    const parts = leadName.split(' ').filter(Boolean);
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }, [leadName]);
+
+  // Subtitle: Role at Company · City
+  const roleText = formData.role || formData.title || formData.niche || '';
+  const companyText = formData.company || '';
+  const cityText = formData.city || formData.location || (formData.timezone ? formData.timezone.split('/').pop().replace(/_/g, ' ') : '');
+  
+  const headerSubtitle = useMemo(() => {
+    const parts = [];
+    if (roleText && companyText) parts.push(`${roleText} at ${companyText}`);
+    else if (roleText) parts.push(roleText);
+    else if (companyText) parts.push(companyText);
+    else parts.push('No company');
+
+    if (cityText) parts.push(cityText);
+    return parts.join(' · ');
+  }, [roleText, companyText, cityText]);
+
+  // Helper to persist field changes
+  const saveLeadField = async (fieldKey, value, extraUpdates = {}) => {
+    if (!lead?.id) return;
+    try {
+      const updates = { [fieldKey]: value, ...extraUpdates };
+      setFormData((prev) => ({ ...prev, ...updates }));
+
+      const targetTable = isClientView ? 'clients' : 'leads';
+      const { error } = await supabase
+        .from(targetTable)
+        .update(updates)
+        .eq('id', lead.id);
+
+      if (error) throw error;
+      if (onUpdateLead) onUpdateLead({ ...lead, ...formData, ...updates });
+    } catch (err) {
+      console.error(`Failed to update ${fieldKey}:`, err);
+      showToast?.(`Failed to update ${fieldKey}`);
+    }
+  };
+
+  // Handle Name update
+  const handleNameBlur = () => {
+    const currentName = (formData.name || '').trim();
+    const parts = currentName.split(' ');
+    const first_name = parts[0] || '';
+    const last_name = parts.slice(1).join(' ') || null;
+
+    if (first_name !== lead.first_name || last_name !== lead.last_name) {
+      saveLeadField('first_name', first_name, { last_name });
+      logActivity('Field Updated', { field: 'name', to: currentName });
+    }
+  };
+
+  // Handle Status change
+  const handleStatusChange = async (newStatus) => {
+    try {
+      const updated = await updateLeadStatusAndCheckpoint({
+        lead: { ...lead, ...formData },
+        newStatus,
+        suggestionRules,
+        currentUser,
+      });
+      setFormData((prev) => ({ ...prev, ...updated }));
+      if (onUpdateLead) onUpdateLead(updated);
+      if (newStatus === 'Closed Won' && lead?.status !== 'Closed Won') {
+        celebrateClosedWon();
+      }
+      if (onRefresh) onRefresh();
+      logActivity('Status Updated', { from: lead?.status || 'Lead', to: newStatus });
+    } catch (err) {
+      console.error('Error updating status:', err);
+      showToast?.('Failed to update status');
+    }
+  };
+
+  // Handle Links update
+  const handleLinksChange = async (newLinks) => {
+    const legacyColumns = syncLegacyLinkColumns(newLinks);
+    const updates = {
+      links: newLinks,
+      ...legacyColumns,
+    };
+    setFormData((prev) => ({ ...prev, ...updates }));
+    try {
+      const targetTable = isClientView ? 'clients' : 'leads';
+      const { error } = await supabase
+        .from(targetTable)
+        .update(updates)
+        .eq('id', lead.id);
+      if (error) throw error;
+      if (onUpdateLead) onUpdateLead({ ...lead, ...formData, ...updates });
+    } catch (err) {
+      console.error('Failed to update links:', err);
+      showToast?.('Failed to save link');
+    }
+  };
+
+  // Follow-up display formatted in lead's local time
+  const followupDisplay = useMemo(() => {
+    const cp = formData.next_checkpoint_at ?? lead?.next_checkpoint_at;
+    if (!cp) return null;
+    try {
+      const d = new Date(cp);
+      if (isNaN(d.getTime())) return null;
+      const userFormatted = d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+      const tz = getLeadTimezone(formData, { listCountry, userCountry });
+      if (tz) {
+        const leadTime = new Intl.DateTimeFormat('en-US', {
+          timeZone: tz,
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).format(d);
+        const city = tz.split('/').pop().replace(/_/g, ' ');
+        return `${userFormatted} (${leadTime} in ${city})`;
+      }
+      return userFormatted;
+    } catch {
+      return null;
+    }
+  }, [formData.next_checkpoint_at, formData.timezone, listCountry, userCountry]);
+
+  // ── Multi-note queries ──
   async function fetchNotes() {
-    if (!lead) return;
+    if (!lead?.id) return;
     setNotesLoading(true);
     try {
-      let query = supabase.from('lead_notes').select('*').order('created_at', { ascending: true });
-      query = query.eq('lead_id', lead.id);
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .from('lead_notes')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       const notes = data || [];
       setLeadNotes(notes);
       if (notes.length > 0) {
-        setSelectedNoteId(prev => prev && notes.find(n => n.id === prev) ? prev : notes[0].id);
-        const first = notes[0];
-        setSelectedNoteContent(first.content || '');
+        setSelectedNoteId((prev) => (prev && notes.find((n) => n.id === prev) ? prev : notes[0].id));
+        setSelectedNoteContent(notes[0].content || '');
       }
     } catch (err) {
-      console.error('Error fetching lead notes:', err);
+      console.error('Error fetching notes:', err);
     } finally {
       setNotesLoading(false);
     }
-  };
+  }
 
   const createNote = async () => {
-    if (!lead) return;
+    if (!lead?.id) return;
     try {
       const { data, error } = await supabase
         .from('lead_notes')
@@ -220,13 +363,13 @@ export default function LeadDrawer({
           user_id: currentUser.id,
           lead_id: lead.id,
           title: `Note ${leadNotes.length + 1}`,
-          content: ''
+          content: '',
         })
         .select()
         .single();
 
       if (error) throw error;
-      setLeadNotes(prev => [...prev, data]);
+      setLeadNotes((prev) => [...prev, data]);
       setSelectedNoteId(data.id);
       setSelectedNoteContent('');
       await logActivity('Note Added', { note_title: data.title });
@@ -240,7 +383,7 @@ export default function LeadDrawer({
     try {
       const { error } = await supabase.from('lead_notes').delete().eq('id', noteId);
       if (error) throw error;
-      const remaining = leadNotes.filter(n => n.id !== noteId);
+      const remaining = leadNotes.filter((n) => n.id !== noteId);
       setLeadNotes(remaining);
       if (selectedNoteId === noteId) {
         const next = remaining[0] || null;
@@ -255,15 +398,19 @@ export default function LeadDrawer({
   const commitTitleEdit = async () => {
     if (!editingTitleId) return;
     const trimmed = editingTitleValue.trim();
-    if (!trimmed) { setEditingTitleId(null); return; }
+    if (!trimmed) {
+      setEditingTitleId(null);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('lead_notes')
         .update({ title: trimmed })
         .eq('id', editingTitleId)
-        .select().single();
+        .select()
+        .single();
       if (error) throw error;
-      setLeadNotes(prev => prev.map(n => n.id === data.id ? data : n));
+      setLeadNotes((prev) => prev.map((n) => (n.id === data.id ? data : n)));
     } catch (err) {
       console.error('Error updating note title:', err);
     } finally {
@@ -271,28 +418,33 @@ export default function LeadDrawer({
     }
   };
 
-  const handleSelectNote = (note) => {
-    setSelectedNoteId(note.id);
-    setSelectedNoteContent(note.content || '');
+  // ── Invoices ──
+  const fetchInvoices = async () => {
+    if (!lead?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) setInvoices(data);
+    } catch (e) {
+      console.error('Error fetching invoices:', e);
+    }
   };
 
-  const selectedNote = leadNotes.find(n => n.id === selectedNoteId) || null;
-
+  // ── Activities & Timeline ──
   async function fetchActivities() {
-    if (!lead) return;
+    if (!lead?.id) return;
     setActivitiesLoading(true);
     try {
       const targetLeadId = isClientView ? lead.lead_id : lead.id;
-      if (!targetLeadId) {
-        setActivities([]);
-        return;
-      }
+      if (!targetLeadId) return;
       const { data, error } = await supabase
         .from('lead_activity')
         .select('*')
         .eq('lead_id', targetLeadId)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       setActivities(data || []);
     } catch (err) {
@@ -300,55 +452,37 @@ export default function LeadDrawer({
     } finally {
       setActivitiesLoading(false);
     }
-  };
+  }
 
   async function fetchCallAttempts() {
-    if (!lead) return;
-    const targetLeadId = isClientView ? lead.lead_id : lead.id;
-    if (!targetLeadId) {
-      setCallAttempts([]);
-      return;
-    }
+    if (!lead?.id) return;
     setCallAttemptsLoading(true);
     try {
+      const targetLeadId = isClientView ? lead.lead_id : lead.id;
+      if (!targetLeadId) return;
       const data = await fetchLeadCallTimeline(targetLeadId);
-      setCallAttempts(data);
+      setCallAttempts(data || []);
     } catch (err) {
       console.error('Error fetching call timeline:', err);
-      setCallAttempts([]);
     } finally {
       setCallAttemptsLoading(false);
     }
-  };
+  }
 
   async function fetchTimeline() {
-    if (!lead) return;
-    const targetLeadId = isClientView ? lead.lead_id : lead.id;
-    if (!targetLeadId) {
-      setTimeline([]);
-      return;
-    }
+    if (!lead?.id) return;
     setTimelineLoading(true);
     try {
+      const targetLeadId = isClientView ? lead.lead_id : lead.id;
+      if (!targetLeadId) return;
       const data = await fetchLeadTimeline(targetLeadId);
       setTimeline(data || []);
     } catch (err) {
-      console.error('Error fetching lead timeline:', err);
-      setTimeline([]);
+      console.error('Error fetching timeline:', err);
     } finally {
       setTimelineLoading(false);
     }
-  };
-
-  const handleCallLogged = async ({ leadUpdates } = {}) => {
-    if (leadUpdates && onUpdateLead) onUpdateLead(leadUpdates);
-    await Promise.all([fetchCallAttempts(), fetchTimeline()]);
-  };
-
-  const handleMessageLogged = async ({ leadUpdates } = {}) => {
-    if (leadUpdates && onUpdateLead) onUpdateLead(leadUpdates);
-    await fetchTimeline();
-  };
+  }
 
   const logActivity = async (type, detail) => {
     try {
@@ -361,22 +495,21 @@ export default function LeadDrawer({
           user_id: currentUser.id,
           lead_id: targetLeadId,
           action_type: type,
-          action_detail: detail || {}
+          action_detail: detail || {},
         })
         .select()
         .single();
 
       if (error) throw error;
-      setActivities(prev => [data, ...prev]);
+      setActivities((prev) => [data, ...prev]);
 
       const eventType = type === 'Note Added' || type === 'Note Updated'
         ? 'note_added'
         : type === 'Status Updated'
           ? 'status_changed'
           : 'field_changed';
-      const summary = type === 'Status Updated' && detail?.to
-        ? `Status → ${detail.to}`
-        : type;
+      const summary = type === 'Status Updated' && detail?.to ? `Status → ${detail.to}` : type;
+
       logLeadTimelineEvent({
         leadId: targetLeadId,
         userId: currentUser.id,
@@ -393,1104 +526,1037 @@ export default function LeadDrawer({
     }
   };
 
-  const handleNameBlur = async () => {
-    const currentName = (formData.name !== undefined ? formData.name : `${lead.first_name || ''} ${lead.last_name || ''}`).trim();
-    const parts = currentName.split(' ');
-    const first_name = parts[0] || '';
-    const last_name = parts.slice(1).join(' ') || null;
+  // Quick activity submit from top composer in Activity tab
+  const handleComposerSubmit = async (e) => {
+    e?.preventDefault();
+    const text = composerText.trim();
+    if (!text || composerSubmitting) return;
 
-    if (first_name === lead.first_name && (last_name === lead.last_name || (!last_name && !lead.last_name))) return;
-
+    setComposerSubmitting(true);
     try {
-      const table = isClientView ? 'clients' : 'leads';
-      const { data, error } = await supabase
-        .from(table)
-        .update({ first_name, last_name })
-        .eq('id', lead.id)
-        .select()
-        .single();
+      await logActivity('Note Added', { note: text });
+      setComposerText('');
+      showToast?.('Activity logged');
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    } finally {
+      setComposerSubmitting(false);
+    }
+  };
 
-      if (error) throw error;
+  // Convert to client submit
+  const handleConvertSubmit = async (e) => {
+    e?.preventDefault();
+    try {
+      const data = await updateLeadStatusAndCheckpoint({
+        lead,
+        newStatus: 'Client',
+        suggestionRules,
+        currentUser,
+        extraUpdates: {
+          lifecycle_stage: 'client',
+          project_status: convertForm.project_status,
+          start_date: convertForm.start_date || null,
+          contract_value: convertForm.contract_value ? parseFloat(convertForm.contract_value) : null,
+          invoice_link: convertForm.invoice_link || null,
+          company: convertForm.company || null,
+          phone: convertForm.phone || null,
+        },
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        status: 'Client',
+        lifecycle_stage: 'client',
+        project_status: convertForm.project_status,
+        start_date: convertForm.start_date,
+        contract_value: convertForm.contract_value,
+        invoice_link: convertForm.invoice_link,
+        company: convertForm.company,
+        phone: convertForm.phone,
+      }));
+
       if (onUpdateLead) onUpdateLead(data);
-      await logActivity('Name Updated', { from: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(), to: currentName });
+      setShowConvertModal(false);
+      showToast?.('Successfully converted to client');
     } catch (err) {
-      console.error('Error auto-saving name:', err);
+      console.error('Error converting lead to client:', err);
+      showToast?.('Failed to convert: ' + err.message);
     }
   };
 
-  const handleFieldChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  // Open "⋯" menu
+  const handleOpenMoreMenu = () => {
+    if (!moreTriggerRef.current) return;
+    setMoreMenuPos(
+      computePortalMenuPosition(moreTriggerRef.current, {
+        menuWidth: 190,
+        menuHeight: 180,
+      })
+    );
+    setMoreMenuOpen(true);
   };
 
-  const handleCustomFieldChange = (key, value) => {
-    const custom = { ...(formData.custom_fields || {}) };
-    custom[key] = value;
-    setFormData(prev => ({ ...prev, custom_fields: custom }));
+  // Open "Move to list" menu
+  const handleOpenListMenu = () => {
+    if (!listTriggerRef.current) return;
+    setListMenuPos(
+      computePortalMenuPosition(listTriggerRef.current, {
+        menuWidth: 200,
+        menuHeight: 220,
+      })
+    );
+    setListMenuOpen(true);
   };
-
-  const handleFieldBlur = async (field, isCustom = false, customKey = '') => {
-    let value = isCustom ? formData.custom_fields?.[customKey] : formData[field];
-    let originalValue = isCustom ? lead.custom_fields?.[customKey] : lead[field];
-
-    if (value === originalValue) return;
-
-    try {
-      let updateObj = {};
-      if (isCustom) {
-        updateObj = { custom_fields: formData.custom_fields };
-      } else {
-        updateObj = { [field]: value };
-      }
-
-      const table = isClientView ? 'clients' : 'leads';
-
-      const { data, error } = await supabase
-        .from(table)
-        .update(updateObj)
-        .eq('id', lead.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (onUpdateLead) {
-        onUpdateLead(data);
-      }
-
-      // Log the action
-      const displayField = isCustom ? customKey : field;
-      await logActivity('Field Updated', {
-        field: displayField,
-        from: originalValue || 'None',
-        to: value || 'None'
-      });
-    } catch (err) {
-      console.error('Error auto-saving lead:', err);
-    }
-  };
-
-  const handleCopyPersonalizedMessage = (templateId) => {
-    if (!templateId) return;
-    const foundTmpl = templates.find(t => t.id === templateId);
-    if (!foundTmpl) {
-      showToast?.('Template not found', 'error');
-      return;
-    }
-    const merged = mergeTemplateFields(foundTmpl.body || '', lead, userSnippets, columnDefs);
-    navigator.clipboard.writeText(merged);
-    showToast?.(`Personalized message for ${lead.first_name || 'Lead'} copied!`);
-  };
-
-  const handleDropdownChange = async (arg1, arg2, arg3) => {
-    let leadId, field, value;
-    if (arg3 !== undefined) {
-      leadId = arg1;
-      field = arg2;
-      value = arg3;
-    } else {
-      leadId = lead.id;
-      field = arg1;
-      value = arg2;
-    }
-
-    let originalValue = lead[field];
-    const updateValue = value === '' ? null : value;
-    if (updateValue === originalValue) return;
-
-    const table = isClientView ? 'clients' : 'leads';
-
-    try {
-      let data;
-      if (field === 'status' && !isClientView) {
-        data = await updateLeadStatusAndCheckpoint({
-          lead,
-          leadId,
-          newStatus: updateValue,
-          suggestionRules,
-          currentUser
-        });
-        if (data?.draftCreated && showToast) {
-          showToast(`Draft invoice generated for ${[data.first_name, data.last_name].filter(Boolean).join(' ') || 'Lead'}`);
-        }
-        if (updateValue === 'Closed Won' && lead.status !== 'Closed Won') {
-          celebrateClosedWon();
-        }
-      } else {
-        const { data: updatedData, error } = await supabase
-          .from(table)
-          .update({ [field]: updateValue })
-          .eq('id', leadId)
-          .select()
-          .single();
-        if (error) throw error;
-        data = updatedData;
-      }
-
-      handleFieldChange(field, updateValue);
-      if (onUpdateLead) {
-        onUpdateLead(data);
-      }
-
-      await logActivity(`${field.charAt(0).toUpperCase() + field.slice(1)} Updated`, {
-        from: originalValue || 'None',
-        to: updateValue || 'None'
-      });
-    } catch (err) {
-      console.error('Error saving dropdown change:', err);
-    }
-  };
-
-  if (!lead) return null;
-
-  // Group columns for view-specific categories (exclude system name, platform, and explicit link/phone fields from automatic standard rendering)
-  const EXCLUDED_KEYS = new Set(['name', 'platform', 'reach', 'linkedin_url', 'instagram_url', 'twitter_url', 'website', 'phone']);
-  const contactCols = columnDefs
-    .filter(c => c.table_view === 'contact_details' && !EXCLUDED_KEYS.has(c.column_key))
-    .filter((c, index, self) => self.findIndex(t => t.column_key === c.column_key) === index);
-  const pipelineCols = columnDefs
-    .filter(c => c.table_view === 'pipeline' && !EXCLUDED_KEYS.has(c.column_key))
-    .filter((c, index, self) => self.findIndex(t => t.column_key === c.column_key) === index);
 
   return (
     <>
+      {/* Backdrop */}
       <div className="lead-drawer__backdrop" onClick={onClose} aria-hidden="true" />
+
+      {/* Slide-out Panel (480px) */}
       <div className="lead-drawer__panel">
-      {/* Drawer Header */}
-      <div className="lead-drawer__header">
-        <div className="lead-drawer__header-main">
-          <div>
-            <h3 className="lead-drawer__title" data-ph-mask>
-              {isClientView ? formData.name || 'Unnamed Client' : (formData.name !== undefined ? formData.name : `${formData.first_name || ''} ${formData.last_name || ''}`.trim()) || 'Unnamed Lead'}
-            </h3>
-            {!isClientView && (
-              <span className="lead-drawer__subtitle" data-ph-mask>
-                {formData.company || 'No Company'}
-              </span>
-            )}
-          </div>
-          {!isClientView && !isClientStatus(formData.status) && (
-            <button
-              onClick={() => {
-                setConvertForm({
-                  company: formData.company || '',
-                  phone: formData.phone || '',
-                  project_status: 'Onboarding',
-                  start_date: new Date().toISOString().split('T')[0],
-                  contract_value: '',
-                  invoice_link: ''
-                });
-                setShowConvertModal(true);
-              }}
-              className="btn btn-primary btn-sm"
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 600 }}
-            >
-              Convert to Client
-            </button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn-icon lead-drawer__close"
-          aria-label="Close"
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="crm-tabs lead-drawer__tabs">
-        <button
-          type="button"
-          onClick={() => setActiveTab('contact')}
-          className={`crm-tab ${activeTab === 'contact' ? 'crm-tab--active' : ''}`}
-        >
-          <User size={14} /> Info
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('pipeline')}
-          className={`crm-tab ${activeTab === 'pipeline' ? 'crm-tab--active' : ''}`}
-        >
-          <Calendar size={14} /> Pipeline
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('notes')}
-          className={`crm-tab ${activeTab === 'notes' ? 'crm-tab--active' : ''}`}
-        >
-          <FileText size={14} /> Notes
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('activity')}
-          className={`crm-tab ${activeTab === 'activity' ? 'crm-tab--active' : ''}`}
-        >
-          <ActivityIcon size={14} /> Activity
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('invoices')}
-          className={`crm-tab ${activeTab === 'invoices' ? 'crm-tab--active' : ''}`}
-        >
-          <Receipt size={14} /> Invoices
-        </button>
-      </div>
-
-      {/* Drawer Body Container */}
-      <div className="lead-drawer__body">
         
-        {/* Contact Info Tab */}
-        {activeTab === 'contact' && (
-          <div className="rd-form rd-drawer-form">
-            <div style={{ display: 'flex', gap: '8px', margin: '0 0 var(--space-2)' }}>
-              {(() => {
-                const match = statuses.find(s => s.label.toLowerCase() === (lead.status || '').toLowerCase());
-                const bg = match ? `${match.color}22` : '#374151';
-                const text = match ? match.color : '#D1D5DB';
-                const label = match ? match.label : (lead.status || 'Lead');
-                return (
-                  <span className="lead-drawer__status-badge" style={{
-                    background: bg,
-                    color: text,
-                  }}>
-                    {label}
-                  </span>
-                );
-              })()}
-              <PriorityDropdown
-                value={formData.priority !== undefined ? formData.priority : lead.priority}
-                onChange={(newVal) => handleDropdownChange('priority', newVal)}
-                onUpdate={onRefresh}
-              />
-            </div>
+        {/* Top bar: prev/next + "3 of 128 in List" + ⋯ menu + close */}
+        <div className="lead-drawer__topbar">
+          <div className="lead-drawer__topbar-nav">
+            <button
+              type="button"
+              className="lead-drawer__icon-btn"
+              disabled={!hasPrev}
+              onClick={handlePrevLead}
+              title="Previous lead"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              className="lead-drawer__icon-btn"
+              disabled={!hasNext}
+              onClick={handleNextLead}
+              title="Next lead"
+            >
+              <ChevronRight size={16} />
+            </button>
 
-            <section className="rd-form-section">
-              <h4 className="rd-form-section-title">Contact</h4>
-            
-            {/* Single Name Field */}
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">Name</label>
-              <input
-                type="text"
-                value={formData.name !== undefined ? formData.name : `${formData.first_name || ''} ${formData.last_name || ''}`.trim()}
-                onChange={e => handleFieldChange('name', e.target.value)}
-                onBlur={handleNameBlur}
-                className="form-input"
-              />
-            </div>
-
-            {/* Standard fields */}
-            {contactCols.filter(c => c.is_default).map(col => {
-              const isCustom = false;
-              const val = formData[col.column_key] || '';
-              
-              return (
-                <div key={col.id} className="rd-form-group" data-ph-mask>
-                  <label className="form-label">{col.column_label}</label>
-                  {col.column_key === 'priority' || col.column_type === 'priority' ? (
-                    <PriorityDropdown
-                      value={val}
-                      onChange={(newVal) => handleDropdownChange('priority', newVal)}
-                      onUpdate={onRefresh}
-                    />
-                  ) : col.column_type === 'dropdown' ? (
-                    <EditableDropdown
-                      value={val}
-                      columnDef={col}
-                      onChange={(newVal) => handleDropdownChange(col.column_key, newVal)}
-                      onUpdateColumnDef={fetchNotes}
-                    />
-                  ) : col.column_type === 'date' || col.column_key === 'last_contacted_at' || col.column_key === 'last_called_at' ? (
-                    <DateTimePickerCell
-                      value={val || null}
-                      timeZone={getEffectiveUserTimeZone(currentUser)}
-                      onChange={(iso) => {
-                        handleFieldChange(col.column_key, iso || '');
-                        handleFieldBlur(col.column_key, false, '');
-                      }}
-                    />
-                  ) : (
-                    <input
-                      type={col.column_type === 'number' ? 'number' : 'text'}
-                      value={val}
-                      onChange={e => handleFieldChange(col.column_key, e.target.value)}
-                      onBlur={() => handleFieldBlur(col.column_key, false, '')}
-                      className="form-input"
-                    />
-                  )}
-                </div>
-              );
-            })}
-            </section>
-
-            {/* Links & Contact Section */}
-            <section className="rd-form-section">
-              <h4 className="rd-form-section-title">Links & contact</h4>
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">LinkedIn</label>
-              <input
-                type="url"
-                placeholder="https://linkedin.com/in/..."
-                value={formData.linkedin_url || ''}
-                onChange={e => handleFieldChange('linkedin_url', e.target.value)}
-                onBlur={() => handleFieldBlur('linkedin_url')}
-                className="form-input"
-              />
-            </div>
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">Instagram</label>
-              <input
-                type="url"
-                placeholder="https://instagram.com/..."
-                value={formData.instagram_url || ''}
-                onChange={e => handleFieldChange('instagram_url', e.target.value)}
-                onBlur={() => handleFieldBlur('instagram_url')}
-                className="form-input"
-              />
-            </div>
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">Twitter / X</label>
-              <input
-                type="url"
-                placeholder="https://twitter.com/..."
-                value={formData.twitter_url || ''}
-                onChange={e => handleFieldChange('twitter_url', e.target.value)}
-                onBlur={() => handleFieldBlur('twitter_url')}
-                className="form-input"
-              />
-            </div>
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">Website</label>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={formData.website || ''}
-                onChange={e => handleFieldChange('website', e.target.value)}
-                onBlur={() => handleFieldBlur('website')}
-                className="form-input"
-              />
-            </div>
-            <div className="rd-form-group" data-ph-mask>
-              <label className="form-label">Phone</label>
-              <input
-                type="text"
-                value={formData.phone || ''}
-                onChange={e => handleFieldChange('phone', e.target.value)}
-                onBlur={() => handleFieldBlur('phone')}
-                className="form-input"
-              />
-            </div>
-
-            <div className="rd-form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                Project
-                {!(!['trial', 'starter'].includes((currentUser?.plan || 'trial').toLowerCase())) && (
-                  <Lock size={12} style={{ color: 'var(--text-muted)' }} title="Locked on Starter/Trial plans" />
-                )}
-              </label>
-              <input
-                type="text"
-                disabled={!(!['trial', 'starter'].includes((currentUser?.plan || 'trial').toLowerCase()))}
-                placeholder={!(!['trial', 'starter'].includes((currentUser?.plan || 'trial').toLowerCase())) ? "Locked on Starter/Trial" : "e.g. VA Services, Newsletters"}
-                value={!(!['trial', 'starter'].includes((currentUser?.plan || 'trial').toLowerCase())) ? "" : (formData.project || '')}
-                onChange={e => handleFieldChange('project', e.target.value)}
-                onBlur={() => handleFieldBlur('project')}
-                className="form-input"
-              />
-            </div>
-            </section>
-
-            {/* Custom non-default fields if any */}
-            {contactCols.filter(c => !c.is_default).map(col => {
-              const valRaw = formData.custom_fields?.[col.column_key];
-              const val = col.column_type === 'link' && Array.isArray(valRaw) ? valRaw.join(', ') : (valRaw || '');
-              return (
-                <div key={col.id} className="form-group" data-ph-mask>
-                  <label className="form-label">{col.column_label}</label>
-                  {col.column_type === 'dropdown' ? (
-                    <EditableDropdown
-                      value={val}
-                      columnDef={col}
-                      onChange={(newVal) => {
-                        const custom = { ...(formData.custom_fields || {}) };
-                        custom[col.column_key] = newVal;
-                        handleFieldChange('custom_fields', custom);
-                        supabase.from(isClientView ? 'clients' : 'leads').update({ custom_fields: custom }).eq('id', lead.id).then(() => {
-                          if (onUpdateLead) onUpdateLead({ ...lead, custom_fields: custom });
-                          logActivity('Field Updated', { field: col.column_key, from: lead.custom_fields?.[col.column_key] || 'None', to: newVal });
-                        });
-                      }}
-                      onUpdateColumnDef={fetchNotes}
-                    />
-                  ) : col.column_type === 'date' ? (
-                    <DateTimePickerCell
-                      value={val || null}
-                      timeZone={getEffectiveUserTimeZone(currentUser)}
-                      onChange={(iso) => {
-                        handleCustomFieldChange(col.column_key, iso || '');
-                        handleFieldBlur(col.column_key, true, col.column_key);
-                      }}
-                    />
-                  ) : (
-                    <input
-                      type={col.column_type === 'number' ? 'number' : 'text'}
-                      value={val}
-                      onChange={e => handleCustomFieldChange(col.column_key, col.column_type === 'link' ? e.target.value.split(',').map(s=>s.trim()).filter(Boolean) : e.target.value)}
-                      onBlur={() => handleFieldBlur(col.column_key, true, col.column_key)}
-                      className="form-input"
-                      placeholder={col.column_type === 'link' ? 'https://...' : ''}
-                    />
-                  )}
-                </div>
-              );
-            })}
-
+            <span className="lead-drawer__topbar-count">
+              {currentLeadIndex >= 0
+                ? `${currentLeadIndex + 1} of ${totalLeadsCount} in ${currentViewName || listName || 'All leads'}`
+                : (currentViewName || listName ? `In ${currentViewName || listName}` : 'All leads')}
+            </span>
           </div>
-        )}
 
-        {/* Pipeline Tab */}
-        {activeTab === 'pipeline' && (
-          <div className="flex-col gap-3">
-            {(() => {
-              const status = formData.status || lead?.status || 'Lead';
-              const checkpointAt = formData.next_checkpoint_at ?? lead?.next_checkpoint_at;
-              const due = isCheckpointDue(
-                { ...lead, ...formData, status, next_checkpoint_at: checkpointAt },
-                { remindersEnabled: currentUser?.reminders_enabled !== false },
-              );
-              if (!due) return null;
+          <div className="lead-drawer__topbar-actions">
+            <button
+              ref={moreTriggerRef}
+              type="button"
+              className="lead-drawer__icon-btn"
+              onClick={handleOpenMoreMenu}
+              title="More options"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            <button
+              type="button"
+              className="lead-drawer__icon-btn"
+              onClick={onClose}
+              title="Close drawer"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
 
-              const firstName =
-                (formData.first_name || lead?.first_name || 'they').split(' ')[0] || 'they';
-              const isReplyCheck = REPLY_CHECK_STATUSES.includes(status);
-              const isFollowUpCheck = FOLLOW_UP_CHECK_STATUSES.includes(status);
+        {/* Header: Avatar, Name, Role at Company · City, Action Buttons */}
+        <div className="lead-drawer__header">
+          <div className="lead-drawer__profile-row">
+            <div className="lead-drawer__avatar">
+              {initials}
+            </div>
 
-              const handleCheckpointOutcome = async (newStatus, extra = {}) => {
-                try {
-                  const updated = await updateLeadStatusAndCheckpoint({
-                    lead: { ...lead, ...formData },
-                    newStatus,
-                    suggestionRules,
-                    currentUser,
-                    extraUpdates: extra,
-                  });
-                  setFormData((prev) => ({ ...prev, ...updated }));
-                  if (onUpdateLead) onUpdateLead(updated);
-                  if (newStatus === 'Closed Won' && lead?.status !== 'Closed Won') {
-                    celebrateClosedWon();
-                  }
-                  if (onRefresh) onRefresh();
-                } catch (err) {
-                  console.error('Error updating checkpoint outcome:', err);
-                  showToast?.('Failed to update status');
-                }
-              };
+            <div className="lead-drawer__profile-info">
+              <input
+                type="text"
+                value={formData.name !== undefined ? formData.name : leadName}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onBlur={handleNameBlur}
+                className="lead-drawer__title"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  width: '100%',
+                  outline: 'none',
+                }}
+              />
+              <span className="lead-drawer__subtitle">
+                {headerSubtitle}
+              </span>
+            </div>
+          </div>
 
-              return (
-                <div
+          <div className="lead-drawer__actions-row">
+            <button
+              type="button"
+              className="lead-drawer__action-btn lead-drawer__action-btn--primary"
+              onClick={() => setLogCallOpen(true)}
+            >
+              <Phone size={13} /> Log call
+            </button>
+
+            <button
+              type="button"
+              className="lead-drawer__action-btn lead-drawer__action-btn--secondary"
+              onClick={() => setShowFollowupPicker(true)}
+            >
+              <Calendar size={13} /> Follow-up
+            </button>
+
+            <button
+              type="button"
+              className="lead-drawer__action-btn lead-drawer__action-btn--secondary"
+              onClick={() => setLogMessageOpen(true)}
+            >
+              <Mail size={13} /> Draft message
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Content: PIPELINE, CONTACT & Lower Tabs */}
+        <div className="lead-drawer__content">
+          
+          {/* 1. PIPELINE Section (Always Visible) */}
+          <div className="lead-drawer__section">
+            <div className="lead-drawer__section-title">Pipeline</div>
+
+            {/* Status */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Status</div>
+              <div className="lead-drawer__row-value">
+                <GroupedStatusDropdown
+                  compact={true}
+                  value={formData.status || 'Lead'}
+                  onChange={handleStatusChange}
+                  statuses={statuses}
+                />
+              </div>
+            </div>
+
+            {/* Priority */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Priority</div>
+              <div className="lead-drawer__row-value">
+                <PriorityDropdown
+                  value={formData.priority || 'Cold'}
+                  onChange={(val) => {
+                    saveLeadField('priority', val);
+                    logActivity('Field Updated', { field: 'priority', to: val });
+                  }}
+                  onUpdate={onRefresh}
+                />
+              </div>
+            </div>
+
+            {/* Next step */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Next step</div>
+              <div className="lead-drawer__row-value">
+                <input
+                  type="text"
+                  placeholder="e.g. Send demo video"
+                  value={formData.action_to_take || formData.call_action || ''}
+                  onChange={(e) => setFormData({ ...formData, action_to_take: e.target.value })}
+                  onBlur={() => {
+                    saveLeadField('action_to_take', formData.action_to_take || null);
+                    logActivity('Field Updated', { field: 'action_to_take', to: formData.action_to_take });
+                  }}
+                  className="lead-drawer__inline-input"
+                />
+              </div>
+            </div>
+
+            {/* Follow-up */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Follow-up</div>
+              <div className="lead-drawer__row-value">
+                <DateTimePickerCell
+                  mode="future"
+                  value={formData.next_checkpoint_at || null}
+                  timeZone={getEffectiveUserTimeZone(currentUser)}
+                  onChange={(iso) => {
+                    saveLeadField('next_checkpoint_at', iso || null, { next_checkpoint_manual: true, checkpoint_notified_at: null });
+                    logActivity('Field Updated', { field: 'next_checkpoint_at', to: iso });
+                  }}
+                />
+                {followupDisplay && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {followupDisplay}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Channel */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Channel</div>
+              <div className="lead-drawer__row-value">
+                <GroupedChannelDropdown
+                  compact={true}
+                  value={formData.outreach_channel || 'Email'}
+                  onChange={(val) => {
+                    saveLeadField('outreach_channel', val);
+                    logActivity('Field Updated', { field: 'outreach_channel', to: val });
+                  }}
+                  channel="messaging"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. CONTACT Section (Always Visible) */}
+          <div className="lead-drawer__section">
+            <div className="lead-drawer__section-title">Contact</div>
+
+            {/* Email */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Email</div>
+              <div className="lead-drawer__row-value">
+                <input
+                  type="email"
+                  placeholder="name@company.com"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onBlur={() => {
+                    saveLeadField('email', formData.email?.trim() || null);
+                    logActivity('Field Updated', { field: 'email', to: formData.email });
+                  }}
+                  className="lead-drawer__inline-input"
+                  style={{ maxWidth: '240px' }}
+                />
+                {formData.email && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formData.email);
+                      showToast?.('Email copied to clipboard');
+                    }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                    title="Copy email"
+                  >
+                    <Copy size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Phone (ONCE - no duplicate) */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Phone</div>
+              <div className="lead-drawer__row-value">
+                <input
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={formData.phone || ''}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onBlur={() => {
+                    const cleanPhone = formData.phone?.trim() || null;
+                    let patch = { phone: cleanPhone };
+                    if (cleanPhone && formData.timezone_source !== 'manual') {
+                      const inferred = inferTimezoneFromPhone(cleanPhone, { listCountry, userCountry });
+                      if (inferred?.timezone) {
+                        patch.timezone = inferred.timezone;
+                        patch.timezone_source = 'phone';
+                      }
+                    }
+                    saveLeadField('phone', cleanPhone, patch);
+                    logActivity('Field Updated', { field: 'phone', to: cleanPhone });
+                  }}
+                  className="lead-drawer__inline-input"
+                  style={{ maxWidth: '180px' }}
+                />
+                {formData.phone && (
+                  <PhonePopup phone={formData.phone} />
+                )}
+              </div>
+            </div>
+
+            {/* Local time */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Local time</div>
+              <div className="lead-drawer__row-value">
+                <LocalTimeCell
+                  lead={formData}
+                  listCountry={listCountry}
+                  userCountry={userCountry}
+                  onSaveTimezone={async (tz) => {
+                    const patch = { timezone: tz, timezone_source: 'manual' };
+                    setFormData((prev) => ({ ...prev, ...patch }));
+                    await saveLeadField('timezone', tz, { timezone_source: 'manual' });
+                    logActivity('Timezone Updated', { timezone: tz });
+                  }}
+                />
+                {formData.timezone_source === 'manual' && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    (set by hand)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Company */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">Company</div>
+              <div className="lead-drawer__row-value">
+                <input
+                  type="text"
+                  placeholder="Company name"
+                  value={formData.company || ''}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  onBlur={() => {
+                    saveLeadField('company', formData.company?.trim() || null);
+                    logActivity('Field Updated', { field: 'company', to: formData.company });
+                  }}
+                  className="lead-drawer__inline-input"
+                />
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="lead-drawer__row">
+              <div className="lead-drawer__row-label">List</div>
+              <div className="lead-drawer__row-value">
+                <button
+                  ref={listTriggerRef}
+                  type="button"
+                  onClick={handleOpenListMenu}
                   style={{
-                    padding: '0.85rem',
-                    border: '1px solid rgba(139, 92, 246, 0.35)',
-                    borderRadius: '8px',
-                    background: 'rgba(139, 92, 246, 0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.65rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    color: 'var(--primary-color, #4361EE)',
+                    cursor: 'pointer',
                   }}
                 >
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {isReplyCheck
-                      ? `Did ${firstName} reply?`
-                      : isFollowUpCheck
-                        ? `Did you follow up with ${firstName}?`
-                        : 'Follow-up due'}
-                  </div>
-                  {isReplyCheck && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: 'var(--success-color)', color: 'var(--success-color)', fontWeight: 600 }}
-                        onClick={() => handleCheckpointOutcome('Positive Reply', { reply_type: 'positive' })}
-                      >
-                        Positive reply
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)', fontWeight: 600 }}
-                        onClick={() => handleCheckpointOutcome('Booked', { reply_type: 'positive' })}
-                      >
-                        Call booked
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: 'var(--warning-color)', color: 'var(--warning-color)', fontWeight: 600 }}
-                        onClick={() => handleCheckpointOutcome('No Show / Rescheduled')}
-                      >
-                        No show
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: 'var(--danger-color)', color: 'var(--danger-color)', fontWeight: 600 }}
-                        onClick={() => handleCheckpointOutcome('Not Interested', { reply_type: 'negative' })}
-                      >
-                        Negative reply
-                      </button>
-                    </div>
-                  )}
-                  {isFollowUpCheck && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      style={{ fontWeight: 600 }}
-                      onClick={() => handleCheckpointOutcome('Waiting')}
-                    >
-                      Mark as done
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Priority Status Dropdowns */}
-            {pipelineCols.map(col => {
-              const isCustom = !col.is_default;
-              const valRaw = isCustom ? formData.custom_fields?.[col.column_key] : formData[col.column_key];
-              const val = col.column_type === 'link' && Array.isArray(valRaw) ? valRaw.join(', ') : (valRaw || '');
-              
-              if (col.column_key === 'template_used') {
-                return (
-                  <div key={col.id} className="form-group">
-                    <label className="form-label">{col.column_label}</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <GroupedTemplateDropdown
-                          value={val || ''}
-                          onChange={newVal => handleDropdownChange('template_used', newVal)}
-                          templates={templates}
-                          placeholder="None"
-                        />
-                      </div>
-                      {val && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPersonalizedMessage(val)}
-                          className="btn btn-secondary btn-sm"
-                          style={{
-                            padding: '6px 8px',
-                            minHeight: 'auto',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderColor: 'var(--border)',
-                            borderRadius: '3px'
-                          }}
-                          title="Copy personalized message"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (col.column_key === 'status') {
-                const currentStatus = val || 'Lead';
-                return (
-                  <div key={col.id} className="form-group">
-                    <label className="form-label">{col.column_label}</label>
-                    <GroupedStatusDropdown
-                      value={currentStatus}
-                      onChange={(newVal) => handleDropdownChange('status', newVal)}
-                    />
-                  </div>
-                );
-              }
-
-              if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
-                return (
-                  <div key={col.id} className="form-group">
-                    <label className="form-label">{col.column_label}</label>
-                    <GroupedChannelDropdown
-                      value={val}
-                      onChange={(newVal) => handleDropdownChange('outreach_channel', newVal)}
-                      channel="messaging"
-                    />
-                  </div>
-                );
-              }
-
-              if (col.column_key === 'action_to_take') {
-                const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
-                const expectedSuggestion = getSuggestionForStatus(formData.status || 'Lead', suggestionRules, currentUser);
-                const isMismatch = suggestionsEnabled && expectedSuggestion && val !== expectedSuggestion;
-
-                return (
-                  <div key={col.id} className="form-group">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                      <label className="form-label" style={{ margin: 0 }}>{col.column_label}</label>
-                      {isMismatch && showSuggestion && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleDropdownChange('action_to_take', expectedSuggestion)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '24px',
-                              height: '24px',
-                              background: 'transparent',
-                              border: '0.5px solid var(--border-strong)',
-                              borderRadius: '4px',
-                              color: 'var(--success-color)',
-                              cursor: 'pointer',
-                              transition: 'var(--transition-fast)'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            title={`Apply Suggested: "${expectedSuggestion}"`}
-                          >
-                            <Check size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowSuggestion(false)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '24px',
-                              height: '24px',
-                              background: 'transparent',
-                              border: '0.5px solid var(--border-strong)',
-                              borderRadius: '4px',
-                              color: 'var(--text-secondary)',
-                              cursor: 'pointer',
-                              transition: 'var(--transition-fast)'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            title="Dismiss Suggestion"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <EditableDropdown
-                      value={val}
-                      columnDef={col}
-                      onChange={(newVal) => handleDropdownChange(col.column_key, newVal)}
-                      onUpdateColumnDef={fetchNotes}
-                    />
-                  </div>
-                );
-              }
-
-              return (
-                <div key={col.id} className="form-group">
-                  <label className="form-label">{col.column_label}</label>
-                  {col.column_type === 'dropdown' ? (
-                    <EditableDropdown
-                      value={val}
-                      columnDef={col}
-                      onChange={(newVal) => {
-                        if (isCustom) {
-                          const custom = { ...(formData.custom_fields || {}) };
-                          custom[col.column_key] = newVal;
-                          handleFieldChange('custom_fields', custom);
-                          supabase.from(isClientView ? 'clients' : 'leads').update({ custom_fields: custom }).eq('id', lead.id).then(() => {
-                            if (onUpdateLead) onUpdateLead({ ...lead, custom_fields: custom });
-                            logActivity('Field Updated', { field: col.column_key, from: lead.custom_fields?.[col.column_key] || 'None', to: newVal });
-                          });
-                        } else {
-                          handleDropdownChange(col.column_key, newVal);
-                        }
-                      }}
-                      onUpdateColumnDef={fetchNotes}
-                    />
-                  ) : col.column_type === 'date' || col.column_key === 'last_contacted_at' || col.column_key === 'last_called_at' ? (
-                    <DateTimePickerCell
-                      value={val || null}
-                      timeZone={getEffectiveUserTimeZone(currentUser)}
-                      onChange={(iso) => {
-                        if (isCustom) {
-                          handleCustomFieldChange(col.column_key, iso || '');
-                        } else {
-                          handleFieldChange(col.column_key, iso || '');
-                        }
-                        handleFieldBlur(col.column_key, isCustom, col.column_key);
-                      }}
-                    />
-                  ) : (
-                    <input
-                      type={col.column_type === 'number' ? 'number' : 'text'}
-                      value={val}
-                      onChange={e => {
-                        const nextVal = col.column_type === 'link' ? e.target.value.split(',').map(s=>s.trim()).filter(Boolean) : e.target.value;
-                        isCustom ? handleCustomFieldChange(col.column_key, nextVal) : handleFieldChange(col.column_key, nextVal);
-                      }}
-                      onBlur={() => handleFieldBlur(col.column_key, isCustom, col.column_key)}
-                      className="form-input"
-                    />
-                  )}
-                </div>
-              );
-            })}
-
-            {!isClientView && initialTab === 'calls' && (
-              <div className="form-group">
-                <label className="form-label">Script</label>
-                <GroupedTemplateDropdown
-                  value={formData.script_used || ''}
-                  onChange={(newVal) => handleDropdownChange('script_used', newVal)}
-                  templates={templates}
-                  kind={TEMPLATE_KINDS.CALLS}
-                  placeholder="None"
-                />
+                  <Folder size={13} />
+                  <span>{listName}</span>
+                </button>
               </div>
-            )}
-
-            {!isClientView && (
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Call next step</label>
-                  {(() => {
-                    const expected = getCallActionForStatus(displayCallStatus(formData.call_status), currentUser?.id, currentUser);
-                    const val = formData.call_action || '';
-                    const isMismatch = currentUser?.suggestions_enabled !== false && expected && val !== expected;
-                    if (!isMismatch || !showSuggestion) return null;
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => handleDropdownChange('call_action', expected)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ fontSize: '0.72rem', padding: '0.2rem 0.45rem' }}
-                      >
-                        Apply: {expected}
-                      </button>
-                    );
-                  })()}
-                </div>
-                <EditableDropdown
-                  value={formData.call_action || ''}
-                  columnDef={{
-                    id: 'drawer-call-action',
-                    column_key: 'call_action',
-                    column_label: 'Call next step',
-                    column_type: 'dropdown',
-                    dropdown_options: columnDefs.find((c) => c.column_key === 'call_action' && c.table_view === 'call_queue')?.dropdown_options?.length
-                      ? columnDefs.find((c) => c.column_key === 'call_action' && c.table_view === 'call_queue').dropdown_options
-                      : CALL_ACTION_DEFAULT_OPTIONS,
-                  }}
-                  onChange={(newVal) => handleDropdownChange('call_action', newVal)}
-                />
-              </div>
-            )}
-
-            {/* Pipeline Notes */}
-            <div className="form-group">
-              <label className="form-label">Pipeline Notes</label>
-              <textarea
-                value={formData.pipeline_notes || ''}
-                onChange={e => handleFieldChange('pipeline_notes', e.target.value)}
-                onBlur={() => handleFieldBlur('pipeline_notes')}
-                className="form-textarea"
-                placeholder="Specific context about the status of this deal..."
-                style={{ minHeight: '120px' }}
-              />
             </div>
-          </div>
-        )}
 
-        {/* Notes Tab – Multi-note with RichTextEditor */}
-        {activeTab === 'notes' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {notesLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading notes...</div>
-            ) : (
+            {/* Links row */}
+            <div className="lead-drawer__row" style={{ alignItems: 'flex-start', paddingTop: '4px' }}>
+              <div className="lead-drawer__row-label" style={{ paddingTop: '3px' }}>Links</div>
+              <div className="lead-drawer__row-value" style={{ flexWrap: 'wrap' }}>
+                <LeadLinkChips
+                  links={formData.links || []}
+                  onChange={handleLinksChange}
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* 3. Lower Tabs: Activity · Notes · Calls · Invoices */}
+          <div className="lead-drawer__tabs">
+            <button
+              type="button"
+              className={`lead-drawer__tab ${activeTab === 'activity' ? 'lead-drawer__tab--active' : ''}`}
+              onClick={() => setActiveTab('activity')}
+            >
+              <ActivityIcon size={13} /> Activity
+            </button>
+            <button
+              type="button"
+              className={`lead-drawer__tab ${activeTab === 'notes' ? 'lead-drawer__tab--active' : ''}`}
+              onClick={() => setActiveTab('notes')}
+            >
+              <FileText size={13} /> Notes ({leadNotes.length})
+            </button>
+            <button
+              type="button"
+              className={`lead-drawer__tab ${activeTab === 'calls' ? 'lead-drawer__tab--active' : ''}`}
+              onClick={() => setActiveTab('calls')}
+            >
+              <Phone size={13} /> Calls ({callAttempts.length})
+            </button>
+            <button
+              type="button"
+              className={`lead-drawer__tab ${activeTab === 'invoices' ? 'lead-drawer__tab--active' : ''}`}
+              onClick={() => setActiveTab('invoices')}
+            >
+              <Receipt size={13} /> Invoices ({invoices.length})
+            </button>
+          </div>
+
+          {/* Tab Panes */}
+          <div className="lead-drawer__tab-pane">
+
+            {/* TAB: Activity (Default with composer on top + unified timeline) */}
+            {activeTab === 'activity' && (
               <>
-                {/* Note card list + New Note button */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                      Notes ({leadNotes.length})
-                    </span>
+                {/* Note/Activity Composer on top */}
+                <form onSubmit={handleComposerSubmit} className="lead-drawer__composer">
+                  <textarea
+                    placeholder="Write an update, note, or log an interaction..."
+                    value={composerText}
+                    onChange={(e) => setComposerText(e.target.value)}
+                    className="lead-drawer__composer-input"
+                  />
+                  <div className="lead-drawer__composer-footer">
                     <button
-                      onClick={createNote}
+                      type="submit"
+                      disabled={!composerText.trim() || composerSubmitting}
                       className="btn btn-primary btn-sm"
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }}
+                      style={{ height: '26px', padding: '0 10px', fontSize: '12px' }}
                     >
-                      <Plus size={13} /> New Note
+                      {composerSubmitting ? 'Logging...' : 'Log activity'}
                     </button>
                   </div>
+                </form>
 
-                  {leadNotes.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-                      No notes yet. Click <strong>+ New Note</strong> to start.
-                    </div>
-                  ) : (
-                    leadNotes.map(n => (
+                {/* Unified timeline */}
+                {timelineLoading || callAttemptsLoading || activitiesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    Loading activity...
+                  </div>
+                ) : timeline.length === 0 && callAttempts.length === 0 && activities.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '13px', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
+                    No activity yet. Log a note or interaction above.
+                  </div>
+                ) : timeline.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {timeline.map((ev) => (
+                      <ActivityTimelineRow
+                        key={ev.id}
+                        event={ev}
+                        showLead={false}
+                        editableWhen
+                        onSaveWhen={async (event, iso) => {
+                          const updated = await updateTimelineEventOccurredAt(
+                            event.id,
+                            iso,
+                            getEffectiveUserTimeZone(currentUser),
+                          );
+                          if (updated) {
+                            setTimeline((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {callAttempts.map((call) => (
+                      <ActivityTimelineRow
+                        key={call.id}
+                        showLead={false}
+                        event={{
+                          event_type: 'call_logged',
+                          summary: `Call: ${call.outcome}`,
+                          occurred_at: call.occurred_at || call.created_at,
+                          actor_full_name: call.caller_name,
+                          actor_email: call.caller_email,
+                          detail: { note: call.note, outcome: call.outcome },
+                        }}
+                      />
+                    ))}
+                    {activities.map((act) => (
+                      <ActivityTimelineRow
+                        key={act.id}
+                        showLead={false}
+                        event={{
+                          event_type: act.action_type === 'Status Updated' ? 'status_changed' : 'field_changed',
+                          summary: act.action_type,
+                          occurred_at: act.created_at,
+                          detail: act.action_detail || {},
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* TAB: Notes */}
+            {activeTab === 'notes' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Lead Notes ({leadNotes.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={createNote}
+                    className="btn btn-primary btn-sm"
+                    style={{ height: '26px', padding: '0 8px', fontSize: '12px' }}
+                  >
+                    <Plus size={12} /> New Note
+                  </button>
+                </div>
+
+                {leadNotes.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '13px', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
+                    No notes yet. Click <strong>+ New Note</strong> to start.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {leadNotes.map((n) => (
                       <div
                         key={n.id}
                         className={`lead-note-card ${selectedNoteId === n.id ? 'active' : ''}`}
-                        onClick={() => handleSelectNote(n)}
+                        onClick={() => {
+                          setSelectedNoteId(n.id);
+                          setSelectedNoteContent(n.content || '');
+                        }}
                       >
                         <FileText size={13} className="lead-drawer__note-icon" />
 
-                        {/* Inline title edit */}
                         {editingTitleId === n.id ? (
                           <input
                             ref={titleInputRef}
                             value={editingTitleValue}
-                            onChange={e => setEditingTitleValue(e.target.value)}
+                            onChange={(e) => setEditingTitleValue(e.target.value)}
                             onBlur={commitTitleEdit}
-                            onKeyDown={e => { if (e.key === 'Enter') commitTitleEdit(); if (e.key === 'Escape') setEditingTitleId(null); }}
-                            onClick={e => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitTitleEdit();
+                              if (e.key === 'Escape') setEditingTitleId(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                             className="lead-drawer__note-title-input"
                           />
                         ) : (
-                          <span className="lead-drawer__note-title" data-ph-mask>
+                          <span className="lead-drawer__note-title">
                             {n.title || 'Untitled'}
                           </span>
                         )}
 
-                        {/* Edit title btn */}
                         <button
-                          onClick={e => { e.stopPropagation(); setEditingTitleId(n.id); setEditingTitleValue(n.title || ''); }}
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.1rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}
-                          title="Rename note"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTitleId(n.id);
+                            setEditingTitleValue(n.title || '');
+                          }}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                          title="Rename"
                         >
                           <Pencil size={11} />
                         </button>
 
-                        {/* Delete btn */}
                         <button
-                          onClick={e => { e.stopPropagation(); deleteLeadNote(n.id); }}
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger-color)', padding: '0.1rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}
-                          title="Delete note"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteLeadNote(n.id);
+                          }}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger-color)', padding: '2px' }}
+                          title="Delete"
                         >
-                      <Trash2 size={11} />
+                          <Trash2 size={11} />
                         </button>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
 
-                {/* Rich Text Editor for selected note */}
-                {selectedNote && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '16px' }}>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        Editing: <strong data-ph-mask>{selectedNote.title || 'Untitled'}</strong>
+                {/* Selected Note Editor */}
+                {selectedNoteId && leadNotes.some((n) => n.id === selectedNoteId) && (
+                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Editing note
                       </span>
                       {noteSaveStatus === 'saving' && (
-                        <span style={{ fontSize: '11px', color: '#6B7280' }}>Saving...</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Saving...</span>
                       )}
                       {noteSaveStatus === 'saved' && (
-                        <span style={{ fontSize: '11px', color: '#22C55E', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Check size={11} /> Saved</span>
+                        <span style={{ fontSize: '11px', color: 'var(--success-color)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <Check size={11} /> Saved
+                        </span>
                       )}
                     </div>
-                    <div style={{ borderRadius: '8px', overflow: 'hidden' }}>
+
+                    <div style={{ borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
                       <RichTextEditor
-                        key={selectedNote.id}
+                        key={selectedNoteId}
                         content={selectedNoteContent}
-                        onChange={json => {
+                        onChange={(json) => {
                           setSelectedNoteContent(json);
-                          setLeadNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, content: json } : n));
+                          setLeadNotes((prev) => prev.map((n) => (n.id === selectedNoteId ? { ...n, content: json } : n)));
                           setNoteSaveStatus('saving');
                           if (noteSaveTimeoutRef.current) clearTimeout(noteSaveTimeoutRef.current);
                           noteSaveTimeoutRef.current = setTimeout(() => {
                             setNoteSaveStatus('saved');
                           }, 1000);
                         }}
-                        placeholder="Write your note here..."
-                        readOnly={!(selectedNote && (selectedNote.user_id === currentUser?.id || isOwner))}
-                        noteId={selectedNote.id}
+                        placeholder="Write note contents..."
+                        readOnly={false}
+                        noteId={selectedNoteId}
                         noteType="lead"
                         userId={currentUser?.id}
-                        currentTitle={selectedNote.title}
+                        currentTitle={leadNotes.find((n) => n.id === selectedNoteId)?.title}
                       />
                     </div>
                   </div>
                 )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Activity Tab — unified timeline */}
-        {activeTab === 'activity' && (
-          <div className="flex-col gap-3">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <h4 style={{ fontSize: '0.9rem', margin: 0, fontWeight: 600 }}>Activity</h4>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLogMessageOpen(true)}>
-                  <Mail size={12} /> Log message
-                </button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => setLogCallOpen(true)}>
-                  <Phone size={12} /> Log call
-                </button>
-              </div>
-            </div>
-
-            {timelineLoading || callAttemptsLoading || activitiesLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading activity…</div>
-            ) : timeline.length === 0 && callAttempts.length === 0 && activities.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem', border: '1px dashed var(--border-color)', borderRadius: 6 }}>
-                No activity yet. Log a call or message to start the timeline.
-              </div>
-            ) : timeline.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {timeline.map((ev) => (
-                  <ActivityTimelineRow
-                    key={ev.id}
-                    event={ev}
-                    showLead={false}
-                    editableWhen
-                    onSaveWhen={async (event, iso) => {
-                      const updated = await updateTimelineEventOccurredAt(
-                        event.id,
-                        iso,
-                        getEffectiveUserTimeZone(currentUser),
-                      );
-                      if (updated) {
-                        setTimeline((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {callAttempts.map((call) => (
-                  <ActivityTimelineRow
-                    key={call.id}
-                    showLead={false}
-                    event={{
-                      event_type: 'call_logged',
-                      summary: `Call: ${call.outcome}`,
-                      occurred_at: call.occurred_at || call.created_at,
-                      actor_full_name: call.caller_name,
-                      actor_email: call.caller_email,
-                      detail: { note: call.note, outcome: call.outcome },
-                    }}
-                  />
-                ))}
-                {activities.map((act) => (
-                  <ActivityTimelineRow
-                    key={act.id}
-                    showLead={false}
-                    event={{
-                      event_type: act.action_type === 'Status Updated' ? 'status_changed' : 'field_changed',
-                      summary: act.action_type,
-                      occurred_at: act.created_at,
-                      detail: act.action_detail || {},
-                    }}
-                  />
-                ))}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Invoices Tab */}
-        {activeTab === 'invoices' && (
-          <div className="flex-col gap-3" style={{ textAlign: 'left' }}>
-            <h4 style={{ fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '0.5rem', fontWeight: 600 }}>Linked Invoices</h4>
-            {invoices.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                No invoices linked to this lead yet. Invoices are automatically drafted when status is set to Booked or Rescheduled.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {invoices.map(inv => (
-                  <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
-                    <div className="flex-col" style={{ gap: '0.2rem' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }} data-ph-mask>{inv.invoice_number}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Created {new Date(inv.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex align-center gap-3">
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }} data-ph-mask>{inv.total?.toLocaleString() || 0} {inv.currency || 'USD'}</span>
-                      <span style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '4px',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        backgroundColor: inv.status?.toLowerCase() === 'draft' ? 'rgba(255,255,255,0.08)' : 'rgba(16,185,129,0.15)',
-                        color: inv.status?.toLowerCase() === 'draft' ? 'var(--text-muted)' : '#10b981',
-                        textTransform: 'capitalize'
-                      }}>
-                        {inv.status}
-                      </span>
-                      {inv.status?.toLowerCase() === 'draft' ? (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          Draft — not published
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => window.open(`${window.location.origin}/i/${inv.id}`, '_blank')}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                        >
-                          View
-                        </button>
-                      )}
-                    </div>
+            {/* TAB: Calls */}
+            {activeTab === 'calls' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Call Attempts ({callAttempts.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLogCallOpen(true)}
+                    className="btn btn-primary btn-sm"
+                    style={{ height: '26px', padding: '0 8px', fontSize: '12px' }}
+                  >
+                    <Phone size={12} /> Log Call
+                  </button>
+                </div>
+
+                {callAttempts.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '13px', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
+                    No call attempts logged for this lead yet.
                   </div>
-                ))}
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {callAttempts.map((call) => (
+                      <div
+                        key={call.id}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'var(--bg-primary)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {call.outcome || 'Call logged'}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {call.occurred_at ? new Date(call.occurred_at).toLocaleDateString() : ''}
+                          </span>
+                        </div>
+                        {call.note && (
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            {call.note}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
+            {/* TAB: Invoices */}
+            {activeTab === 'invoices' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Linked Invoices ({invoices.length})
+                </span>
+
+                {invoices.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '13px', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
+                    No invoices linked to this lead yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {invoices.map((inv) => (
+                      <div
+                        key={inv.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'var(--bg-primary)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                            {inv.invoice_number}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {new Date(inv.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                            {inv.total?.toLocaleString() || 0} {inv.currency || 'USD'}
+                          </span>
+                          <span
+                            style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              backgroundColor: inv.status?.toLowerCase() === 'draft' ? 'rgba(255,255,255,0.08)' : 'rgba(16,185,129,0.15)',
+                              color: inv.status?.toLowerCase() === 'draft' ? 'var(--text-muted)' : '#10b981',
+                            }}
+                          >
+                            {inv.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        </div>
       </div>
 
+      {/* More Options Menu Portal */}
+      {moreMenuOpen && moreMenuPos && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 1200 }}
+            onClick={() => setMoreMenuOpen(false)}
+          />
+          <div
+            style={{
+              ...portalMenuStyle(moreMenuPos, { minWidth: '180px' }),
+              zIndex: 1201,
+            }}
+          >
+            {!isClientView && !isClientStatus(formData.status) && (
+              <button
+                type="button"
+                className="rd-menu-item"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  setConvertForm({
+                    company: formData.company || '',
+                    phone: formData.phone || '',
+                    project_status: 'Onboarding',
+                    start_date: new Date().toISOString().split('T')[0],
+                    contract_value: '',
+                    invoice_link: '',
+                  });
+                  setShowConvertModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '7px 10px',
+                  fontSize: '12px',
+                  textAlign: 'left',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <UserCheck size={13} style={{ color: 'var(--primary-color)' }} />
+                <span>Convert to Client</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="rd-menu-item"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                handleOpenListMenu();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '7px 10px',
+                fontSize: '12px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <Folder size={13} style={{ color: 'var(--primary-color)' }} />
+              <span>Move to list...</span>
+            </button>
+
+            <button
+              type="button"
+              className="rd-menu-item"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                navigator.clipboard.writeText(`${leadName}\n${formData.email || ''}\n${formData.phone || ''}`);
+                showToast?.('Lead info copied');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '7px 10px',
+                fontSize: '12px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+              <span>Copy contact info</span>
+            </button>
+
+            <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '4px 0' }} />
+
+            <button
+              type="button"
+              className="rd-menu-item"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                if (onDeleteLead && confirm(`Delete ${leadName}?`)) {
+                  onDeleteLead(lead.id);
+                  onClose();
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '7px 10px',
+                fontSize: '12px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--danger-color, #EF4444)',
+              }}
+            >
+              <Trash2 size={13} />
+              <span>Delete lead</span>
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Move to List Menu Portal */}
+      {listMenuOpen && listMenuPos && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 1200 }}
+            onClick={() => setListMenuOpen(false)}
+          />
+          <div
+            style={{
+              ...portalMenuStyle(listMenuPos, { minWidth: '190px', maxHeight: '220px' }),
+              zIndex: 1201,
+            }}
+          >
+            <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Move to list
+            </div>
+            {(userFolders?.length ? userFolders : folders).map((f) => {
+              const isSel = f.id === (formData.folder_id || lead?.folder_id);
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="rd-menu-item"
+                  onClick={async () => {
+                    setListMenuOpen(false);
+                    await saveLeadField('folder_id', f.id);
+                    showToast?.(`Moved to ${f.name}`);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    textAlign: 'left',
+                    background: isSel ? 'var(--bg-card-hover)' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Folder size={12} style={{ color: 'var(--primary-color)' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px' }}>
+                      {f.name}
+                    </span>
+                  </span>
+                  {isSel && <Check size={12} style={{ color: 'var(--primary-color)' }} />}
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Convert to Client Modal */}
       {showConvertModal && (
         <div className="modal-backdrop" style={{ zIndex: 1100 }}>
-          <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
+          <div className="modal-content" style={{ maxWidth: '480px', width: '90%' }}>
             <div className="modal-header">
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.15rem' }}>
                 Convert to Client
               </h2>
               <button onClick={() => setShowConvertModal(false)} className="theme-toggle">
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleConvertSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group" data-ph-mask>
+            <form onSubmit={handleConvertSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
                 <label className="form-label">Company Name</label>
-                <input 
+                <input
                   type="text"
                   className="form-input"
                   value={convertForm.company}
-                  onChange={(e) => setConvertForm({...convertForm, company: e.target.value})}
+                  onChange={(e) => setConvertForm({ ...convertForm, company: e.target.value })}
                   required
                 />
               </div>
 
-              <div className="form-group" data-ph-mask>
+              <div className="form-group">
                 <label className="form-label">Phone</label>
-                <input 
+                <input
                   type="text"
                   className="form-input"
                   value={convertForm.phone}
-                  onChange={(e) => setConvertForm({...convertForm, phone: e.target.value})}
+                  onChange={(e) => setConvertForm({ ...convertForm, phone: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label">Project Status</label>
-                <select 
+                <select
                   className="form-select"
                   value={convertForm.project_status}
-                  onChange={(e) => setConvertForm({...convertForm, project_status: e.target.value})}
+                  onChange={(e) => setConvertForm({ ...convertForm, project_status: e.target.value })}
                 >
                   <option value="Onboarding">Onboarding</option>
                   <option value="Active">Active</option>
@@ -1501,35 +1567,25 @@ export default function LeadDrawer({
 
               <div className="form-group">
                 <label className="form-label">Start Date</label>
-                <input 
+                <input
                   type="date"
                   className="form-input"
                   value={convertForm.start_date}
-                  onChange={(e) => setConvertForm({...convertForm, start_date: e.target.value})}
+                  onChange={(e) => setConvertForm({ ...convertForm, start_date: e.target.value })}
                 />
               </div>
 
-              <div className="form-group" data-ph-mask>
+              <div className="form-group">
                 <label className="form-label">Contract Value</label>
-                <input 
+                <input
                   type="number"
                   className="form-input"
                   value={convertForm.contract_value}
-                  onChange={(e) => setConvertForm({...convertForm, contract_value: e.target.value})}
+                  onChange={(e) => setConvertForm({ ...convertForm, contract_value: e.target.value })}
                 />
               </div>
 
-              <div className="form-group" data-ph-mask>
-                <label className="form-label">Invoice/Billing Link</label>
-                <input 
-                  type="url"
-                  className="form-input"
-                  value={convertForm.invoice_link}
-                  onChange={(e) => setConvertForm({...convertForm, invoice_link: e.target.value})}
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 mt-4" style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <div className="flex justify-end gap-3 mt-4" style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button type="button" onClick={() => setShowConvertModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
@@ -1542,6 +1598,7 @@ export default function LeadDrawer({
         </div>
       )}
 
+      {/* Log Call Modal */}
       <LogCallModal
         open={logCallOpen}
         onClose={() => setLogCallOpen(false)}
@@ -1550,9 +1607,14 @@ export default function LeadDrawer({
         teamId={currentUser?.team_id || null}
         profile={currentUser}
         showNoteSharing={!!currentUser?.team_id}
-        onLogged={handleCallLogged}
+        onLogged={async ({ leadUpdates } = {}) => {
+          if (leadUpdates && onUpdateLead) onUpdateLead(leadUpdates);
+          await Promise.all([fetchCallAttempts(), fetchTimeline()]);
+        }}
         timeZone={getEffectiveUserTimeZone(currentUser)}
       />
+
+      {/* Log Message Modal */}
       <LogMessageModal
         open={logMessageOpen}
         onClose={() => setLogMessageOpen(false)}
@@ -1560,9 +1622,11 @@ export default function LeadDrawer({
         userId={currentUser?.id}
         teamId={currentUser?.team_id || null}
         timeZone={getEffectiveUserTimeZone(currentUser)}
-        onLogged={handleMessageLogged}
+        onLogged={async ({ leadUpdates } = {}) => {
+          if (leadUpdates && onUpdateLead) onUpdateLead(leadUpdates);
+          await fetchTimeline();
+        }}
       />
-      </div>
     </>
   );
 }

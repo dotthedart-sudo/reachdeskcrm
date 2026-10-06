@@ -4,12 +4,56 @@ import { logLeadTimelineEvent } from './leadTimeline';
 import { resolveMessagingActionRules } from './automationRules';
 import { queueFollowupGoogleSync } from './googleFollowupSync';
 
-export const CHECKPOINT_OFFSETS_HOURS = [12, 24, 72, 120, 168, 336, 504];
+export const CHECKPOINT_OFFSETS_HOURS = [72, 120, 168, 336, 720];
+
+export const STATUS_FIRST_OFFSET_HOURS = {
+  'No show': 2,
+  'Proposal Sent': 48,
+};
 
 export const RESOLVED_STATUSES = ['Positive Reply', 'Booked', 'Rescheduled', 'Closed Won', 'Client'];
 
 export const REPLY_CHECK_STATUSES = ['Contacted', 'Invite Sent', 'Proposal Sent', 'Followed up'];
 export const FOLLOW_UP_CHECK_STATUSES = ['No show', 'Not Interested'];
+
+/**
+ * Calculates the next checkpoint ISO string given lead status, lastContactedAt, and optional custom hours.
+ */
+export function calculateNextCheckpoint({
+  status,
+  lastContactedAt,
+  customHours = null,
+  nowMs = Date.now(),
+}) {
+  if (!status || !lastContactedAt) return null;
+  const isFollowUpCycle = REPLY_CHECK_STATUSES.includes(status) || FOLLOW_UP_CHECK_STATUSES.includes(status);
+  if (!isFollowUpCycle) return null;
+
+  const baseTime = new Date(lastContactedAt).getTime();
+  if (isNaN(baseTime)) return null;
+
+  // First offset per-status or custom override
+  let firstOffset = STATUS_FIRST_OFFSET_HOURS[status] ?? CHECKPOINT_OFFSETS_HOURS[0];
+  if (customHours !== null && customHours !== undefined) {
+    firstOffset = Number(customHours);
+  }
+
+  // If first offset is in the future relative to now, use it
+  if (baseTime + firstOffset * 60 * 60 * 1000 > nowMs) {
+    return new Date(baseTime + firstOffset * 60 * 60 * 1000).toISOString();
+  }
+
+  // Otherwise find next scheduled offset from CHECKPOINT_OFFSETS_HOURS that is in the future
+  for (const hours of CHECKPOINT_OFFSETS_HOURS) {
+    const scheduledTime = baseTime + hours * 60 * 60 * 1000;
+    if (scheduledTime > nowMs) {
+      return new Date(scheduledTime).toISOString();
+    }
+  }
+
+  // If all offsets are in the past, return the initial offset scheduled time
+  return new Date(baseTime + firstOffset * 60 * 60 * 1000).toISOString();
+}
 
 /** Closed Won and Client both mean the lead is already a client. */
 export function isClientStatus(status) {
@@ -131,37 +175,17 @@ export async function updateLeadStatusAndCheckpoint({
   }
 
   const baseTime = lastContacted ? new Date(lastContacted).getTime() : Date.now();
-  const nowMs = Date.now();
+  // Calculate next checkpoint timestamp using unified cadence
+  const effectiveCustomHours = customHours !== null && customHours !== undefined
+    ? customHours
+    : targetLead.custom_reminder_hours;
 
-  // Calculate next checkpoint timestamp
-  let nextCheckpoint = null;
-  const isFollowUpCycle = REPLY_CHECK_STATUSES.includes(newStatus) || FOLLOW_UP_CHECK_STATUSES.includes(newStatus);
-
-  if (isFollowUpCycle && lastContacted) {
-    if (isFirstContact || !targetLead.last_contacted_at) {
-      // First checkpoint can be overridden by custom hours
-      let hoursOffset = 12; // default first offset from CHECKPOINT_OFFSETS_HOURS[0]
-      if (customHours !== null && customHours !== undefined) {
-        hoursOffset = customHours;
-      } else if (targetLead.custom_reminder_hours !== null && targetLead.custom_reminder_hours !== undefined) {
-        hoursOffset = Number(targetLead.custom_reminder_hours);
-      }
-      nextCheckpoint = new Date(baseTime + hoursOffset * 60 * 60 * 1000).toISOString();
-    } else {
-      // Subsequent checkpoints ignore custom hours and use the cumulative array sequence
-      let nextOffsetHours = null;
-      for (const hours of CHECKPOINT_OFFSETS_HOURS) {
-        const scheduledTime = baseTime + hours * 60 * 60 * 1000;
-        if (scheduledTime > nowMs) {
-          nextOffsetHours = hours;
-          break;
-        }
-      }
-      if (nextOffsetHours !== null) {
-        nextCheckpoint = new Date(baseTime + nextOffsetHours * 60 * 60 * 1000).toISOString();
-      }
-    }
-  }
+  const nextCheckpoint = calculateNextCheckpoint({
+    status: newStatus,
+    lastContactedAt: lastContacted,
+    customHours: effectiveCustomHours,
+    nowMs: Date.now(),
+  });
 
   // Determine suggested action
   const suggestedAction = getSuggestionForStatus(newStatus, suggestionRules, currentUser);
@@ -172,6 +196,7 @@ export async function updateLeadStatusAndCheckpoint({
   const leadUpdate = {
     status: newStatus,
     next_checkpoint_at: nextCheckpoint,
+    next_checkpoint_manual: false,
     ...safeExtra,
   };
 

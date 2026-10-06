@@ -453,11 +453,21 @@ export default function AutomationsPanel({
                     <input
                       type="radio"
                       name="reminder_notification_mode"
+                      checked={reminderNotificationMode === 'both'}
+                      onChange={() => setReminderNotificationMode('both')}
+                      disabled={automationSaving}
+                    />
+                    Both digest and instant alerts (recommended)
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'var(--text-primary)', cursor: automationSaving ? 'wait' : 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="reminder_notification_mode"
                       checked={reminderNotificationMode === 'digest'}
                       onChange={() => setReminderNotificationMode('digest')}
                       disabled={automationSaving}
                     />
-                    Daily digest (recommended)
+                    Daily digest only
                   </label>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'var(--text-primary)', cursor: automationSaving ? 'wait' : 'pointer' }}>
                     <input
@@ -467,13 +477,13 @@ export default function AutomationsPanel({
                       onChange={() => setReminderNotificationMode('instant')}
                       disabled={automationSaving}
                     />
-                    Instant, for each follow-up
+                    Instant alerts only
                   </label>
                 </div>
               </SettingsCard>
             )}
 
-            {remindersEnabled && reminderNotificationMode === 'digest' && (
+            {remindersEnabled && (reminderNotificationMode === 'digest' || reminderNotificationMode === 'both') && (
               <SettingsCard>
                 <div
                   style={{
@@ -687,7 +697,7 @@ export default function AutomationsPanel({
                   className="form-input"
                   value={defaultCountryCode}
                   onChange={(e) => setDefaultCountryCode(e.target.value)}
-                  placeholder="+92"
+                  placeholder="+1"
                   disabled={automationSaving}
                   style={{ width: 88, textAlign: 'center' }}
                 />

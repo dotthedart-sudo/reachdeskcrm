@@ -6,6 +6,7 @@ import GroupedChannelDropdown from './GroupedChannelDropdown';
 import { detectDomainIcon } from '../icons/PlatformIcons';
 import { inferTimezoneFromPhone } from '../../lib/leadTimezone';
 import CountryTimezonePicker from './CountryTimezonePicker';
+import PhoneTimezoneChip from './PhoneTimezoneChip';
 
 /**
  * Shared Add/Edit lead fields — sectioned layout matching Auth spacing.
@@ -34,10 +35,11 @@ export default function LeadFormFields({
   newFieldType = 'text',
   setNewFieldType,
   onAddCustomField,
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
+  listCountry = null,
 }) {
   const handleDetectTimezone = () => {
-    const { timezone } = inferTimezoneFromPhone(leadForm.phone, defaultCountryCode);
+    const { timezone } = inferTimezoneFromPhone(leadForm.phone, { listCountry, userCountry: defaultCountryCode });
     if (timezone) {
       setLeadForm((prev) => ({
         ...prev,
@@ -49,8 +51,8 @@ export default function LeadFormFields({
   };
 
   const handlePhoneBlur = () => {
-    if (leadForm.timezoneTouched || !leadForm.phone?.trim()) return;
-    const { timezone } = inferTimezoneFromPhone(leadForm.phone, defaultCountryCode);
+    if (leadForm.timezoneTouched || leadForm.timezone_source === 'manual' || !leadForm.phone?.trim()) return;
+    const { timezone } = inferTimezoneFromPhone(leadForm.phone, { listCountry, userCountry: defaultCountryCode });
     if (timezone) {
       setLeadForm((prev) => ({
         ...prev,
@@ -148,6 +150,23 @@ export default function LeadFormFields({
               className="form-input"
               placeholder="+1…"
             />
+            {leadForm.phone && (
+              <PhoneTimezoneChip
+                lead={leadForm}
+                phone={leadForm.phone}
+                timezone={leadForm.timezone}
+                timezone_source={leadForm.timezone_source}
+                listCountry={listCountry}
+                userCountry={defaultCountryCode}
+                onChangeTimezone={(patch) => {
+                  setLeadForm((prev) => ({
+                    ...prev,
+                    ...patch,
+                    timezoneTouched: true,
+                  }));
+                }}
+              />
+            )}
           </div>
         </div>
 

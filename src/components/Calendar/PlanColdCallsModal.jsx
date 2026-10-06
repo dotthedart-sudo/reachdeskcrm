@@ -27,7 +27,7 @@ export default function PlanColdCallsModal({
   attempts = [],
   folders = [],
   existingLeadIds = [],
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
   userTimeZone = null,
   onPlanned,
 }) {

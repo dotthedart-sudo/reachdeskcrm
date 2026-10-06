@@ -756,23 +756,18 @@ export default function GroupedStatusDropdown({
           type="button"
           onClick={openDropdown}
           onMouseDown={(e) => e.stopPropagation()}
+          className="rd-pill"
           style={{
             ...softBadgeStyle(currentOpt.color),
-            borderRadius: '6px',
-            padding: '0.25rem 0.6rem',
-            fontSize: '0.8rem',
-            fontWeight: 600,
             cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
             outline: 'none',
-            whiteSpace: 'nowrap'
           }}
         >
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', ...softDotStyle(currentOpt.color), display: 'inline-block', flexShrink: 0 }} />
-          {currentOpt.label}
-          <ChevronDown size={12} style={{ opacity: 0.7 }} />
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', ...softDotStyle(currentOpt.color), display: 'inline-block', flexShrink: 0 }} />
+          <span className="rd-pill__label">{currentOpt.label}</span>
+          <span className="rd-pill__chevron">
+            <ChevronDown size={11} />
+          </span>
         </button>
       ) : (
         <button

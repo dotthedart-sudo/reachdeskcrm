@@ -36,6 +36,7 @@ export default function FolderBrowser({
   onExportFolder,
   onExportFolderSheets,
   onShareFolder,
+  onOpenFolderSettings,
   canExportSheets = false,
   getFolderSettings,
   onToggleFolderLocalTime,
@@ -227,6 +228,7 @@ export default function FolderBrowser({
         getLeadCount={getLeadCount}
         onSelectFolder={onSelectFolder}
         onRenameFolder={onRenameFolder}
+        onOpenFolderSettings={onOpenFolderSettings}
         onDeleteFolder={onDeleteFolder}
         onDeleteSmartFolder={onDeleteSmartFolder}
         onExportFolder={onExportFolder}

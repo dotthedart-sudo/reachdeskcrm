@@ -5,6 +5,7 @@ import { MoreHorizontal, FolderOpen, Pencil, Download, Trash2, FileSpreadsheet, 
 export default function ListRowMenu({
   onOpen,
   onRename,
+  onOpenSettings,
   onDelete,
   onExport,
   onExportSheets,
@@ -87,6 +88,12 @@ export default function ListRowMenu({
             <Pencil size={14} />
             Rename
           </button>
+          {onOpenSettings && (
+            <button type="button" className="crm-list-row-menu-item" role="menuitem" onClick={run(onOpenSettings)}>
+              <Clock size={14} />
+              List settings
+            </button>
+          )}
           {canShare && onShare && (
             <button type="button" className="crm-list-row-menu-item" role="menuitem" onClick={run(onShare)}>
               <Share2 size={14} />

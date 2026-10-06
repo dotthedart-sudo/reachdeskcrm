@@ -127,17 +127,45 @@ export default function ColumnManager({
   };
 
   const handleReset = () => {
+    const defaultVisible = {
+      pipeline: ['name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email'],
+      contact_details: ['name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email'],
+      call_queue: ['name', 'phone', 'local_time', 'outcome', 'call_action', 'next_checkpoint_at', 'last_called', 'platform'],
+    }[activeTab] || [];
+
     const defaultOrder = DEFAULT_COLUMN_ORDER[activeTab] || [];
-    const updated = currentTabCols.map((c) => {
-      const idx = defaultOrder.indexOf(c.column_key);
-      return {
-        ...c,
+    let tabCols = [...currentTabCols];
+
+    if (!tabCols.some((c) => c.column_key === 'next_checkpoint_at')) {
+      tabCols.push({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        table_view: activeTab,
+        column_key: 'next_checkpoint_at',
+        column_label: 'Due',
+        column_type: 'datetime',
         is_visible: true,
+        is_default: true,
         is_pinned: false,
         wrap_mode: 'clip',
-        sort_order: idx >= 0 ? idx : 999,
+        sort_order: 5,
+        dropdown_options: [],
+      });
+    }
+
+    const updated = tabCols.map((c) => {
+      const isVis = defaultVisible.includes(c.column_key);
+      const visIdx = defaultVisible.indexOf(c.column_key);
+      const hiddenIdx = defaultOrder.indexOf(c.column_key);
+      return {
+        ...c,
+        is_visible: isVis,
+        is_pinned: false,
+        wrap_mode: 'clip',
+        sort_order: isVis ? visIdx : (hiddenIdx >= 0 ? 100 + hiddenIdx : 999),
       };
     }).sort((a, b) => a.sort_order - b.sort_order);
+
     updateCurrentTabCols(updated.map((c, i) => ({ ...c, sort_order: i })));
   };
 
@@ -148,7 +176,7 @@ export default function ColumnManager({
       const deletedCustomIds = originalCustom.filter((c) => !remainingCustomIds.includes(c.id)).map((c) => c.id);
 
       if (deletedCustomIds.length > 0) {
-        await supabase.from('column_definitions').delete().in('id', deletedCustomIds);
+        await supabase.from('column_definitions').delete().in('id', deletedCustomIds).eq('user_id', userId);
       }
 
       const upsertPayload = [];

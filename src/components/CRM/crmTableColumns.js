@@ -16,18 +16,18 @@ export const CALL_ACTION_DEFAULT_OPTIONS = [
 export const CALL_QUEUE_DEFAULT_DEFS = [
   { table_view: 'call_queue', column_key: 'name', column_label: 'Name', column_type: 'text', is_visible: true, is_default: true, sort_order: 0, dropdown_options: [] },
   { table_view: 'call_queue', column_key: 'phone', column_label: 'Phone', column_type: 'text', is_visible: true, is_default: true, sort_order: 1, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'outreach_channel', column_label: 'Channel', column_type: 'channel', is_visible: true, is_default: true, sort_order: 2, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'platform', column_label: 'Reach', column_type: 'reach', is_visible: true, is_default: true, sort_order: 3, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'local_time', column_label: 'Lead local time', column_type: 'computed', is_visible: true, is_default: true, sort_order: 4, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'script_used', column_label: 'Script', column_type: 'template', is_visible: true, is_default: true, sort_order: 5, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'status', column_label: 'Status', column_type: 'status', is_visible: true, is_default: true, sort_order: 6, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'call_action', column_label: 'Call next step', column_type: 'dropdown', is_visible: true, is_default: true, sort_order: 7, dropdown_options: CALL_ACTION_DEFAULT_OPTIONS },
-  { table_view: 'call_queue', column_key: 'last_called', column_label: 'Last called', column_type: 'date', is_visible: true, is_default: true, sort_order: 8, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'last_contacted_at', column_label: 'Last contacted', column_type: 'date', is_visible: false, is_default: true, sort_order: 9, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'next_checkpoint_at', column_label: 'Callback', column_type: 'datetime', is_visible: true, is_default: true, sort_order: 10, dropdown_options: [] },
-
-  { table_view: 'call_queue', column_key: 'attempts', column_label: 'Attempts', column_type: 'number', is_visible: true, is_default: true, sort_order: 11, dropdown_options: [] },
-  { table_view: 'call_queue', column_key: 'priority', column_label: 'Priority', column_type: 'priority', is_visible: false, is_default: true, sort_order: 12, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'local_time', column_label: 'Local time', column_type: 'computed', is_visible: true, is_default: true, sort_order: 2, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'outcome', column_label: 'Status', column_type: 'status', is_visible: true, is_default: true, sort_order: 3, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'call_action', column_label: 'Next step', column_type: 'dropdown', is_visible: true, is_default: true, sort_order: 4, dropdown_options: CALL_ACTION_DEFAULT_OPTIONS },
+  { table_view: 'call_queue', column_key: 'next_checkpoint_at', column_label: 'Due', column_type: 'datetime', is_visible: true, is_default: true, sort_order: 5, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'last_called', column_label: 'Last activity', column_type: 'date', is_visible: true, is_default: true, sort_order: 6, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'platform', column_label: 'Reach', column_type: 'reach', is_visible: true, is_default: true, sort_order: 7, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'attempts', column_label: 'Attempts', column_type: 'number', is_visible: false, is_default: true, sort_order: 8, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'status', column_label: 'Pipeline status', column_type: 'status', is_visible: false, is_default: true, sort_order: 9, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'script_used', column_label: 'Script', column_type: 'template', is_visible: false, is_default: true, sort_order: 10, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'outreach_channel', column_label: 'Channel', column_type: 'channel', is_visible: false, is_default: true, sort_order: 11, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'last_contacted_at', column_label: 'Last contacted', column_type: 'date', is_visible: false, is_default: true, sort_order: 12, dropdown_options: [] },
+  { table_view: 'call_queue', column_key: 'priority', column_label: 'Priority', column_type: 'priority', is_visible: false, is_default: true, sort_order: 13, dropdown_options: [] },
 ];
 
 export function getTableColumns(columnDefs, view) {
@@ -76,15 +76,18 @@ export function isAlwaysClipped(col) {
 /** Default column order per view — used by "Reset columns". */
 export const DEFAULT_COLUMN_ORDER = {
   contact_details: [
-    'name', 'status', 'outreach_channel', 'action_to_take', 'platform', 'phone', 'last_contacted_at',
-    'email', 'company', 'instagram_url', 'website', 'priority', 'niche', 'template_used',
+    'name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email',
+    'phone', 'company', 'instagram_url', 'website', 'niche', 'template_used',
     'linkedin_url', 'twitter_url', 'created_at',
   ],
   pipeline: [
-    'name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'last_contacted_at',
-    'template_used', 'platform', 'niche', 'email', 'phone', 'company',
+    'name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email',
+    'phone', 'local_time', 'template_used', 'niche', 'company', 'instagram_url', 'website', 'linkedin_url', 'twitter_url', 'created_at',
   ],
-  call_queue: CALL_QUEUE_DEFAULT_DEFS.map((d) => d.column_key),
+  call_queue: [
+    'name', 'phone', 'local_time', 'outcome', 'call_action', 'next_checkpoint_at', 'last_called', 'platform',
+    'attempts', 'status', 'script_used', 'outreach_channel', 'last_contacted_at', 'priority',
+  ],
 };
 
 

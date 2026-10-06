@@ -899,7 +899,7 @@ export default function CalendarPage({ currentUser }) {
 
   const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const existingPlanLeadIds = selectedPlan.map((t) => t.lead_id).filter(Boolean);
-  const defaultCountryCode = currentUser?.default_country_code || '+92';
+  const defaultCountryCode = currentUser?.default_country_code || null;
 
   return (
     <PageContainer variant="wide">

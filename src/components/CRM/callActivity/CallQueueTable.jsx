@@ -1,15 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { PhoneCall, Settings as Gear, Lightbulb, EyeOff } from 'lucide-react';
+import {
+  PhoneCall,
+  Settings as Gear,
+  Lightbulb,
+  EyeOff,
+  Mail,
+  Phone,
+  Search,
+  Filter,
+  Check,
+  Clock,
+  ChevronDown,
+} from 'lucide-react';
 import CopyableCell from '../CopyableCell';
 import GroupedStatusDropdown from '../GroupedStatusDropdown';
 import PriorityDropdown from '../PriorityDropdown';
 import EditableDropdown from '../EditableDropdown';
-import CallWindowBadge from '../CallWindowBadge';
+import LocalTimeCell from '../LocalTimeCell';
 import DateTimePickerCell from '../DateTimePickerCell';
 import OutcomeBadge from './OutcomeBadge';
 import GroupedTemplateDropdown from '../GroupedTemplateDropdown';
 import GroupedChannelDropdown from '../GroupedChannelDropdown';
 import CustomFieldCell from '../CustomFieldCell';
+import QuickAddLeadRow from '../QuickAddLeadRow';
 import { ReachIcons } from '../../icons/PlatformIcons';
 import { TEMPLATE_KINDS } from '../../../lib/templateKinds';
 import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS } from '../crmTableColumns';
@@ -17,12 +30,14 @@ import { fetchMyCallAttempts } from '../../../lib/callActivity';
 import { getCallActionForStatus, displayCallStatus } from '../../../lib/callOutcomeRules';
 import { attemptsByLeadMap, allAttemptsByLeadMap, buildOutreachSessionQueue } from '../../../lib/outreachQueue';
 import { formatLocalTime, getEffectiveUserTimeZone } from '../../../lib/dateTime';
+import { isLeadCallableNow } from '../../../lib/leadTimezone';
 import CallingSession from './CallingSession';
 import ManageCallAttemptsModal from './ManageCallAttemptsModal';
 import EditCallAttemptModal from './EditCallAttemptModal';
 import DataTableShell from '../DataTableShell';
 import { useColumnPrefs } from '../useColumnPrefs';
 import { useAppContext } from '../../../App';
+import RdSelect from '../../ui/RdSelect';
 
 export default function CallQueueTable({
   leads = [],
@@ -41,11 +56,23 @@ export default function CallQueueTable({
   onRefresh,
   onLeadUpdated,
   onOpenColumnManager,
+  onOpenFilterDrawer,
+  onModeChange,
+  outreachMode = 'calls',
+  callSubView = 'queue',
+  onCallSubViewChange,
+  searchQuery = '',
+  onSearchChange,
+  onlyGoodTimeToCall = false,
+  onToggleGoodTimeToCall,
   showNoteSharing = false,
   suggestionRules = [],
   onUpdateColumnDef,
   setColumnDefs,
   templates = [],
+  onQuickAddLead,
+  reachMode = 'icons',
+  onSetReachMode,
 }) {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,11 +88,13 @@ export default function CallQueueTable({
     columnDefs,
     setColumnDefs,
     showToast,
+    templates,
+    leads,
   });
 
   const userId = currentUser?.id;
   const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
-  const defaultCountryCode = currentUser?.default_country_code || '+92';
+  const defaultCountryCode = currentUser?.default_country_code || null;
   const suggestionsEnabled = currentUser?.suggestions_enabled !== false;
 
   const tableCols = useMemo(() => {
@@ -98,7 +127,6 @@ export default function CallQueueTable({
     return () => { cancelled = true; };
   }, [userId, leads.length]);
 
-  const leadIdSet = useMemo(() => new Set(leads.map((l) => l.id)), [leads]);
   const allLeadIdSet = useMemo(() => new Set(allLeads.map((l) => l.id)), [allLeads]);
 
   const scopedAttempts = useMemo(
@@ -147,8 +175,12 @@ export default function CallQueueTable({
           <td {...cellProps}>
             <CopyableCell value={copyValue} onCopied={onCopied}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
-                <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} data-ph-mask>{displayName}</span>
-                {isCallbackDue && <span className="sim-badge" style={{ background: 'var(--status-warm)', color: '#fff', fontSize: '0.7rem' }}>Callback due</span>}
+                <span style={{ fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} data-ph-mask>{displayName}</span>
+                {isCallbackDue && (
+                  <span className="sim-badge" style={{ background: 'var(--status-warm, #f59e0b)', color: '#fff', fontSize: '0.7rem', padding: '1px 5px', borderRadius: '3px' }}>
+                    Callback due
+                  </span>
+                )}
               </div>
             </CopyableCell>
           </td>
@@ -158,7 +190,7 @@ export default function CallQueueTable({
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
             <CopyableCell value={lead.phone || ''} onCopied={onCopied}>
-              <span style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.9rem' }} data-ph-mask>
+              <span style={{ fontWeight: 500, fontFamily: 'monospace', fontSize: '0.88rem' }} data-ph-mask>
                 {lead.phone || '—'}
               </span>
             </CopyableCell>
@@ -167,172 +199,11 @@ export default function CallQueueTable({
       case 'local_time':
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <CallWindowBadge
+            <LocalTimeCell
               lead={lead}
-              defaultCountryCode={defaultCountryCode}
-              showLocalTime
-              compact
-              editable
-              onTimezoneChange={(tz) => onFieldChange?.(lead.id, 'timezone', tz || '')}
-            />
-          </td>
-        );
-      case 'outreach_channel':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <CopyableCell value={lead.outreach_channel || ''} onCopied={onCopied} variant="inline">
-              <GroupedChannelDropdown
-                userId={userId}
-                value={lead.outreach_channel}
-                onChange={(val) => onFieldChange?.(lead.id, 'outreach_channel', val)}
-                isTableInline={true}
-                onUpdate={onRefresh}
-                channel="messaging"
-              />
-            </CopyableCell>
-          </td>
-        );
-      case 'status': {
-        const isCallbackReq = displayCallStatus(lead.call_status) === 'Callback requested';
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: '100%' }}>
-              <CopyableCell value={displayCallStatus(lead.call_status)} onCopied={onCopied} variant="inline">
-                <GroupedStatusDropdown
-                  channel="calls"
-                  value={displayCallStatus(lead.call_status)}
-                  onChange={(val) => handleCallStatusChange(lead.id, val)}
-                  isTableInline
-                  onUpdate={onRefresh}
-                  disabled={viewerFolderAccess}
-                />
-              </CopyableCell>
-              {isCallbackReq && (
-                <DateTimePickerCell
-                  compact
-                  autoOpen={autoOpenCallbackLeadId === lead.id}
-                  value={lead.next_checkpoint_at}
-                  timeZone={userTimeZone}
-                  onChange={(iso) => {
-                    onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
-                    if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
-                  }}
-                  placeholder="Set time"
-                />
-              )}
-            </div>
-          </td>
-        );
-      }
-      case 'call_action': {
-        const callStatusLabel = displayCallStatus(lead.call_status);
-        const expected = suggestionsEnabled
-          ? getCallActionForStatus(callStatusLabel, userId, currentUser)
-          : null;
-        const isMismatch = expected && lead.call_action !== expected;
-        const isCallbackScheduled = lead.call_action === 'Callback scheduled' || callStatusLabel === 'Callback requested';
-
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <CopyableCell value={lead.call_action || ''} onCopied={onCopied} variant="inline">
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                <EditableDropdown
-                  value={lead.call_action || ''}
-                  columnDef={callActionColDef}
-                  onChange={(val) => {
-                    onFieldChange?.(lead.id, 'call_action', val);
-                    if (val === 'Callback scheduled') {
-                      setAutoOpenCallbackLeadId(lead.id);
-                    }
-                  }}
-                  onUpdateColumnDef={onUpdateColumnDef}
-                  disabled={viewerFolderAccess}
-                />
-                {isCallbackScheduled && (
-                  <DateTimePickerCell
-                    compact
-                    autoOpen={autoOpenCallbackLeadId === lead.id}
-                    value={lead.next_checkpoint_at}
-                    timeZone={userTimeZone}
-                    onChange={(iso) => {
-                      onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
-                      if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
-                    }}
-                    placeholder="Set time"
-                  />
-                )}
-                {isMismatch && (
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    title={`Apply suggested: ${expected}`}
-                    style={{ color: 'var(--status-warm)', padding: 2 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onFieldChange?.(lead.id, 'call_action', expected);
-                    }}
-                  >
-                    <Lightbulb size={14} />
-                  </button>
-                )}
-              </div>
-            </CopyableCell>
-          </td>
-        );
-      }
-      case 'script_used':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <CopyableCell value={lead.script_used || ''} onCopied={onCopied} variant="inline">
-              <GroupedTemplateDropdown
-                value={lead.script_used || ''}
-                onChange={(val) => onFieldChange?.(lead.id, 'script_used', val)}
-                templates={templates}
-                kind={TEMPLATE_KINDS.CALLS}
-                placeholder="None"
-              />
-            </CopyableCell>
-          </td>
-        );
-      case 'next_checkpoint_at':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <DateTimePickerCell
-              compact
-              autoOpen={autoOpenCallbackLeadId === lead.id}
-              value={lead.next_checkpoint_at || null}
-              timeZone={userTimeZone}
-              onChange={(iso) => {
-                onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
-                if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
-              }}
-              placeholder="—"
-              disabled={viewerFolderAccess}
-            />
-          </td>
-        );
-      case 'last_called':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <DateTimePickerCell
-              compact
-              value={lead.last_called_at || last?.occurred_at || last?.created_at || null}
-              timeZone={userTimeZone}
-              onChange={(iso) => handleLastCalledChange(lead, iso)}
-              placeholder="—"
-              disabled={viewerFolderAccess}
-            />
-          </td>
-        );
-      case 'last_contacted_at':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <DateTimePickerCell
-              compact
-              value={lead.last_contacted_at || null}
-              timeZone={userTimeZone}
-              onChange={(iso) => onFieldChange?.(lead.id, 'last_contacted_at', iso)}
-              placeholder="—"
+              listCountry={lead.folder_default_country}
+              userCountry={defaultCountryCode}
+              onSaveTimezone={(id, tz) => onFieldChange?.(id, 'timezone', tz)}
             />
           </td>
         );
@@ -361,44 +232,222 @@ export default function CallQueueTable({
           </td>
         );
       }
-      case 'attempts':
+      case 'attempts': {
+        const attemptCount = attemptList.length;
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.75rem', minWidth: 36, justifyContent: 'center' }}
+              style={{
+                fontSize: '12px',
+                minWidth: 44,
+                height: 24,
+                padding: '0 6px',
+                justifyContent: 'center',
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 500,
+              }}
               title="Manage call logs"
               onClick={(e) => {
                 e.stopPropagation();
                 setManageLead(lead);
               }}
             >
-              {attemptList.length || '—'}
+              {attemptCount} / 5
             </button>
+          </td>
+        );
+      }
+      case 'next_checkpoint_at': {
+        const nextTime = lead.next_checkpoint_at;
+        const isOverdue = nextTime && new Date(nextTime) <= new Date();
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <DateTimePickerCell
+                compact
+                mode="future"
+                autoOpen={autoOpenCallbackLeadId === lead.id}
+                value={nextTime || null}
+                timeZone={userTimeZone}
+                onChange={(iso) => {
+                  onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
+                  if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
+                }}
+                placeholder="—"
+                disabled={viewerFolderAccess}
+              />
+              {isOverdue && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: '#FBBF24',
+                    fontWeight: 500,
+                  }}
+                  title="Overdue callback"
+                >
+                  Overdue
+                </span>
+              )}
+            </div>
+          </td>
+        );
+      }
+      case 'platform':
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <ReachIcons lead={lead} columnDefs={columnDefs} reachMode={reachMode} />
+          </td>
+        );
+      case 'outreach_channel':
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <GroupedChannelDropdown
+              userId={userId}
+              value={lead.outreach_channel}
+              onChange={(val) => onFieldChange?.(lead.id, 'outreach_channel', val)}
+              isTableInline={true}
+              onUpdate={onRefresh}
+              channel="messaging"
+            />
+          </td>
+        );
+      case 'status': {
+        const isCallbackReq = displayCallStatus(lead.call_status) === 'Callback requested';
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: '100%' }}>
+              <GroupedStatusDropdown
+                channel="calls"
+                value={displayCallStatus(lead.call_status)}
+                onChange={(val) => handleCallStatusChange(lead.id, val)}
+                isTableInline
+                onUpdate={onRefresh}
+                disabled={viewerFolderAccess}
+              />
+              {isCallbackReq && (
+                <DateTimePickerCell
+                  compact
+                  mode="future"
+                  autoOpen={autoOpenCallbackLeadId === lead.id}
+                  value={lead.next_checkpoint_at}
+                  timeZone={userTimeZone}
+                  onChange={(iso) => {
+                    onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
+                    if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
+                  }}
+                  placeholder="Set time"
+                />
+              )}
+            </div>
+          </td>
+        );
+      }
+      case 'call_action': {
+        const callStatusLabel = displayCallStatus(lead.call_status);
+        const expected = suggestionsEnabled
+          ? getCallActionForStatus(callStatusLabel, userId, currentUser)
+          : null;
+        const isMismatch = expected && lead.call_action !== expected;
+        const isCallbackScheduled = lead.call_action === 'Callback scheduled' || callStatusLabel === 'Callback requested';
+
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <EditableDropdown
+                value={lead.call_action || ''}
+                columnDef={callActionColDef}
+                onChange={(val) => {
+                  onFieldChange?.(lead.id, 'call_action', val);
+                  if (val === 'Callback scheduled') {
+                    setAutoOpenCallbackLeadId(lead.id);
+                  }
+                }}
+                onUpdateColumnDef={onUpdateColumnDef}
+                disabled={viewerFolderAccess}
+              />
+              {isCallbackScheduled && (
+                <DateTimePickerCell
+                  compact
+                  mode="future"
+                  autoOpen={autoOpenCallbackLeadId === lead.id}
+                  value={lead.next_checkpoint_at}
+                  timeZone={userTimeZone}
+                  onChange={(iso) => {
+                    onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
+                    if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
+                  }}
+                  placeholder="Set time"
+                />
+              )}
+              {isMismatch && (
+                <button
+                  type="button"
+                  className="btn-icon"
+                  title={`Apply suggested: ${expected}`}
+                  style={{ color: '#FBBF24', padding: 2 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFieldChange?.(lead.id, 'call_action', expected);
+                  }}
+                >
+                  <Lightbulb size={14} />
+                </button>
+              )}
+            </div>
+          </td>
+        );
+      }
+      case 'script_used':
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <GroupedTemplateDropdown
+              value={lead.script_used || ''}
+              onChange={(val) => onFieldChange?.(lead.id, 'script_used', val)}
+              templates={templates}
+              kind={TEMPLATE_KINDS.CALLS}
+              placeholder="None"
+              isTableInline={true}
+            />
+          </td>
+        );
+      case 'last_called':
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <DateTimePickerCell
+              compact
+              mode="past"
+              value={lead.last_called_at || last?.occurred_at || last?.created_at || null}
+              timeZone={userTimeZone}
+              onChange={(iso) => handleLastCalledChange(lead, iso)}
+              placeholder="—"
+              disabled={viewerFolderAccess}
+            />
+          </td>
+        );
+      case 'last_contacted_at':
+        return (
+          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+            <DateTimePickerCell
+              compact
+              mode="past"
+              value={lead.last_contacted_at || null}
+              timeZone={userTimeZone}
+              onChange={(iso) => onFieldChange?.(lead.id, 'last_contacted_at', iso)}
+              placeholder="—"
+            />
           </td>
         );
       case 'priority':
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <CopyableCell value={lead.priority || 'Warm'} onCopied={onCopied} variant="inline">
-              <PriorityDropdown
-                value={lead.priority || 'Warm'}
-                onChange={(val) => onFieldChange?.(lead.id, 'priority', val)}
-              />
-            </CopyableCell>
+            <PriorityDropdown
+              value={lead.priority || 'Warm'}
+              onChange={(val) => onFieldChange?.(lead.id, 'priority', val)}
+            />
           </td>
         );
-      case 'platform':
-        return (
-          <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <ReachIcons lead={lead} onRefresh={onRefresh} />
-          </td>
-        );
-      case 'linkedin_url':
-      case 'instagram_url':
-      case 'twitter_url':
-      case 'website':
       default:
         if (isCustom || col.column_type === 'link') {
           return (
@@ -415,7 +464,7 @@ export default function CallQueueTable({
                 }}
                 currentUser={currentUser}
                 templates={templates}
-                suggestionRules={[]} 
+                suggestionRules={[]}
                 setColumnDefs={setColumnDefs}
                 onRefresh={onRefresh}
               />
@@ -449,47 +498,194 @@ export default function CallQueueTable({
     );
   }
 
+  // Calculate total columns for quick-add row span
+  const totalCols = tableCols.length + 1 + 1; // select + rownum + tableCols
+
   return (
-    <div className="flex-col gap-3">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          {loading ? 'Loading call data…' : `${allLeads.length} lead${allLeads.length === 1 ? '' : 's'} in this list · ${sessionQueue.length} in calling queue`}
-          {!loading && (
-            <span style={{ marginLeft: '0.75rem', color: 'var(--text-secondary)' }}>
-              Your time: {formatLocalTime(new Date(), { timeZone: userTimeZone, showZone: true })}
+    <div className="flex-col" style={{ gap: 12 }}>
+      {/* ── Cold Calls Toolbar ── */}
+      <div
+        className="crm-toolbar"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          margin: '0 0 12px 0',
+        }}
+      >
+        {/* Left: Search, Status, Filters, Sort, [Queue | Call log], Good time */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+          <div style={{ position: 'relative', width: 220, minWidth: 160 }}>
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+              <Search size={14} />
             </span>
+            <input
+              type="text"
+              placeholder="Search leads"
+              value={searchQuery}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              className="form-input"
+              style={{ paddingLeft: 30, height: 32, fontSize: 13, borderRadius: 6, width: '100%' }}
+            />
+          </div>
+
+          <RdSelect
+            value=""
+            onChange={() => {}}
+            options={[
+              { value: '', label: 'Status: All' },
+              { value: 'Callback requested', label: 'Callback requested' },
+              { value: 'No answer', label: 'No answer' },
+              { value: 'Voicemail left', label: 'Voicemail left' },
+              { value: 'Answered', label: 'Answered' },
+              { value: 'Not called', label: 'Not called' },
+              { value: 'Not interested', label: 'Not interested' },
+              { value: 'Busy', label: 'Busy' },
+              { value: 'Closed won', label: 'Closed won' },
+            ]}
+            placeholder="Status: All"
+            size="sm"
+          />
+
+          {onOpenFilterDrawer && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenFilterDrawer}
+              style={{ height: 32, fontSize: 13, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Filter size={13} />
+              Filters
+            </button>
           )}
-        </p>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {onOpenColumnManager && (
-            <>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenColumnManager}>
-                <Gear size={14} /> Columns
+
+          {/* Sort Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                height: 32,
+                fontSize: 13,
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              Sort: Due first
+              <ChevronDown size={13} />
+            </button>
+          </div>
+
+          {onCallSubViewChange && (
+            <div
+              className="rd-segmented"
+              style={{
+                display: 'inline-flex',
+                padding: 2,
+                borderRadius: 6,
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => onCallSubViewChange('queue')}
+                className={`rd-segmented__btn${callSubView === 'queue' ? ' rd-segmented__btn--active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  borderRadius: 4,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: callSubView === 'queue' ? 'var(--bg-card, #262626)' : 'transparent',
+                  color: callSubView === 'queue' ? 'var(--text-primary)' : 'var(--text-muted)',
+                }}
+              >
+                Queue
               </button>
-              {columnPrefs.viewDefs.filter((c) => !c.is_visible).length > 0 && (
-                <button
-                  type="button"
-                  className="rd-dt-hidden-chip"
-                  onClick={onOpenColumnManager}
-                  title={`${columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden column${columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? '' : 's'}. Click to manage.`}
-                >
-                  <EyeOff size={12} />
-                  {columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden {columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? 'column' : 'columns'}
-                </button>
-              )}
-            </>
+              <button
+                type="button"
+                onClick={() => onCallSubViewChange('log')}
+                className={`rd-segmented__btn${callSubView === 'log' ? ' rd-segmented__btn--active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  borderRadius: 4,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: callSubView === 'log' ? 'var(--bg-card, #262626)' : 'transparent',
+                  color: callSubView === 'log' ? 'var(--text-primary)' : 'var(--text-muted)',
+                }}
+              >
+                Call log
+              </button>
+            </div>
           )}
+
+          <button
+            type="button"
+            className={`btn btn-sm ${onlyGoodTimeToCall ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={onToggleGoodTimeToCall}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              height: 32,
+              fontSize: 12,
+              borderRadius: 6,
+              borderColor: onlyGoodTimeToCall ? 'transparent' : 'var(--border)',
+            }}
+            title="Show only leads where local time is between 9 AM and 6 PM"
+          >
+            Good time to call now
+          </button>
+        </div>
+
+        {/* Right: Columns, More, Start calling */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onOpenColumnManager && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenColumnManager}
+              style={{ height: 32, fontSize: 13, borderRadius: 6 }}
+            >
+              Columns
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            style={{ height: 32, fontSize: 13, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            More <ChevronDown size={13} />
+          </button>
+
           <button
             type="button"
             className="btn btn-primary btn-sm"
             disabled={allLeads.length === 0 || sessionQueue.length === 0}
             onClick={() => setSessionOpen(true)}
+            style={{ height: 32, fontSize: 13, fontWeight: 500, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >
-            <PhoneCall size={14} /> Start calling session
+            Start calling
           </button>
         </div>
       </div>
 
+      {/* ── Table Shell ── */}
       <DataTableShell
         prefs={columnPrefs}
         columns={tableCols}
@@ -500,27 +696,33 @@ export default function CallQueueTable({
           style: { cursor: 'pointer' },
           onClick: () => onOpenLead?.(lead, 'calls'),
         })}
-        selectHeader={onSelectRow ? (
-          <input
-            type="checkbox"
-            className="rd-checkbox"
-            checked={leads.length > 0 && leads.every((l) => selectedIds.includes(l.id))}
-            onChange={() => onSelectAll(leads)}
-            aria-label="Select all on this page"
-            disabled={viewerFolderAccess}
-            style={{ cursor: 'pointer' }}
-          />
-        ) : null}
-        renderSelectCell={onSelectRow ? (lead) => (
-          <input
-            type="checkbox"
-            className="rd-checkbox"
-            checked={selectedIds.includes(lead.id)}
-            onChange={(e) => onSelectRow(lead.id, e.target.checked)}
-            aria-label="Select lead"
-            style={{ cursor: 'pointer' }}
-          />
-        ) : null}
+        selectHeader={
+          onSelectRow ? (
+            <input
+              type="checkbox"
+              className="rd-checkbox"
+              checked={leads.length > 0 && leads.every((l) => selectedIds.includes(l.id))}
+              onChange={() => onSelectAll(leads)}
+              aria-label="Select all on this page"
+              disabled={viewerFolderAccess}
+              style={{ cursor: 'pointer' }}
+            />
+          ) : null
+        }
+        renderSelectCell={
+          onSelectRow
+            ? (lead) => (
+                <input
+                  type="checkbox"
+                  className="rd-checkbox"
+                  checked={selectedIds.includes(lead.id)}
+                  onChange={(e) => onSelectRow(lead.id, e.target.checked)}
+                  aria-label="Select lead"
+                  style={{ cursor: 'pointer' }}
+                />
+              )
+            : null
+        }
         showRowNumbers={true}
         getRowNumber={(lead, idx) => (allLeads.length ? allLeads.findIndex((l) => l.id === lead.id) + 1 : idx + 1)}
         renderHeaderLabel={(col) => col.column_label}
@@ -531,8 +733,22 @@ export default function CallQueueTable({
           const attemptList = scopedAttempts.filter((a) => a.lead_id === lead.id);
           return renderCellContent(col, lead, last, attemptList, cellProps);
         }}
-        emptyMessage="No leads in this list."
+        topRow={
+          onQuickAddLead ? (
+            <QuickAddLeadRow
+              totalCols={totalCols}
+              onQuickAdd={onQuickAddLead}
+              disabled={viewerFolderAccess}
+            />
+          ) : null
+        }
+        reachMode={reachMode}
+        onSetReachMode={onSetReachMode}
+        emptyMessage="No leads in this calling queue."
       />
+      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 8, paddingLeft: 4 }}>
+        {leads.length} of {allLeads.length || leads.length} leads
+      </div>
 
       <ManageCallAttemptsModal
         open={!!manageLead}

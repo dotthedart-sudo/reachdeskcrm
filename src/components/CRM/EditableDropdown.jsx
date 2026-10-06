@@ -196,15 +196,8 @@ const ACTION_COLORS = {
   }
   const chipStyle = {
     ...softBadgeStyle(currentOpt.color),
-    padding: '0.2rem 0.6rem',
-    borderRadius: '6px',
-    fontSize: '0.8rem',
-    fontWeight: 600,
     cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    whiteSpace: 'nowrap'
+    outline: 'none',
   };
 
   const dropdownMenu = isOpen && createPortal(
@@ -256,9 +249,12 @@ const ACTION_COLORS = {
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }} onClick={e => e.stopPropagation()}>
-      <button ref={triggerRef} onClick={openDropdown} style={chipStyle} type="button">
-        <span style={{ width: '6px', height: '6px', borderRadius: '50%', ...softDotStyle(currentOpt.color) }} />
-        {currentOpt.label}
+      <button ref={triggerRef} onClick={openDropdown} className="rd-pill" style={chipStyle} type="button">
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', ...softDotStyle(currentOpt.color), display: 'inline-block', flexShrink: 0 }} />
+        <span className="rd-pill__label">{currentOpt.label}</span>
+        <span className="rd-pill__chevron">
+          <ChevronDown size={11} />
+        </span>
       </button>
 
       {dropdownMenu}

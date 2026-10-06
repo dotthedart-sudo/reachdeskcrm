@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSe
 import { supabase } from './lib/supabase';
 import { getTeamIds, PLAN_LIMITS, normalizePlan, getEffectivePlan, getLimit } from './lib/utils';
 import { registerLifetimeSession, validateLifetimeSession, clearLifetimeSession } from './lib/sessionManager';
-import { getEffectiveOutreachAccess, getEffectiveCalendarAccess, getEffectiveReportsAccess } from './lib/callActivity';
+import { getEffectiveOutreachAccess, getEffectiveCalendarAccess, getEffectiveReportsAccess, hasOutreachByPlan, hasReportsAccess } from './lib/callActivity';
 import { isValidTrialEndDate } from './lib/billing';
 import { isBillingLock, isModerationLock } from './lib/accountLock';
 import {
@@ -569,12 +569,54 @@ function AppProvider({ children }) {
     }
   }, [profile?.id]);
 
+  // Recompute feature access flags whenever profile changes (initial load, plan upgrade, hot reload, team invite)
+  useEffect(() => {
+    let active = true;
+    if (!profile) {
+      setOutreachUnlocked(false);
+      setCalendarUnlocked(false);
+      setReportsUnlocked(false);
+      return;
+    }
+
+    // Synchronous optimistic check from plan first so UI renders instantly
+    setOutreachUnlocked(hasOutreachByPlan(profile));
+    const effectivePlanKey = getEffectivePlan(profile);
+    setCalendarUnlocked(profile.role === 'admin' || !!getLimit(PLAN_LIMITS[effectivePlanKey], 'calendarIntegration'));
+    setReportsUnlocked(hasReportsAccess(profile));
+
+    // Async check to also grant access if user is on an active team workspace
+    Promise.all([
+      getEffectiveOutreachAccess(profile),
+      getEffectiveCalendarAccess(profile),
+      getEffectiveReportsAccess(profile),
+    ]).then(([outreach, calendar, reports]) => {
+      if (!active) return;
+      setOutreachUnlocked(outreach);
+      setCalendarUnlocked(calendar);
+      setReportsUnlocked(reports);
+    }).catch((err) => {
+      console.warn('[App] Failed to compute feature unlock flags:', err);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [profile]);
+
+  const applyTheme = (t) => {
+    const isLight = t === 'light';
+    document.documentElement.classList.toggle('light', isLight);
+    document.documentElement.classList.toggle('dark', !isLight);
+    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.style.colorScheme = t;
+  };
+
   // Initial setup
   useEffect(() => {
     const localTheme = localStorage.getItem('reachdesk_theme') || 'dark';
     setTheme(localTheme);
-    if (localTheme === 'light') document.documentElement.classList.add('light');
-    else document.documentElement.classList.remove('light');
+    applyTheme(localTheme);
 
     setBrandName(localStorage.getItem('reachdesk_brand_name') || BRAND_NAME);
     setCurrencySymbol(localStorage.getItem('reachdesk_currency_symbol') || 'PKR');
@@ -835,14 +877,21 @@ function AppProvider({ children }) {
             }
           }
 
-          // Stamp last_active_at on every successful login/session load.
+          // Stamp last_active_at and auto-save timezone if null on every successful login/session load.
           // Fire-and-forget — never awaited, so it never delays the UI.
           // Isolated update so it cannot accidentally overwrite unrelated columns.
+          const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const patchFields = { last_active_at: new Date().toISOString() };
+          if (!profileToSet.timezone && deviceTz) {
+            patchFields.timezone = deviceTz;
+            profileToSet = { ...profileToSet, timezone: deviceTz };
+          }
+
           supabase.from('user_profiles')
-            .update({ last_active_at: new Date().toISOString() })
+            .update(patchFields)
             .eq('id', userId)
             .then(({ error: laErr }) => {
-              if (laErr) console.warn('[Profile] Failed to update last_active_at:', laErr);
+              if (laErr) console.warn('[Profile] Failed to update last_active_at / timezone:', laErr);
             });
 
           const sessionCheck = await validateLifetimeSession(userId, normalizePlan(profileToSet.plan));
@@ -1115,8 +1164,7 @@ function AppProvider({ children }) {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     localStorage.setItem('reachdesk_theme', newTheme);
-    if (newTheme === 'light') document.documentElement.classList.add('light');
-    else document.documentElement.classList.remove('light');
+    applyTheme(newTheme);
   };
 
   const handleSaveSettings = (newBrand, newCurrency, newWebhook) => {

@@ -28,7 +28,7 @@ export default function MyCallFeed({
   leads = [],
   attempts = [],
   loading,
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
   onOpenLead,
   onLogCall,
   onGoToQueue,

@@ -6,7 +6,7 @@ import {
   requirePrivileged,
 } from '../_shared/auth.ts';
 
-const REPLY_CHECK_STATUSES = ['Contacted', 'Calendly Sent', 'Proposal Sent', 'Followed up'];
+const REPLY_CHECK_STATUSES = ['Contacted', 'Invite Sent', 'Proposal Sent', 'Followed up'];
 const FOLLOW_UP_CHECK_STATUSES = ['No show', 'Not Interested'];
 const CHECKPOINT_CYCLE_STATUSES = [...REPLY_CHECK_STATUSES, ...FOLLOW_UP_CHECK_STATUSES];
 
@@ -42,6 +42,33 @@ function localDateKeyInZone(timeZone: string | null | undefined, date = new Date
     // fall through
   }
   return date.toISOString().slice(0, 10);
+}
+
+function formatContactedAgo(dateStr: string | null | undefined, now = new Date()): string {
+  if (!dateStr) return 'recently';
+  const diffMs = now.getTime() - new Date(dateStr).getTime();
+  if (diffMs <= 0) return 'just now';
+  const mins = Math.floor(diffMs / (60 * 1000));
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+function formatDigestBody(leads: any[]): string {
+  const n = leads.length;
+  const names = leads.map((l) => [l.first_name, l.last_name].filter(Boolean).join(' ').trim() || 'Lead');
+  if (n === 1) {
+    return `1 follow-up due today — ${names[0]}`;
+  }
+  if (n === 2) {
+    return `2 follow-ups due today — ${names[0]} and ${names[1]}`;
+  }
+  const remaining = n - 2;
+  return `${n} follow-ups due today — ${names[0]}, ${names[1]} and ${remaining} more`;
 }
 
 async function sendPush(
@@ -107,16 +134,30 @@ serve(async (req) => {
 
     const profileIds = profiles.map((p) => p.id);
 
+    const statusFilterList = CHECKPOINT_CYCLE_STATUSES.map((s) => `"${s}"`).join(',');
     const { data: dueLeads, error: leadsError } = await supabase
       .from('leads')
-      .select('id, user_id, first_name, last_name, status, call_action, next_checkpoint_at, checkpoint_notified_at')
+      .select('id, user_id, first_name, last_name, company, status, call_action, next_checkpoint_at, last_contacted_at, folder_id, checkpoint_notified_at')
       .in('user_id', profileIds)
-      .or(`status.in.(${CHECKPOINT_CYCLE_STATUSES.join(',')}),call_action.eq.Callback scheduled`)
+      .or(`status.in.(${statusFilterList}),call_action.eq."Callback scheduled"`)
       .not('next_checkpoint_at', 'is', null)
       .lte('next_checkpoint_at', nowIso)
       .order('next_checkpoint_at', { ascending: true });
 
     if (leadsError) throw leadsError;
+
+    // Resolve list / folder names
+    const folderIds = [...new Set((dueLeads || []).map((l) => l.folder_id).filter(Boolean))];
+    const folderMap = new Map<string, string>();
+    if (folderIds.length > 0) {
+      const { data: folders } = await supabase
+        .from('folders')
+        .select('id, name')
+        .in('id', folderIds);
+      if (folders) {
+        folders.forEach((f) => folderMap.set(f.id, f.name));
+      }
+    }
 
     const leadsByUser = new Map<string, typeof dueLeads>();
     for (const lead of dueLeads || []) {
@@ -132,7 +173,7 @@ serve(async (req) => {
       const userLeads = leadsByUser.get(profile.id) || [];
       if (userLeads.length === 0) continue;
 
-      const mode = (profile.reminder_notification_mode || 'digest').toLowerCase();
+      const mode = (profile.reminder_notification_mode || 'both').toLowerCase();
       const digestHour = Number.isFinite(profile.reminder_digest_hour)
         ? Number(profile.reminder_digest_hour)
         : 9;
@@ -140,8 +181,32 @@ serve(async (req) => {
       const localHour = localHourInZone(tz, now);
       const localDate = localDateKeyInZone(tz, now);
 
+      const shouldDigest = mode === 'digest' || mode === 'both';
+      const shouldInstant = mode === 'instant' || mode === 'both';
+
       try {
-        if (mode === 'instant') {
+        if (shouldDigest) {
+          // Digest: once per local day at configured hour
+          if (localHour === digestHour && profile.reminder_digest_sent_date !== localDate) {
+            await sendPush(
+              serviceRoleKey,
+              profile.id,
+              'ReachDesk CRM',
+              formatDigestBody(userLeads),
+              '/leads',
+            );
+
+            const { error: updProfileErr } = await supabase
+              .from('user_profiles')
+              .update({ reminder_digest_sent_date: localDate })
+              .eq('id', profile.id);
+            if (updProfileErr) throw updProfileErr;
+
+            digestSent += 1;
+          }
+        }
+
+        if (shouldInstant) {
           // Notify each due lead once per checkpoint value
           for (const lead of userLeads) {
             const notifiedAt = lead.checkpoint_notified_at
@@ -152,14 +217,21 @@ serve(async (req) => {
               : 0;
             if (notifiedAt && notifiedAt >= checkpointAt) continue;
 
-            const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ').trim() || 'Lead';
+            const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ').trim() || lead.company || 'Lead';
+            const listName = (lead.folder_id && folderMap.get(lead.folder_id)) || 'Unfiled';
+            const contactedAgo = formatContactedAgo(lead.last_contacted_at, now);
             const isCallback = lead.call_action === 'Callback scheduled';
+
+            const body = isCallback
+              ? `Scheduled callback for ${name} is due · ${listName}`
+              : `${name} needs a follow-up · contacted ${contactedAgo} · ${listName}`;
+
             await sendPush(
               serviceRoleKey,
               profile.id,
-              isCallback ? 'ReachDesk CRM — Callback Due' : 'ReachDesk CRM — Follow-up Due',
-              isCallback ? `Scheduled callback for ${name} is due.` : `Did ${name} reply? Open the lead to update status.`,
-              `/crm?lead=${lead.id}`,
+              'ReachDesk CRM',
+              body,
+              `/leads?lead=${lead.id}`,
             );
 
             const { error: updErr } = await supabase
@@ -169,36 +241,6 @@ serve(async (req) => {
             if (updErr) throw updErr;
             instantSent += 1;
           }
-        } else {
-          // Digest: once per local day at configured hour
-          if (localHour !== digestHour) continue;
-          if (profile.reminder_digest_sent_date === localDate) continue;
-
-          const n = userLeads.length;
-          await sendPush(
-            serviceRoleKey,
-            profile.id,
-            'ReachDesk CRM — Follow-ups due',
-            n === 1
-              ? 'You have 1 follow-up due today'
-              : `You have ${n} follow-ups due today`,
-            '/dashboard?dueFollowups=1',
-          );
-
-          const leadIds = userLeads.map((l) => l.id);
-          const { error: updLeadsErr } = await supabase
-            .from('leads')
-            .update({ checkpoint_notified_at: nowIso })
-            .in('id', leadIds);
-          if (updLeadsErr) throw updLeadsErr;
-
-          const { error: updProfileErr } = await supabase
-            .from('user_profiles')
-            .update({ reminder_digest_sent_date: localDate })
-            .eq('id', profile.id);
-          if (updProfileErr) throw updProfileErr;
-
-          digestSent += 1;
         }
       } catch (err) {
         console.error(`[send-reminder-notifications] user ${profile.id}:`, err);

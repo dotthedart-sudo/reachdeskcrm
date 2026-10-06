@@ -567,17 +567,35 @@ export default function Dashboard({ currentUser, onSelectLead }) {
           <button type="button" className="dashboard-link" onClick={() => navigate('/reports')}>Open in Reports</button>
         </div>
         <div className="dashboard-pipeline-bar">
-          {forwardStages.map(st => {
-            const count = messageStageCounts[st] || 0;
-            return count > 0 ? (
-              <div 
-                key={st} 
-                className="dashboard-pipeline-segment" 
-                style={{ flexGrow: count, backgroundColor: STAGE_COLORS[st] }}
-                title={`${st}: ${count}`}
-              />
-            ) : null;
-          })}
+          {(() => {
+            const visibleStages = forwardStages
+              .map(st => ({ st, count: messageStageCounts[st] || 0 }))
+              .filter(item => item.count > 0);
+            const total = visibleStages.reduce((sum, item) => sum + item.count, 0);
+
+            return visibleStages.map(({ st, count }, idx) => {
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              const isFirst = idx === 0;
+              const isLast = idx === visibleStages.length - 1;
+              const segmentClass = `dashboard-pipeline-segment${isFirst ? ' is-first' : ''}${isLast ? ' is-last' : ''}`;
+
+              return (
+                <div 
+                  key={st} 
+                  className={segmentClass} 
+                  style={{ flexGrow: count, backgroundColor: STAGE_COLORS[st] }}
+                  aria-label={`${st}: ${count}`}
+                >
+                  <span className="pipeline-tip" role="tooltip">
+                    <span className="pipeline-tip-dot" style={{ background: STAGE_COLORS[st] }} />
+                    <span className="pipeline-tip-label">{st}</span>
+                    <span className="pipeline-tip-count">{count}</span>
+                    <span className="pipeline-tip-pct">· {pct}%</span>
+                  </span>
+                </div>
+              );
+            });
+          })()}
         </div>
         <div className="dashboard-pipeline-legend">
           {forwardStages.map(st => {

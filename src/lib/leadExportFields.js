@@ -70,7 +70,7 @@ const BASE_EXPORT_FIELDS = [
 
 export function buildLeadExportFields({
   includeLocalTime = false,
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
   leadNotesByLeadId = {},
 } = {}) {
   const fields = [...BASE_EXPORT_FIELDS];

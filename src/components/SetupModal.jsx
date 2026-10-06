@@ -1,49 +1,92 @@
-import React, { useRef, useState } from 'react';
-import { Upload, X, ArrowLeft } from 'lucide-react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { Upload, X, Check, Building, Globe, DollarSign } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import CurrencySelector from './CurrencySelector';
 import AuthLogo from './AuthLogo';
 import { BRAND_NAME } from '../config/brand';
+import { COUNTRY_TIMEZONE_OPTIONS, inferCountryFromUserEnvironment } from '../lib/leadTimezone';
 
-const USE_CASES = [
-  { id: 'leads', label: 'Lead outreach', desc: 'Finding & pitching clients' },
-  { id: 'clients', label: 'Clients & invoicing', desc: 'Manage projects and payments' },
-  { id: 'both', label: 'Both', desc: 'Full pipeline & revenue tracking' },
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', name: 'US Dollar (USD)' },
+  { code: 'GBP', symbol: '£', name: 'British Pound (GBP)' },
+  { code: 'EUR', symbol: '€', name: 'Euro (EUR)' },
+  { code: 'PKR', symbol: 'Rs', name: 'Pakistani Rupee (PKR)' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee (INR)' },
+  { code: 'CAD', symbol: '$', name: 'Canadian Dollar (CAD)' },
+  { code: 'AUD', symbol: '$', name: 'Australian Dollar (AUD)' },
+  { code: 'AED', symbol: 'AED', name: 'UAE Dirham (AED)' },
+  { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal (SAR)' },
+  { code: 'SGD', symbol: '$', name: 'Singapore Dollar (SGD)' },
+  { code: 'NZD', symbol: '$', name: 'New Zealand Dollar (NZD)' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen (JPY)' },
+  { code: 'CHF', symbol: 'CHF', name: 'Swiss Franc (CHF)' },
 ];
 
-const STEP_COPY = [
-  {
-    title: 'Name your workspace',
-    sub: 'This is how your CRM will appear in settings and exports.',
-  },
-  {
-    title: 'Set up your profile',
-    sub: 'Add a photo and your name — optional, but helps on invoices and reminders.',
-  },
-  {
-    title: 'Almost done',
-    sub: `Pick defaults for currency and how you’ll use ${BRAND_NAME}.`,
-  },
-];
+function inferCurrencyFromCountry(countryCode) {
+  switch (countryCode) {
+    case 'GB': return 'GBP';
+    case 'PK': return 'PKR';
+    case 'IN': return 'INR';
+    case 'CA': return 'CAD';
+    case 'AU': return 'AUD';
+    case 'DE':
+    case 'FR':
+    case 'ES':
+    case 'IT':
+    case 'NL':
+    case 'BE':
+    case 'AT':
+    case 'PT':
+    case 'IE':
+    case 'FI':
+    case 'GR':
+      return 'EUR';
+    case 'AE': return 'AED';
+    case 'SA': return 'SAR';
+    case 'SG': return 'SGD';
+    case 'NZ': return 'NZD';
+    case 'JP': return 'JPY';
+    case 'CH': return 'CHF';
+    default: return 'USD';
+  }
+}
 
 /**
- * Post-auth workspace setup — full-page Linear-style wizard (not a modal).
+ * Post-auth workspace setup — ONE single screen.
  */
-export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, navigate }) {
+export default function SetupModal({ profile, onRefreshProfile, navigate }) {
   const fileRef = useRef(null);
-  const [step, setStep] = useState(0);
+
+  const initialCountry = useMemo(() => {
+    if (profile?.default_country_code) return profile.default_country_code;
+    const inferred = inferCountryFromUserEnvironment();
+    return inferred?.country || 'US';
+  }, [profile?.default_country_code]);
+
+  const initialCurrency = useMemo(() => {
+    if (profile?.default_currency) return profile.default_currency;
+    return inferCurrencyFromCountry(initialCountry);
+  }, [profile?.default_currency, initialCountry]);
+
   const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [brandName, setBrandName] = useState(
-    localStorage.getItem('reachdesk_brand_name') ||
-    (profile?.full_name ? `${profile.full_name.trim().split(' ')[0]}'s workspace` : '')
+  const [businessName, setBusinessName] = useState(
+    profile?.business_name ||
+    (profile?.full_name ? `${profile.full_name.trim().split(' ')[0]}'s Workspace` : '')
   );
-  const [defaultCurrency, setDefaultCurrency] = useState(profile?.default_currency || 'PKR');
-  const [revenueTarget, setRevenueTarget] = useState(profile?.monthly_revenue_target || '');
-  const [useCase, setUseCase] = useState('both');
+  const [defaultCountry, setDefaultCountry] = useState(initialCountry);
+  const [defaultCurrency, setDefaultCurrency] = useState(initialCurrency);
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const handleCountryChange = (newCountry) => {
+    setDefaultCountry(newCountry);
+    // If currency was default, adapt to new country
+    const matchedCurr = inferCurrencyFromCountry(newCountry);
+    if (matchedCurr) {
+      setDefaultCurrency(matchedCurr);
+    }
+  };
 
   const handleAvatarChange = (e) => {
     setError('');
@@ -64,12 +107,6 @@ export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, 
 
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
-  };
-
-  const clearAvatar = () => {
-    setAvatarFile(null);
-    setAvatarPreview(profile?.avatar_url || '');
-    if (fileRef.current) fileRef.current.value = '';
   };
 
   const uploadAvatarIfNeeded = async () => {
@@ -94,22 +131,28 @@ export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, 
     return avatarUrl;
   };
 
-  const goToDashboard = (path) => {
+  const goToDashboard = (path = '/dashboard') => {
     sessionStorage.setItem('rd_reveal', '1');
     navigate(path);
   };
 
-  const handleFinish = async () => {
+  const handleFinish = async (e) => {
+    e?.preventDefault();
     setIsSubmitting(true);
     setError('');
 
     try {
       const avatarUrl = await uploadAvatarIfNeeded();
 
+      const userTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+      const workspaceTitle = businessName.trim() || (fullName.trim() ? `${fullName.trim().split(' ')[0]}'s Workspace` : 'My Workspace');
+
       const updates = {
-        full_name: fullName.trim(),
+        full_name: fullName.trim() || profile?.full_name || '',
+        business_name: workspaceTitle,
         default_currency: defaultCurrency,
-        monthly_revenue_target: revenueTarget ? Number(revenueTarget) : null,
+        default_country_code: defaultCountry,
+        timezone: userTimezone,
         has_completed_setup: true,
       };
       if (avatarUrl) updates.avatar_url = avatarUrl;
@@ -121,21 +164,12 @@ export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, 
 
       if (updateErr) throw updateErr;
 
-      onSaveSettings(
-        brandName.trim() || BRAND_NAME,
-        defaultCurrency,
-        localStorage.getItem('reachdesk_webhook_url') || '',
-        localStorage.getItem('reachdesk_bank_account') || '',
-        localStorage.getItem('reachdesk_bank_iban') || ''
-      );
+      localStorage.setItem('reachdesk_brand_name', workspaceTitle);
 
       if (onRefreshProfile) await onRefreshProfile();
-
-      if (useCase === 'leads') goToDashboard('/leads');
-      else if (useCase === 'clients') goToDashboard('/invoices');
-      else goToDashboard('/dashboard');
+      goToDashboard('/dashboard');
     } catch (err) {
-      console.error('Error during setup wizard submission:', err);
+      console.error('Error during setup submission:', err);
       setError(err.message || 'Failed to save setup. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -145,9 +179,13 @@ export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, 
   const handleSkip = async () => {
     setIsSubmitting(true);
     try {
+      const userTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
       const { error: updateErr } = await supabase
         .from('user_profiles')
-        .update({ has_completed_setup: true })
+        .update({
+          has_completed_setup: true,
+          timezone: userTimezone,
+        })
         .eq('id', profile.id);
 
       if (updateErr) throw updateErr;
@@ -161,206 +199,170 @@ export default function SetupModal({ profile, onRefreshProfile, onSaveSettings, 
     }
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (step === 0 && !brandName.trim()) {
-      setError('Enter a workspace name.');
-      return;
-    }
-    if (step === 1 && !fullName.trim()) {
-      setError('Enter your name.');
-      return;
-    }
-    if (step < 2) {
-      setStep((s) => s + 1);
-      return;
-    }
-    handleFinish();
-  };
-
-  const { title, sub } = STEP_COPY[step];
-
   return (
     <div className="auth-page rd-setup-page">
       <AuthLogo />
 
-      <div className="auth-panel auth-panel-setup">
-        {step > 0 && (
-          <button
-            type="button"
-            className="auth-back rd-setup-back"
-            onClick={() => { setError(''); setStep((s) => s - 1); }}
-            disabled={isSubmitting}
-          >
-            <ArrowLeft size={16} /> Back
-          </button>
-        )}
-
-        <header className="auth-panel-header">
-          <h1 className="auth-panel-title">{title}</h1>
-          <p className="auth-panel-sub">{sub}</p>
+      <div className="auth-panel auth-panel-setup" style={{ maxWidth: '480px', width: '100%' }}>
+        <header className="auth-panel-header" style={{ marginBottom: '16px' }}>
+          <h1 className="auth-panel-title">Set up your workspace</h1>
+          <p className="auth-panel-sub">Add your details and defaults to get started.</p>
         </header>
 
         {error && (
-          <div className="auth-error-banner" role="alert">
+          <div className="auth-error-banner" role="alert" style={{ marginBottom: '14px' }}>
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleNext} className="rd-setup-form">
-          {step === 0 && (
-            <div className="rd-setup-fields">
-              <div className="auth-field">
-                <label className="auth-field-label" htmlFor="setup-brand">Workspace name</label>
-                <input
-                  id="setup-brand"
-                  type="text"
-                  required
-                  autoFocus
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  placeholder="e.g. Acme Studio"
-                  className="form-input"
-                  disabled={isSubmitting}
-                />
-              </div>
+        <form onSubmit={handleFinish} className="rd-setup-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* 1. Photo + Your Name */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarChange}
+                disabled={isSubmitting}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={() => !isSubmitting && fileRef.current?.click()}
+                disabled={isSubmitting}
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '50%',
+                  border: '1px dashed var(--border-color, #E8E8E6)',
+                  backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  padding: 0,
+                  color: 'var(--text-muted, #8E8D8A)',
+                }}
+                title="Upload photo"
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Upload size={20} />
+                )}
+              </button>
             </div>
-          )}
 
-          {step === 1 && (
-            <div className="rd-setup-fields">
-              <div className="rd-setup-avatar-center">
-                <button
-                  type="button"
-                  className="rd-setup-avatar-btn rd-setup-avatar-btn-lg"
-                  onClick={() => !isSubmitting && fileRef.current?.click()}
-                  disabled={isSubmitting}
-                  aria-label="Upload profile photo"
-                >
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="" />
-                  ) : (
-                    <Upload size={22} />
-                  )}
-                </button>
-                <div className="rd-setup-avatar-center-actions">
-                  <button
-                    type="button"
-                    className="auth-text-btn"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={isSubmitting}
-                  >
-                    Upload photo
-                  </button>
-                  {(avatarFile || (avatarPreview && avatarPreview !== profile?.avatar_url)) && (
-                    <button
-                      type="button"
-                      className="auth-text-btn"
-                      onClick={clearAvatar}
-                      disabled={isSubmitting}
-                    >
-                      <X size={12} /> Remove
-                    </button>
-                  )}
-                </div>
-                <span className="rd-setup-avatar-hint">Optional · JPG/PNG · max 2MB</span>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleAvatarChange}
-                  hidden
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-field-label" htmlFor="setup-full-name">Your name</label>
-                <input
-                  id="setup-full-name"
-                  type="text"
-                  required
-                  autoFocus
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. John Doe"
-                  className="form-input"
-                  disabled={isSubmitting}
-                />
-              </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="setup-full-name" style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6B7280)' }}>
+                Your name
+              </label>
+              <input
+                id="setup-full-name"
+                type="text"
+                required
+                autoFocus
+                placeholder="e.g. Alex Morgan"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={isSubmitting}
+                className="form-input"
+                style={{ height: '36px', fontSize: '13px' }}
+              />
             </div>
-          )}
+          </div>
 
-          {step === 2 && (
-            <div className="rd-setup-fields">
-              <div className="auth-field">
-                <label className="auth-field-label">Default currency</label>
-                <CurrencySelector value={defaultCurrency} onChange={setDefaultCurrency} />
-              </div>
+          {/* 2. Workspace Name ("Shown on your invoices") */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label htmlFor="setup-workspace-name" style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6B7280)' }}>
+              Workspace name
+            </label>
+            <input
+              id="setup-workspace-name"
+              type="text"
+              required
+              placeholder="e.g. Acme Studio"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              disabled={isSubmitting}
+              className="form-input"
+              style={{ height: '36px', fontSize: '13px' }}
+            />
+            <span style={{ fontSize: '11px', color: 'var(--text-muted, #8E8D8A)' }}>
+              Shown on your invoices
+            </span>
+          </div>
 
-              <div className="auth-field">
-                <label className="auth-field-label" htmlFor="setup-target">Monthly revenue target</label>
-                <input
-                  id="setup-target"
-                  type="number"
-                  min="0"
-                  value={revenueTarget}
-                  onChange={(e) => setRevenueTarget(e.target.value)}
-                  placeholder="Optional"
-                  className="form-input"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="auth-field">
-                <span className="auth-field-label">What will you use {BRAND_NAME} for?</span>
-                <div className="rd-choice-list" role="radiogroup">
-                  {USE_CASES.map((opt) => (
-                    <label
-                      key={opt.id}
-                      className={`rd-choice ${useCase === opt.id ? 'is-selected' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        name="useCase"
-                        value={opt.id}
-                        checked={useCase === opt.id}
-                        onChange={() => setUseCase(opt.id)}
-                        disabled={isSubmitting}
-                      />
-                      <span className="rd-choice-text">
-                        <strong>{opt.label}</strong>
-                        <span>{opt.desc}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+          {/* 3. Country + Currency side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="setup-country" style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6B7280)' }}>
+                Country
+              </label>
+              <select
+                id="setup-country"
+                value={defaultCountry}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                disabled={isSubmitting}
+                className="form-select"
+                style={{ height: '36px', fontSize: '13px' }}
+              >
+                {COUNTRY_TIMEZONE_OPTIONS.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          <div className="rd-setup-actions">
-            <button type="submit" className="auth-btn auth-btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Setting up…' : step < 2 ? 'Continue' : 'Open workspace'}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="setup-currency" style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6B7280)' }}>
+                Currency
+              </label>
+              <select
+                id="setup-currency"
+                value={defaultCurrency}
+                onChange={(e) => setDefaultCurrency(e.target.value)}
+                disabled={isSubmitting}
+                className="form-select"
+                style={{ height: '36px', fontSize: '13px' }}
+              >
+                {CURRENCIES.map((cur) => (
+                  <option key={cur.code} value={cur.code}>
+                    {cur.name} ({cur.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 4. Action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+            <button
+              type="submit"
+              disabled={isSubmitting || !fullName.trim()}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '38px', fontSize: '13px', fontWeight: 500 }}
+            >
+              {isSubmitting ? 'Opening workspace...' : 'Open workspace'}
             </button>
+
             <button
               type="button"
-              className="auth-text-btn rd-setup-skip"
               onClick={handleSkip}
               disabled={isSubmitting}
+              className="btn btn-secondary"
+              style={{ width: '100%', height: '34px', fontSize: '12px' }}
             >
               Skip for now
             </button>
           </div>
-        </form>
 
-        <div className="rd-setup-progress" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className={`rd-setup-progress-dot${i === step ? ' is-active' : i < step ? ' is-done' : ''}`} />
-          ))}
-        </div>
+        </form>
       </div>
     </div>
   );

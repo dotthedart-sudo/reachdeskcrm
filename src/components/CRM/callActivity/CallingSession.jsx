@@ -17,7 +17,7 @@ export default function CallingSession({
   onClose,
   onLogged,
   onOpenLead,
-  defaultCountryCode = '+92',
+  defaultCountryCode = null,
   showNoteSharing = false,
   timeZone = null,
 }) {

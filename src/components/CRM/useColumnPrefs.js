@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useCrmTableLayout } from './useCrmTableLayout';
 import { getAllViewColumns } from './crmTableColumns';
+import { computePillColumnMinWidth, computePillColumnAutoFitWidth, isPillColumn } from '../../lib/pillColumnWidths';
 import { useAppContext } from '../../App';
 
 const MIN_COL = 64;
@@ -21,7 +22,18 @@ export function isPersistableColumn(col) {
  * happens in the background and is rolled back if it fails.
  * Width writes are debounced per column.
  */
-export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast: propsShowToast }) {
+export function useColumnPrefs({
+  tableView,
+  columnDefs,
+  setColumnDefs,
+  showToast: propsShowToast,
+  statuses,
+  callStatuses,
+  customChannels,
+  templates,
+  leads,
+  teamProfilesMap,
+}) {
   const { showToast: appShowToast } = useAppContext() || {};
   const notifyError = useCallback((msg) => {
     const fn = propsShowToast || appShowToast;
@@ -32,9 +44,19 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast
     }
   }, [propsShowToast, appShowToast]);
 
+  const optionsContext = useMemo(() => ({
+    statuses,
+    callStatuses,
+    customChannels,
+    templates,
+    columnDefs,
+    leads,
+    teamProfilesMap,
+  }), [statuses, callStatuses, customChannels, templates, columnDefs, leads, teamProfilesMap]);
+
   // Legacy localStorage widths: used as the fallback default for columns with
   // no saved width yet, and as the store for non-definition columns (e.g. "Added By").
-  const legacy = useCrmTableLayout(tableView);
+  const legacy = useCrmTableLayout(tableView, optionsContext);
 
   const viewDefs = useMemo(() => getAllViewColumns(columnDefs, tableView), [columnDefs, tableView]);
   const defsByKey = useMemo(() => {
@@ -96,16 +118,23 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast
     }
   }, [setColumnDefs, notifyError]);
 
+  const getColMinWidth = useCallback((colOrKey) => {
+    const def = typeof colOrKey === 'string' ? defsByKey.get(colOrKey) : colOrKey;
+    return computePillColumnMinWidth(def || { column_key: typeof colOrKey === 'string' ? colOrKey : '' }, optionsContext);
+  }, [defsByKey, optionsContext]);
+
   // ── Width ────────────────────────────────────────────────────────────────
   const getWidth = useCallback((key) => {
     const def = defsByKey.get(key);
-    if (def?.width) return def.width;
-    return legacy.getWidth(key);
-  }, [defsByKey, legacy]);
+    const minW = computePillColumnMinWidth(def || { column_key: key }, optionsContext);
+    if (def?.width) return Math.max(def.width, minW);
+    return Math.max(legacy.getWidth(key), minW);
+  }, [defsByKey, legacy, optionsContext]);
 
   const setWidth = useCallback((key, width) => {
-    const next = Math.max(MIN_COL, Math.min(MAX_COL, Math.round(width)));
     const def = defsByKey.get(key);
+    const minW = computePillColumnMinWidth(def || { column_key: key }, optionsContext);
+    const next = Math.max(minW, Math.min(MAX_COL, Math.round(width)));
     if (!isPersistableColumn(def)) {
       legacy.setWidth(key, next);
       return;
@@ -135,7 +164,7 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast
         notifyError('Failed to save column width: ' + (err?.message || 'unknown error'));
       }
     }, WIDTH_SAVE_DEBOUNCE_MS);
-  }, [defsByKey, legacy, setColumnDefs, notifyError]);
+  }, [defsByKey, legacy, setColumnDefs, notifyError, optionsContext]);
 
   const resetWidth = useCallback((key) => {
     const def = defsByKey.get(key);
@@ -144,6 +173,24 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast
     clearTimeout(widthTimers.current[def.id]);
     applyPatches({ [def.id]: { width: null } });
   }, [defsByKey, legacy, applyPatches]);
+
+  const autoFitWidth = useCallback((key) => {
+    const def = defsByKey.get(key);
+    const autoW = computePillColumnAutoFitWidth(def || { column_key: key }, optionsContext);
+    setWidth(key, autoW);
+  }, [defsByKey, optionsContext, setWidth]);
+
+  // When a user adds/renames a dropdown option to something longer, recompute minWidth and widen the column automatically
+  useEffect(() => {
+    viewDefs.forEach((def) => {
+      if (!isPillColumn(def)) return;
+      const minW = computePillColumnMinWidth(def, optionsContext);
+      const currentW = def.width || legacy.getWidth(def.column_key);
+      if (currentW < minW) {
+        setWidth(def.column_key, minW);
+      }
+    });
+  }, [viewDefs, optionsContext, legacy, setWidth]);
 
   // ── Order helpers ────────────────────────────────────────────────────────
   /** Turn a full ordered list of defs into sort_order patches (only changed rows). */
@@ -199,34 +246,35 @@ export function useColumnPrefs({ tableView, columnDefs, setColumnDefs, showToast
       const def = defsByKey.get(k);
       if (isPersistableColumn(def) && !def.is_visible) patches[def.id] = { is_visible: true };
     });
-    applyPatches(patches);
+    if (Object.keys(patches).length) applyPatches(patches);
   }, [defsByKey, applyPatches]);
 
-  // ── Reorder (drag) ───────────────────────────────────────────────────────
-  /**
-   * orderedVisibleKeys: the new left-to-right order of the visible, persistable
-   * columns. Hidden columns keep their relative slots.
-   */
-  const reorderColumns = useCallback((orderedVisibleKeys) => {
-    const visibleSet = new Set(orderedVisibleKeys);
-    const queue = orderedVisibleKeys.map((k) => defsByKey.get(k)).filter(Boolean);
-    const ordered = viewDefs.map((d) => (visibleSet.has(d.column_key) ? queue.shift() : d));
+  const resetOrder = useCallback(() => {
+    const current = viewDefs.filter((d) => isPersistableColumn(d));
+    const sorted = [...current].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    applyPatches(orderPatches(sorted));
+  }, [viewDefs, applyPatches]);
+
+  const setColumnOrder = useCallback((orderedKeys) => {
+    const keyMap = new Map();
+    viewDefs.forEach((d) => keyMap.set(d.column_key, d));
+    const ordered = orderedKeys.map((k) => keyMap.get(k)).filter(Boolean);
     applyPatches(orderPatches(ordered));
-  }, [defsByKey, viewDefs, applyPatches]);
+  }, [viewDefs, applyPatches]);
 
   return {
-    tableView,
     viewDefs,
     getWidth,
     setWidth,
     resetWidth,
-    getRowHeight: legacy.getRowHeight,
-    setRowHeight: legacy.setRowHeight,
-    resetRowHeight: legacy.resetRowHeight,
+    autoFitWidth,
+    getColMinWidth,
     togglePin,
     setWrap,
     hideColumn,
     showColumns,
-    reorderColumns,
+    resetOrder,
+    setColumnOrder,
+    setColumnDefs,
   };
 }

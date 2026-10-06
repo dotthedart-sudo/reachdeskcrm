@@ -18,6 +18,8 @@ import { PageContainer } from './ui/PageContainer';
 import EditableDropdown, { DEFAULT_ACTION_OPTIONS } from './CRM/EditableDropdown';
 import ColumnManager from './CRM/ColumnManager';
 import LeadDrawer from './CRM/LeadDrawer';
+import AddLeadModal from './CRM/AddLeadModal';
+import ListSettingsModal from './CRM/ListSettingsModal';
 import OutreachTracker from './CRM/OutreachTracker';
 import CRMBulkActionBar from './CRM/CRMBulkActionBar';
 import CallQueueTable from './CRM/callActivity/CallQueueTable';
@@ -27,7 +29,15 @@ import ExportSheetsModal from './CRM/ExportSheetsModal';
 import SheetsImportModal from './CRM/SheetsImportModal';
 import FolderBrowser from './CRM/FolderBrowser';
 import CallWindowBadge from './CRM/CallWindowBadge';
+import LocalTimeCell from './CRM/LocalTimeCell';
+import DateTimePickerCell from './CRM/DateTimePickerCell';
+import QuickAddLeadRow from './CRM/QuickAddLeadRow';
+import RowFolderMoveButton from './CRM/RowFolderMoveButton';
+import { isLeadCallableNow, inferTimezoneFromPhone } from '../lib/leadTimezone';
+import { formatDueText, formatLastContactedText } from '../lib/crmTableFormatters';
+import RdSelect from './ui/RdSelect';
 import ListSwitcher from './CRM/ListSwitcher';
+import ListRowMenu from './CRM/ListRowMenu';
 import CopyableCell from './CRM/CopyableCell';
 import CustomFieldCell from './CRM/CustomFieldCell';
 import DataTableShell from './CRM/DataTableShell';
@@ -43,7 +53,7 @@ import GroupedTemplateDropdown from './CRM/GroupedTemplateDropdown';
 import CheckpointPopover from './CRM/CheckpointPopover';
 import HelpPopover from './HelpPopover';
 import { ReachIcons, PhonePopup, detectDomainIcon, detectPlatformLabel } from './icons/PlatformIcons';
-import { updateLeadStatusAndCheckpoint, getSuggestionForStatus, REPLY_CHECK_STATUSES, FOLLOW_UP_CHECK_STATUSES, isClientStatus } from '../lib/reminders';
+import { updateLeadStatusAndCheckpoint, calculateNextCheckpoint, getSuggestionForStatus, REPLY_CHECK_STATUSES, FOLLOW_UP_CHECK_STATUSES, isClientStatus } from '../lib/reminders';
 import PriorityDropdown from './CRM/PriorityDropdown';
 import { exportLeads, exportNotes } from '../utils/exportUtils';
 import { resolveLeadTimezoneForSave } from '../lib/leadTimezone';
@@ -73,7 +83,6 @@ import { mergeTemplateFields, normalizePhoneNumber, generatePrefilledUrl } from 
 import { celebrateClosedWon } from '../utils/celebrateWin';
 import { generateAIDraft } from '../utils/aiDraft';
 import { fetchAllLeadsForScope } from '../lib/leadsQuery';
-import RdSelect from './ui/RdSelect';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
 
 const PRESET_COLORS = [
@@ -231,6 +240,61 @@ export default function CRM({
   const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [onlyGoodTimeToCall, setOnlyGoodTimeToCall] = useState(false);
+  const [reachMode, setReachMode] = useState(() => {
+    return currentUser?.table_preferences?.reach_mode || 'icons';
+  });
+
+  const handleSetReachMode = async (newMode) => {
+    setReachMode(newMode);
+    try {
+      const updatedPrefs = {
+        ...(currentUser?.table_preferences || {}),
+        reach_mode: newMode,
+      };
+      await supabase.from('user_profiles').update({ table_preferences: updatedPrefs }).eq('id', currentUser?.id);
+      if (setCurrentUser) {
+        setCurrentUser(prev => prev ? ({ ...prev, table_preferences: updatedPrefs }) : prev);
+      }
+    } catch (err) {
+      console.error('Failed to save reach mode preference:', err);
+    }
+  };
+
+  const handleQuickAddLead = async ({ name, phone }) => {
+    if (!currentUser?.id) return;
+    const nameParts = (name || '').trim().split(' ');
+    const first_name = nameParts[0] || '';
+    const last_name = nameParts.slice(1).join(' ') || '';
+    const folder_id = (activeFolderId && activeFolderId !== 'all' && activeFolderId !== 'unfiled' && activeFolderId !== 'home') ? activeFolderId : null;
+    const listCountry = currentFolder?.default_country || null;
+    const userCountry = currentUser?.default_country_code || null;
+
+    const tzInfo = phone ? inferTimezoneFromPhone(phone, { listCountry, userCountry }) : { timezone: null, confidence: 'none' };
+
+    const newLeadData = {
+      user_id: currentUser.id,
+      first_name,
+      last_name,
+      phone: phone || null,
+      folder_id,
+      status: outreachMode === 'calls' ? 'Not called' : 'Lead',
+      priority: 'Warm',
+      timezone: tzInfo.timezone || null,
+      timezone_source: tzInfo.timezone ? 'phone' : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from('leads').insert([newLeadData]).select().single();
+    if (error) {
+      showToast?.(`Failed to add lead: ${error.message}`, 'error');
+      throw error;
+    }
+
+    setLeads((prev) => [data, ...prev]);
+    showToast?.('Lead added successfully', 'success');
+  };
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   
@@ -429,8 +493,56 @@ export default function CRM({
     columnDefs,
     setColumnDefs,
     showToast,
+    statuses,
+    callStatuses,
+    customChannels,
+    templates,
+    leads,
+    teamProfilesMap: effectiveProfilesMap,
   });
-  const { getWidth, setWidth, resetWidth, getRowHeight, setRowHeight, resetRowHeight } = columnPrefs;
+  const { getWidth, setWidth, resetWidth, autoFitWidth, getColMinWidth, getRowHeight, setRowHeight, resetRowHeight } = columnPrefs;
+
+  const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
+
+  // N key shortcut opens Add lead modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName) || e.target?.isContentEditable) {
+        return;
+      }
+      if (e.key === 'n' || e.key === 'N') {
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          setShowAddLeadModal(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const statusSelectOptions = useMemo(() => {
+    const list = statuses.length > 0 ? statuses : DEFAULT_STATUSES;
+    return [
+      { value: '', label: 'Status: All' },
+      ...list.map((s) => ({ value: s.label, label: s.label })),
+    ];
+  }, [statuses]);
+
+  const prioritySelectOptions = useMemo(() => [
+    { value: '', label: 'Priority: All' },
+    { value: 'Hot', label: 'Hot' },
+    { value: 'Warm', label: 'Warm' },
+    { value: 'Cold', label: 'Cold' },
+  ], []);
+
+  const sortSelectOptions = useMemo(() => [
+    { value: 'newest', label: 'Sort: Newest' },
+    ...SORT_OPTIONS.filter((o) => o.value !== 'newest').map((o) => ({
+      value: o.value,
+      label: `Sort: ${o.label}`,
+    })),
+  ], []);
 
   // Must be declared before activeListShowsLocalTime (used in its deps)
   const [listSettingsTick, setListSettingsTick] = useState(0);
@@ -438,7 +550,6 @@ export default function CRM({
   const activeListShowsLocalTime = useMemo(() => {
     if (!activeManualFolderId || outreachMode !== 'messages' || view === 'clients') return false;
     return listFolderShowsLocalTime(activeManualFolderId);
-   
   }, [activeManualFolderId, outreachMode, view, listSettingsTick]);
 
   const tableCols = useMemo(() => {
@@ -535,8 +646,9 @@ export default function CRM({
     // 2. Normalize Phone details if WhatsApp/SMS/Call
     let warningMsg = '';
     if (['whatsapp', 'sms', 'phone'].includes(channelKey)) {
-      const defCode = currentUser?.default_country_code || '+92';
-      const normResult = normalizePhoneNumber(lead.phone, defCode);
+      const defCode = currentUser?.default_country_code || null;
+      const listCountry = activeFolder?.default_country || null;
+      const normResult = normalizePhoneNumber(lead.phone, defCode, listCountry);
       if (!normResult.isValid) {
         warningMsg = normResult.error;
       }
@@ -577,7 +689,8 @@ export default function CRM({
           { email: lead.email, phone: lead.phone },
           initialSubject,
           initialBody,
-          currentUser?.default_country_code || '+92'
+          currentUser?.default_country_code || null,
+          activeFolder?.default_country || null
         );
         if (prefillResult.warning) {
           alert(`Warning: ${prefillResult.warning}`);
@@ -635,7 +748,8 @@ export default function CRM({
         { email: reachLead.email, phone: reachLead.phone },
         reachTemplateSubject,
         reachTemplateBody,
-        currentUser?.default_country_code || '+92'
+        currentUser?.default_country_code || null,
+        activeFolder?.default_country || null
       );
       window.open(prefillResult.url, '_blank');
     } else {
@@ -748,6 +862,7 @@ export default function CRM({
 
   // Modals state
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [settingsFolder, setSettingsFolder] = useState(null);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [quickAddForm, setQuickAddForm] = useState({ ...EMPTY_QUICK_ADD_FORM });
   const [showEditLeadModal, setShowEditLeadModal] = useState(false);
@@ -915,7 +1030,14 @@ export default function CRM({
       const sData = statusesRes.data || [];
       const tData = templatesRes.data || [];
       const cols = columnsRes.data || [];
+      const folderMap = new Map((fData || []).map(f => [f.id, f]));
       const lData = (rawLeads || []).map(lead => {
+        const folderObj = lead.folder_id ? folderMap.get(lead.folder_id) : null;
+        let enhanced = {
+          ...lead,
+          folder_default_country: folderObj?.default_country || null,
+          folder_default_timezone: folderObj?.default_timezone || null,
+        };
         if (lead.priority && /🔥|⚡|📦|🧊/.test(lead.priority)) {
           let cleanPriority = lead.priority.replace(/🔥|⚡|📦|🧊/g, '').trim();
           if (cleanPriority.toLowerCase() === 'hot') cleanPriority = 'Hot';
@@ -1181,6 +1303,25 @@ export default function CRM({
       if (field === 'timezone') {
         updates.timezone_source = newVal ? 'manual' : null;
       }
+      if (field === 'next_checkpoint_at') {
+        updates.next_checkpoint_manual = true;
+        if (newVal !== originalVal) {
+          updates.checkpoint_notified_at = null;
+        }
+      }
+      if (field === 'last_contacted_at') {
+        // Editing Last contacted -> recompute Due ONLY if next_checkpoint_manual = false
+        if (!item?.next_checkpoint_manual) {
+          const computedDue = calculateNextCheckpoint({
+            status: item?.status || 'Contacted',
+            lastContactedAt: newVal,
+          });
+          updates.next_checkpoint_at = computedDue;
+          if (computedDue !== item?.next_checkpoint_at) {
+            updates.checkpoint_notified_at = null;
+          }
+        }
+      }
 
       const { data, error } = await supabase.from(targetTable)
         .update(updates)
@@ -1405,6 +1546,19 @@ export default function CRM({
   };
 
   // Add Lead
+  const handleDeleteLead = async (leadId) => {
+    try {
+      await supabase.from('outreach_log').delete().eq('lead_id', leadId);
+      await supabase.from('leads').delete().eq('id', leadId);
+      setLeads((prev) => prev.filter((l) => l.id !== leadId));
+      setSelectedLead(null);
+      showToast?.('Lead deleted');
+    } catch (err) {
+      console.error('Error deleting lead:', err);
+      showToast?.('Failed to delete lead');
+    }
+  };
+
   const handleAddLead = async (e) => {
     e.preventDefault();
     if (isLeadLimitReached) return;
@@ -1444,7 +1598,8 @@ export default function CRM({
         timezoneManual: leadForm.timezoneTouched,
         phone: leadForm.phone,
         previousPhone: null,
-        defaultCountryCode: currentUser?.default_country_code || '+92',
+        listCountry: folders.find((f) => f.id === (leadForm.folder_id || activeManualFolderId))?.default_country,
+        userCountry: currentUser?.default_country_code,
       });
 
       const { data, error } = await supabase.from('leads')
@@ -1517,7 +1672,8 @@ export default function CRM({
       const tzFields = resolveLeadTimezoneForSave({
         phone: quickAddForm.phone,
         previousPhone: null,
-        defaultCountryCode: currentUser?.default_country_code || '+92',
+        listCountry: folders.find((f) => f.id === activeManualFolderId)?.default_country,
+        userCountry: currentUser?.default_country_code,
       });
 
       const { data, error } = await supabase.from('leads')
@@ -1682,7 +1838,8 @@ export default function CRM({
         timezoneManual: leadForm.timezoneTouched,
         phone: leadForm.phone,
         previousPhone: activeLead?.phone,
-        defaultCountryCode: currentUser?.default_country_code || '+92',
+        listCountry: folders.find((f) => f.id === (leadForm.folder_id || activeLead?.folder_id))?.default_country,
+        userCountry: currentUser?.default_country_code,
       });
 
       const { data, error } = await supabase.from('leads')
@@ -2655,7 +2812,7 @@ export default function CRM({
 
   const getFolderExportOptions = (folderId) => ({
     includeLocalTime: !!getListFolderSettings(folderId).showLocalTime,
-    defaultCountryCode: currentUser?.default_country_code || '+92',
+    defaultCountryCode: currentUser?.default_country_code || null,
   });
 
   const handleExportLeadsSubset = async (subset, label = 'all', options = {}) => {
@@ -2739,7 +2896,7 @@ export default function CRM({
         style={isBrowseMode ? undefined : { minHeight: 'calc(100vh - 120px)' }}
       >
       {/* Leads Table Content Section — no Lists sidebar; switch lists via breadcrumb */}
-      <div className={`flex-col page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%', gap: 'var(--space-6)' }}>
+      <div className={`flex-col page-stack${blockClass}`} style={{ flex: isBrowseMode ? undefined : 1, textAlign: 'left', minWidth: 0, width: '100%', gap: 12 }}>
         {canUseIntegrations && sheetsNeedsReconnect && (
           <div style={{
             padding: '0.75rem 1rem',
@@ -2781,6 +2938,7 @@ export default function CRM({
             }}
             onImportCsv={() => handleOpenBulkImport(() => setShowCSVImporter(true))}
             onImportSheets={() => setShowSheetsImportModal(true)}
+            onOpenFolderSettings={(folder) => setSettingsFolder(folder)}
             onRenameFolder={triggerRename}
             onDeleteFolder={handleDeleteFolder}
             onDeleteSmartFolder={handleDeleteSmartFolder}
@@ -2812,8 +2970,8 @@ export default function CRM({
           />
         ) : (
         <>
-        <div className="flex justify-between align-center" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <nav className="crm-list-breadcrumb" aria-label="List location" style={{ margin: 0, padding: 0 }}>
+        <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <nav className="crm-list-breadcrumb" aria-label="List location" style={{ margin: 0, padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSelectFolder('home')}>
               Lists
             </button>
@@ -2829,34 +2987,88 @@ export default function CRM({
               teamProfilesMap={effectiveProfilesMap}
               currentUserId={currentUser?.id}
             />
+            {(() => {
+              const currentManualFolder = folders.find((f) => f.id === activeFolderId);
+              if (!currentManualFolder) return null;
+              const isOwn = currentManualFolder.user_id === currentUser?.id;
+              return (
+                <ListRowMenu
+                  onOpen={() => {}}
+                  onRename={isOwn ? () => triggerRename(currentManualFolder.id, currentManualFolder.name) : undefined}
+                  onOpenSettings={() => setSettingsFolder(currentManualFolder)}
+                  onDelete={isOwn ? () => handleDeleteFolder(currentManualFolder.id) : undefined}
+                  onExport={() => handleExportFolder(currentManualFolder.id)}
+                  onExportSheets={() => handleExportFolderSheets(currentManualFolder.id)}
+                  onShare={userCanShareFolder(currentManualFolder, currentUser) ? async () => {
+                    try {
+                      const shares = await fetchSharesForFolder(currentManualFolder.id);
+                      setShareListShares(shares);
+                      setShareListTarget(currentManualFolder);
+                    } catch (err) {
+                      if (isPlanLimitError(err)) return;
+                      alert(err.message || 'Could not load list sharing');
+                    }
+                  } : undefined}
+                  canShare={userCanShareFolder(currentManualFolder, currentUser)}
+                  canExport
+                  canExportSheets={canUseIntegrations}
+                  showLocalTime={!!getListFolderSettings(currentManualFolder.id)?.showLocalTime}
+                  onToggleLocalTime={(val) => handleToggleFolderLocalTime(currentManualFolder.id, val)}
+                />
+              );
+            })()}
           </nav>
-          
-          {/* Outreach mode switcher */}
+
+          {/* Segmented Control on Top Right: Message Outreach | Cold Calls */}
           <div
-            className="flex gap-2"
+            className="rd-segmented"
             style={{
-              padding: '0.25rem',
-              background: 'var(--bg-tertiary)',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              width: 'fit-content',
+              display: 'inline-flex',
+              padding: 3,
+              borderRadius: 8,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
             }}
           >
             <button
               type="button"
               onClick={() => handleModeChange('messages')}
-              className={`btn btn-sm ${outreachMode === 'messages' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ borderRadius: '6px' }}
+              className={`rd-segmented__btn${outreachMode === 'messages' ? ' rd-segmented__btn--active' : ''}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 14px',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 6,
+                border: 'none',
+                cursor: 'pointer',
+                background: outreachMode === 'messages' ? 'var(--bg-card, #262626)' : 'transparent',
+                color: outreachMode === 'messages' ? 'var(--text-primary)' : 'var(--text-muted)',
+              }}
             >
-              <Mail size={13} /> Message Outreach
+              Message Outreach
             </button>
             <button
               type="button"
               onClick={() => handleModeChange('calls')}
-              className={`btn btn-sm ${outreachMode === 'calls' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              className={`rd-segmented__btn${outreachMode === 'calls' ? ' rd-segmented__btn--active' : ''}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 14px',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 6,
+                border: 'none',
+                cursor: 'pointer',
+                background: outreachMode === 'calls' ? 'var(--bg-card, #262626)' : 'transparent',
+                color: outreachMode === 'calls' ? 'var(--text-primary)' : 'var(--text-muted)',
+              }}
             >
-              <Phone size={13} /> Cold Calls
+              Cold Calls
             </button>
           </div>
         </div>
@@ -2886,85 +3098,11 @@ export default function CRM({
 
 
 
-        {outreachMode === 'messages' ? (
-          <></>
-        ) : (
-        <>
-        {/* Calls sub-views */}
-        <div className="crm-tabs">
-          <button
-            type="button"
-            onClick={() => handleCallSubViewChange('queue')}
-            className={`crm-tab ${callSubView === 'queue' ? 'crm-tab--active' : ''}`}
-          >
-            Call Queue
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCallSubViewChange('log')}
-            className={`crm-tab ${callSubView === 'log' ? 'crm-tab--active' : ''}`}
-          >
-            Call Log
-          </button>
-        </div>
-        </>
-        )}
-
         {outreachMode === 'calls' ? (
           callSubView === 'queue' ? (
-            <>
-            <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
-              <div className="flex gap-2 align-center" style={{ flex: 1, minWidth: '280px' }}>
-                <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
-                  <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                    <Search size={16} />
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Search leads…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="form-input w-full"
-                    style={{ paddingLeft: '2.5rem' }}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 align-center" style={{ flexWrap: 'wrap' }}>
-                <select
-                  className="form-input"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{ width: 'auto', minWidth: 130, fontSize: '0.85rem' }}
-                >
-                  <option value="">Status: All</option>
-                  {(callStatuses.length > 0 ? callStatuses : DEFAULT_CALL_STATUSES).map((st) => (
-                    <option key={st.label} value={st.label}>{st.label}</option>
-                  ))}
-                </select>
-                <select
-                  className="form-input"
-                  value={filterCallActions[0] || ''}
-                  onChange={(e) => setFilterCallActions(e.target.value ? [e.target.value] : [])}
-                  style={{ width: 'auto', minWidth: 150, fontSize: '0.85rem' }}
-                >
-                  <option value="">Call step: All</option>
-                  {CALL_ACTION_DEFAULT_OPTIONS.map((opt) => (
-                    <option key={opt.label} value={opt.label}>{opt.label}</option>
-                  ))}
-                </select>
-                <select
-                  className="form-input"
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value)}
-                  style={{ width: 'auto', minWidth: 140, fontSize: '0.85rem' }}
-                >
-                  {CALL_SORT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
             <CallQueueTable
+              callSubView={callSubView}
+              onCallSubViewChange={handleCallSubViewChange}
               leads={paginatedList}
               allLeads={sortedLeads}
               selectedIds={selectedIds}
@@ -2993,6 +3131,13 @@ export default function CRM({
               onRefresh={refreshCallStatuses}
               onLeadUpdated={handleCallLeadUpdated}
               onOpenColumnManager={() => setShowColumnManager(true)}
+              onOpenFilterDrawer={() => setShowFilterDrawer(true)}
+              onModeChange={handleModeChange}
+              outreachMode={outreachMode}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onlyGoodTimeToCall={onlyGoodTimeToCall}
+              onToggleGoodTimeToCall={() => setOnlyGoodTimeToCall(p => !p)}
               showNoteSharing={!!currentUser?.team_id}
               suggestionRules={suggestionRules}
               templates={templates}
@@ -3000,70 +3145,232 @@ export default function CRM({
               onUpdateColumnDef={(id, newOpts) => {
                 setColumnDefs((prev) => prev.map((c) => (c.id === id ? { ...c, dropdown_options: newOpts } : c)));
               }}
+              onQuickAddLead={handleQuickAddLead}
+              reachMode={reachMode}
+              onSetReachMode={handleSetReachMode}
             />
-            </>
           ) : (
-            <OutreachTracker
-              currentUser={currentUser}
-              leads={sortedLeads}
-              onOpenLead={handleOpenLead}
-              onLeadUpdated={handleCallLeadUpdated}
-              embedded
-              leadIdSet={listLeadIdSet}
-              hideSessionControls
-              onGoToQueue={() => handleCallSubViewChange('queue')}
-            />
+            <div className="flex-col" style={{ gap: 12 }}>
+              <div
+                className="crm-toolbar"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  margin: '0 0 12px 0',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+                  <div
+                    className="rd-segmented"
+                    style={{
+                      display: 'inline-flex',
+                      padding: 2,
+                      borderRadius: 6,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleCallSubViewChange('queue')}
+                      className={`rd-segmented__btn${callSubView === 'queue' ? ' rd-segmented__btn--active' : ''}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 4,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: callSubView === 'queue' ? 'var(--bg-card, #262626)' : 'transparent',
+                        color: callSubView === 'queue' ? 'var(--text-primary)' : 'var(--text-muted)',
+                      }}
+                    >
+                      Queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCallSubViewChange('log')}
+                      className={`rd-segmented__btn${callSubView === 'log' ? ' rd-segmented__btn--active' : ''}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 4,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: callSubView === 'log' ? 'var(--bg-card, #262626)' : 'transparent',
+                        color: callSubView === 'log' ? 'var(--text-primary)' : 'var(--text-muted)',
+                      }}
+                    >
+                      Call log
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <OutreachTracker
+                currentUser={currentUser}
+                leads={sortedLeads}
+                onOpenLead={handleOpenLead}
+                onLeadUpdated={handleCallLeadUpdated}
+                embedded
+                leadIdSet={listLeadIdSet}
+                hideSessionControls
+                onGoToQueue={() => handleCallSubViewChange('queue')}
+              />
+            </div>
           )
         ) : (
         <>
         {/* Toolbar */}
-        <div className="crm-toolbar">
-          <div className="crm-toolbar__search">
-            <span className="crm-toolbar__search-icon">
-              <Search size={16} />
-            </span>
-            <input
-              type="text"
-              placeholder="Search leads..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="form-input w-full"
-              style={{ paddingLeft: '2.5rem' }}
-            />
+        <div
+          className="crm-toolbar"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'nowrap',
+            gap: 12,
+            margin: '0 0 12px 0',
+          }}
+        >
+          {/* Left Controls: Search, Status, Priority, Filters, Sort */}
+          <div
+            className="crm-toolbar__left"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'nowrap',
+              flex: 1,
+              minWidth: 0,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            <div style={{ position: 'relative', width: 240, minWidth: 160, flexShrink: 0 }}>
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                <Search size={14} />
+              </span>
+              <input
+                type="text"
+                placeholder="Search leads"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="form-input"
+                style={{ paddingLeft: 30, height: 32, fontSize: 13, borderRadius: 6, width: '100%' }}
+              />
+            </div>
+
+            <div style={{ flexShrink: 0 }}>
+              <RdSelect
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={statusSelectOptions}
+                placeholder="Status: All"
+                size="sm"
+              />
+            </div>
+
+            <div style={{ flexShrink: 0 }}>
+              <RdSelect
+                value={priorityFilter}
+                onChange={setPriorityFilter}
+                options={prioritySelectOptions}
+                placeholder="Priority: All"
+                size="sm"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFilterDrawer(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ height: 32, fontSize: 13, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 6, position: 'relative', flexShrink: 0 }}
+            >
+              <Filter size={13} />
+              Filters
+              {(filterStatuses.length > 0 || filterPriorities.length > 0 || filterActions.length > 0 || filterProjects.length > 0 || filterDateRange !== 'all') && (
+                <span style={{
+                  position: 'absolute',
+                  top: -3,
+                  right: -3,
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: 'var(--accent-blue)',
+                }} />
+              )}
+            </button>
+
+            {/* Sort Dropdown via RdSelect */}
+            <div style={{ flexShrink: 0 }}>
+              <RdSelect
+                value={sortOption}
+                onChange={setSortOption}
+                options={sortSelectOptions}
+                placeholder="Sort"
+                size="sm"
+              />
+            </div>
+
+            {(statusFilter || priorityFilter || filterStatuses.length > 0 || filterPriorities.length > 0 || filterActions.length > 0 || filterProjects.length > 0 || filterDateRange !== 'all') && (
+              <button
+                onClick={() => {
+                  setStatusFilter('');
+                  setPriorityFilter('');
+                  handleClearFilters();
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: 12, height: 32, padding: '0 8px', borderRadius: 6, flexShrink: 0 }}
+              >
+                Clear
+              </button>
+            )}
           </div>
 
-          <div className="crm-toolbar__actions">
+          {/* Right Controls: Columns, More, + Add lead */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               type="button"
               onClick={() => setShowColumnManager(true)}
               className="btn btn-secondary btn-sm"
-              title="Manage Columns"
+              style={{ height: 32, fontSize: 13, borderRadius: 6 }}
             >
-              <Gear size={14} /> Columns
+              Columns
             </button>
             {columnPrefs.viewDefs.filter((c) => !c.is_visible).length > 0 && (
               <button
                 type="button"
                 className="rd-dt-hidden-chip"
                 onClick={() => setShowColumnManager(true)}
-                title={`${columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden column${columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? '' : 's'}. Click to manage.`}
+                style={{ height: 32, borderRadius: 6 }}
+                title={`${columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden column(s). Click to manage.`}
               >
                 <EyeOff size={12} />
-                {columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden {columnPrefs.viewDefs.filter((c) => !c.is_visible).length === 1 ? 'column' : 'columns'}
+                {columnPrefs.viewDefs.filter((c) => !c.is_visible).length} hidden
               </button>
             )}
 
-            <div className="crm-toolbar__more">
+            <div className="crm-toolbar__more" style={{ position: 'relative' }}>
               <button
                 type="button"
                 onClick={() => setShowCrmMoreMenu(!showCrmMoreMenu)}
                 className="btn btn-secondary btn-sm"
                 disabled={!!exporting}
+                style={{ height: 32, fontSize: 13, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}
               >
-                <MoreVertical size={14} /> More <ChevronDown size={14} />
+                More <ChevronDown size={13} />
               </button>
               {showCrmMoreMenu && (
-                <div className="crm-more-menu">
+                <div className="crm-more-menu" style={{ zIndex: 100 }}>
                   <div className="crm-more-menu__label">Quick clean</div>
                   <button type="button" onClick={() => handleQuickCleanSelect('not_interested')} className="dropdown-item" style={{ background: 'transparent', border: 'none', padding: '0.5rem 0.75rem', textAlign: 'left', cursor: 'pointer', color: 'var(--text-primary)', width: '100%' }}>
                     Select &quot;Not Interested&quot;
@@ -3171,162 +3478,22 @@ export default function CRM({
               className="btn btn-primary btn-sm"
               disabled={isLeadLimitReached}
               title={isLeadLimitReached ? leadLimitTooltip : undefined}
-              style={isLeadLimitReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              style={{
+                height: 32,
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                opacity: isLeadLimitReached ? 0.5 : 1,
+                cursor: isLeadLimitReached ? 'not-allowed' : 'pointer'
+              }}
             >
-              <Plus size={16} /> Add Lead
+              <Plus size={14} /> Add lead
             </button>
           </div>
         </div>
-
-        {/* 🔍 Filter Bar Row */}
-        {view !== 'clients' && (
-          <div className="flex gap-4 align-center" style={{ marginTop: '0.75rem', marginBottom: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--bg-secondary)', borderRadius: '8px', flexWrap: 'wrap', border: '1px solid var(--border-color)' }}>
-            
-            <button
-              type="button"
-              onClick={() => setShowFilterDrawer(true)}
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                fontSize: '0.8rem',
-                padding: '0.35rem 0.75rem',
-                position: 'relative'
-              }}
-            >
-              <Filter size={14} /> Advanced Filters
-              {(filterStatuses.length > 0 || filterPriorities.length > 0 || filterActions.length > 0 || filterProjects.length > 0 || filterDateRange !== 'all') && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: 'var(--accent-blue)',
-                  boxShadow: '0 0 6px var(--accent-blue)'
-                }} />
-              )}
-            </button>
-
-            <div className="flex gap-2 align-center">
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Status:</span>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="form-select"
-                style={{ minWidth: '150px', fontSize: '0.8rem', padding: '0.35rem 0.5rem', height: 'auto' }}
-              >
-                <option value="">All</option>
-                {statuses.length > 0 ? (
-                  statuses.map(s => (
-                    <option key={s.id || s.label} value={s.label}>{s.label}</option>
-                  ))
-                ) : (
-                  DEFAULT_STATUSES.map(s => (
-                    <option key={s.label} value={s.label}>{s.label}</option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            <div className="flex gap-2 align-center">
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Priority:</span>
-              <select
-                value={priorityFilter}
-                onChange={e => setPriorityFilter(e.target.value)}
-                className="form-select"
-                style={{ minWidth: '120px', fontSize: '0.8rem', padding: '0.35rem 0.5rem', height: 'auto' }}
-              >
-                <option value="">All</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </div>
-
-            {/* Sort Dropdown */}
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="sort-btn"
-                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.8rem',
-                  height: 'auto',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <line x1="6" y1="12" x2="18" y2="12"/>
-                  <line x1="9" y1="18" x2="15" y2="18"/>
-                </svg>
-                Sort
-                {sortOption !== 'newest' && (
-                  <span className="sort-active-dot" />
-                )}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6,9 12,15 18,9"/>
-                </svg>
-              </button>
-
-              {sortDropdownOpen && (
-                <>
-                  {/* Backdrop to close on outside click */}
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                    onClick={() => setSortDropdownOpen(false)}
-                  />
-                  <div className="sort-dropdown" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-                    {SORT_OPTIONS.map(opt => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        className={`sort-option ${sortOption === opt.value ? 'active' : ''}`}
-                        onClick={() => {
-                          setSortOption(opt.value);
-                          setSortDropdownOpen(false);
-                        }}
-                      >
-                        <span>{opt.label}</span>
-                        {sortOption === opt.value && (
-                          <svg style={{ marginLeft: 'auto' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <polyline points="20,6 9,17 4,12"/>
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {(statusFilter || priorityFilter || filterStatuses.length > 0 || filterPriorities.length > 0 || filterActions.length > 0 || filterProjects.length > 0 || filterDateRange !== 'all') && (
-              <button
-                onClick={() => {
-                  setStatusFilter('');
-                  setPriorityFilter('');
-                  handleClearFilters();
-                }}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto' }}
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Bulk Actions Menu Overlay */}
         <CRMBulkActionBar
@@ -3346,6 +3513,7 @@ export default function CRM({
           onStatusChange={handleBulkStatusChange}
           onChannelChange={handleBulkChannelChange}
           onMoveToFolder={handleBulkMoveToFolder}
+          onSetTimezone={(tz) => handleBulkUpdateFields({ timezone: tz, timezone_source: 'manual' }, 'Timezone updated')}
           onExport={() => handleExportLeadsSubset(leads.filter(l => selectedIds.includes(l.id)), 'selected')}
           onDelete={() => setConfirmBulkDelete(true)}
           onFieldChange={(field, value) => {
@@ -3472,6 +3640,9 @@ export default function CRM({
             prefs={columnPrefs}
             columns={tableCols}
             rows={paginatedList}
+            topRow={null}
+            reachMode={reachMode}
+            onSetReachMode={handleSetReachMode}
             getRowKey={(lead) => lead.id}
             isRowSelected={(lead) => selectedIds.includes(lead.id)}
             getRowProps={(lead) => {
@@ -3514,34 +3685,7 @@ export default function CRM({
             )}
             showRowNumbers={view === 'contact_details'}
             getRowNumber={(lead, rowIndex) => (currentPage - 1) * pageSize + rowIndex + 1}
-            renderHeaderLabel={(col) => {
-              const isProject = col.column_key === 'project';
-              const isProjectUnlocked = !!getLimit(PLAN_LIMITS[getEffectivePlan(currentUser)], 'custom_columns');
-              return (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {col.column_key === 'status' ? (
-                    <>
-                      Status
-                      <HelpPopover title="Status & Checkpoints" align="left">
-                        The checkpoint bubble next to Status tracks whether a lead has replied or needs a follow-up check. Click it to log outcomes and automatically schedule/cancel reminders.
-                      </HelpPopover>
-                    </>
-                  ) : col.column_key === 'platform' ? (
-                    <>
-                      Reach
-                      <HelpPopover title="Reach Link System" align="left">
-                        Click a lead's Reach icon to open their outreach channel (LinkedIn, email, etc.) and optionally select a template. The app tracks that you reached out and updates Last Contacted.
-                      </HelpPopover>
-                    </>
-                  ) : col.column_key === 'action_to_take' ? (
-                    'Next step'
-                  ) : col.column_label}
-                  {isProject && !isProjectUnlocked && (
-                    <Lock size={12} style={{ color: 'var(--text-muted)' }} title="Locked on Starter/Trial plans" />
-                  )}
-                </div>
-              );
-            }}
+            renderHeaderLabel={(col) => (col.column_key === 'action_to_take' ? 'Next step' : col.column_label)}
             getHeaderText={(col) => (col.column_key === 'action_to_take' ? 'Next step' : col.column_label)}
             getCellTitle={(lead, col) => getLeadCellCopyValue(lead, col)}
             renderCell={(lead, col, cellProps, rowIndex) => {
@@ -3556,7 +3700,7 @@ export default function CRM({
                   <td {...cellProps}>
                     <CopyableCell value={copyValue} onCopied={handleCopyCell}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 600 }} data-ph-mask>{displayName}</span>
+                        <span style={{ fontWeight: 500 }} data-ph-mask>{displayName}</span>
                         {isLocked && (
                           <span 
                             className="badge" 
@@ -3577,38 +3721,37 @@ export default function CRM({
               if (col.column_key === 'template_used') {
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CopyableCell value={lead.template_used || ''} onCopied={handleCopyCell} variant="inline">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <GroupedTemplateDropdown
-                            value={lead.template_used || ''}
-                            onChange={(val) => handleDropdownChange(lead.id, 'template_used', val)}
-                            templates={templates}
-                            placeholder="None"
-                          />
-                        </div>
-                        {lead.template_used && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPersonalizedMessage(lead, lead.template_used)}
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                              padding: '4px 6px',
-                              minHeight: 'auto',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              borderColor: 'var(--border)',
-                              borderRadius: '3px',
-                              flexShrink: 0,
-                            }}
-                            title="Copy personalized message"
-                          >
-                            <Copy size={13} />
-                          </button>
-                        )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <GroupedTemplateDropdown
+                          value={lead.template_used || ''}
+                          onChange={(val) => handleDropdownChange(lead.id, 'template_used', val)}
+                          templates={templates}
+                          placeholder="None"
+                          isTableInline={true}
+                        />
                       </div>
-                    </CopyableCell>
+                      {lead.template_used && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPersonalizedMessage(lead, lead.template_used)}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            padding: '4px 6px',
+                            minHeight: 'auto',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderColor: 'var(--border)',
+                            borderRadius: '3px',
+                            flexShrink: 0,
+                          }}
+                          title="Copy personalized message"
+                        >
+                          <Copy size={13} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 );
               }
@@ -3617,14 +3760,12 @@ export default function CRM({
                 const currentStatus = cellValue || 'Lead';
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CopyableCell value={currentStatus} onCopied={handleCopyCell} variant="inline">
-                      <GroupedStatusDropdown
-                        value={currentStatus}
-                        onChange={(newVal) => handleDropdownChange(lead.id, 'status', newVal)}
-                        isTableInline={true}
-                        onUpdate={fetchData}
-                      />
-                    </CopyableCell>
+                    <GroupedStatusDropdown
+                      value={currentStatus}
+                      onChange={(newVal) => handleDropdownChange(lead.id, 'status', newVal)}
+                      isTableInline={true}
+                      onUpdate={fetchData}
+                    />
                   </td>
                 );
               }
@@ -3632,15 +3773,13 @@ export default function CRM({
               if (col.column_key === 'outreach_channel' || col.column_type === 'channel') {
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CopyableCell value={lead.outreach_channel || ''} onCopied={handleCopyCell} variant="inline">
-                      <GroupedChannelDropdown
-                        value={lead.outreach_channel}
-                        onChange={(newVal) => handleDropdownChange(lead.id, 'outreach_channel', newVal)}
-                        isTableInline={true}
-                        onUpdate={fetchData}
-                        channel="messaging"
-                      />
-                    </CopyableCell>
+                    <GroupedChannelDropdown
+                      value={lead.outreach_channel}
+                      onChange={(newVal) => handleDropdownChange(lead.id, 'outreach_channel', newVal)}
+                      isTableInline={true}
+                      onUpdate={fetchData}
+                      channel="messaging"
+                    />
                   </td>
                 );
               }
@@ -3648,13 +3787,11 @@ export default function CRM({
               if (col.column_key === 'priority') {
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CopyableCell value={lead.priority || ''} onCopied={handleCopyCell} variant="inline">
-                      <PriorityDropdown
-                        value={lead.priority}
-                        onChange={(val) => handleDropdownChange(lead.id, 'priority', val)}
-                        onUpdate={fetchData}
-                      />
-                    </CopyableCell>
+                    <PriorityDropdown
+                      value={lead.priority}
+                      onChange={(val) => handleDropdownChange(lead.id, 'priority', val)}
+                      onUpdate={fetchData}
+                    />
                   </td>
                 );
               }
@@ -3689,18 +3826,17 @@ export default function CRM({
 
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <EditableDropdown
-                          value={cellValue}
-                          columnDef={col}
-                          onChange={(val) => {
-                            handleDropdownChange(lead.id, col.column_key, val);
-                          }}
-                          onUpdateColumnDef={(id, newOpts) => {
-                            setColumnDefs(prev => prev.map(c => c.id === id ? { ...c, dropdown_options: newOpts } : c));
-                          }}
-                        />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <EditableDropdown
+                        value={cellValue}
+                        columnDef={col}
+                        onChange={(val) => {
+                          handleDropdownChange(lead.id, col.column_key, val);
+                        }}
+                        onUpdateColumnDef={(id, newOpts) => {
+                          setColumnDefs(prev => prev.map(c => c.id === id ? { ...c, dropdown_options: newOpts } : c));
+                        }}
+                      />
                         {showLightbulb && (
                           <button
                             onClick={(e) => {
@@ -3727,7 +3863,6 @@ export default function CRM({
                           </button>
                         )}
                       </div>
-                    </CopyableCell>
                   </td>
                 );
               }
@@ -3740,18 +3875,56 @@ export default function CRM({
                   catch { domain = cellValue.slice(0, 22); }
                 }
                 return (
-                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} style={{ ...cellProps.style, color: 'var(--text-secondary)' }}>
                     <CopyableCell value={cellValue || ''} onCopied={handleCopyCell}>
                       {linkHref ? (
                         <a href={linkHref} target="_blank" rel="noopener noreferrer"
-                          style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
-                          <ExternalLink size={11} />{domain}
+                          <ExternalLink size={11} style={{ color: 'var(--text-muted)' }} />{domain}
                         </a>
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>—</span>
                       )}
                     </CopyableCell>
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'next_checkpoint_at') {
+                const dueInfo = formatDueText(lead.next_checkpoint_at, lead.action_to_take);
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <DateTimePickerCell
+                      compact
+                      mode="future"
+                      value={lead.next_checkpoint_at}
+                      timeZone={userTimeZone}
+                      customLabel={dueInfo.text}
+                      isOverdue={dueInfo.isOverdue}
+                      isPlaceholder={dueInfo.isPlaceholder}
+                      onChange={(iso) => handleDropdownChange(lead.id, 'next_checkpoint_at', iso)}
+                      placeholder="Set time"
+                      disabled={isActiveFolderLocked || viewer_folder_access}
+                    />
+                  </td>
+                );
+              }
+
+              if (col.column_key === 'last_contacted_at') {
+                const lastContactedStr = formatLastContactedText(lead.last_contacted_at);
+                return (
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                    <DateTimePickerCell
+                      compact
+                      mode="past"
+                      value={lead.last_contacted_at}
+                      timeZone={userTimeZone}
+                      customLabel={lastContactedStr}
+                      onChange={(iso) => handleDropdownChange(lead.id, 'last_contacted_at', iso)}
+                      placeholder="—"
+                      disabled={isActiveFolderLocked || viewer_folder_access}
+                    />
                   </td>
                 );
               }
@@ -3767,7 +3940,7 @@ export default function CRM({
                   } catch {}
                 }
                 return (
-                  <td {...cellProps} style={{ ...cellProps.style, fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  <td {...cellProps} style={{ ...cellProps.style, fontSize: '13px', color: formatted === '—' ? 'var(--text-muted)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                     <CopyableCell value={formatted === '—' ? '' : formatted} onCopied={handleCopyCell}>
                       {formatted}
                     </CopyableCell>
@@ -3777,8 +3950,8 @@ export default function CRM({
 
               if (col.column_key === 'platform' || col.column_type === 'reach' || col.column_type === 'system') {
                 return (
-                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <ReachIcons lead={lead} columnDefs={columnDefs} onReachClick={handleReachClick} />
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} style={{ ...cellProps.style, overflow: 'hidden' }}>
+                    <ReachIcons lead={lead} columnDefs={columnDefs} onReachClick={handleReachClick} reachMode={reachMode} />
                   </td>
                 );
               }
@@ -3787,10 +3960,10 @@ export default function CRM({
               if (['linkedin_url', 'instagram_url', 'twitter_url', 'website'].includes(col.column_key) && cellValue) {
                 const url = cellValue.startsWith('http') ? cellValue : `https://${cellValue}`;
                 return (
-                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask style={{ ...cellProps.style, color: 'var(--text-secondary)' }}>
                     <CopyableCell value={cellValue} onCopied={handleCopyCell}>
                       <a href={url} target="_blank" rel="noopener noreferrer"
-                        style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
+                        style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px' }}
                       >
                         {cellValue}
                       </a>
@@ -3802,10 +3975,10 @@ export default function CRM({
               // ── Clickable email ────────────────────────────────────
               if (col.column_key === 'email' && cellValue) {
                 return (
-                  <td {...cellProps} onClick={(e) => e.stopPropagation()}>
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask style={{ ...cellProps.style, color: 'var(--text-secondary)' }}>
                     <CopyableCell value={cellValue} onCopied={handleCopyCell}>
                       <a href={`mailto:${cellValue}`}
-                        style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontSize: '0.85rem' }}
+                        style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px' }}
                         data-ph-mask
                       >
                         {cellValue}
@@ -3815,17 +3988,15 @@ export default function CRM({
                 );
               }
 
-              // ── Lead local time (list setting) ───────────────────
+              // ── Lead local time ─────────────────────────────────
               if (col.column_key === 'local_time') {
-                const defaultCountryCode = currentUser?.default_country_code || '+92';
                 return (
                   <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-                    <CallWindowBadge
+                    <LocalTimeCell
                       lead={lead}
-                      defaultCountryCode={defaultCountryCode}
-                      showLocalTime
-                      editable
-                      onTimezoneChange={(tz) => handleLeadFieldChange(lead.id, 'timezone', tz || '')}
+                      listCountry={lead.folder_default_country}
+                      userCountry={currentUser?.default_country_code}
+                      onSaveTimezone={(id, tz) => handleLeadFieldChange(id, 'timezone', tz || '')}
                     />
                   </td>
                 );
@@ -3834,7 +4005,7 @@ export default function CRM({
               // ── Phone popup ────────────────────────────────────────
               if (col.column_key === 'phone') {
                 return (
-                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask>
+                  <td {...cellProps} onClick={(e) => e.stopPropagation()} data-ph-mask style={{ ...cellProps.style, color: 'var(--text-secondary)' }}>
                     <CopyableCell value={cellValue || ''} onCopied={handleCopyCell} variant="inline">
                       <PhonePopup phone={cellValue} />
                     </CopyableCell>
@@ -3843,7 +4014,7 @@ export default function CRM({
               }
 
               return (
-                <td {...cellProps} data-ph-mask>
+                <td {...cellProps} data-ph-mask style={{ ...cellProps.style, color: cellValue ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
                   <CopyableCell value={copyValue} onCopied={handleCopyCell}>
                     {cellValue || '—'}
                   </CopyableCell>
@@ -3892,19 +4063,15 @@ export default function CRM({
                         <Edit3 size={12} />
                       </button>
                       
-                      {/* Folder dropdown selector directly from row */}
-                      {folders.length > 0 && (
-                        <select
-                          value={lead.folder_id || ''}
-                          onChange={(e) => handleBulkMoveToFolder(e.target.value)}
-                          style={{ width: '80px', fontSize: '0.75rem', padding: '0.1rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)' }}
-                          onClick={(e) => { e.stopPropagation(); setSelectedIds([lead.id]); }}
-                        >
-                          <option value="">Move...</option>
-                          <option value="">(All)</option>
-                          {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                        </select>
-                      )}
+                      {/* Folder menu selector directly from row */}
+                      <RowFolderMoveButton
+                        lead={lead}
+                        folders={folders.filter(f => f.user_id === currentUser?.id)}
+                        onMove={(folderId) => {
+                          setSelectedIds([lead.id]);
+                          handleBulkMoveToFolder(folderId);
+                        }}
+                      />
                     </div>
                   </td>
                 ),
@@ -3980,58 +4147,69 @@ export default function CRM({
         )}
       </div>
 
+      {/* List Settings Modal */}
+      <ListSettingsModal
+        isOpen={!!settingsFolder}
+        folder={settingsFolder}
+        leads={leads}
+        currentUser={currentUser}
+        onClose={() => setSettingsFolder(null)}
+        onSave={(updatedFolder) => {
+          setFolders((prev) => prev.map((f) => (f.id === updatedFolder.id ? updatedFolder : f)));
+          fetchData();
+        }}
+      />
+
       {/* Add Lead Modal */}
-      {showAddLeadModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content rd-modal">
-            <div className="rd-modal-header">
-              <div>
-                <h3>Add lead</h3>
-                <p className="rd-modal-sub">Name is enough — everything else is optional.</p>
-              </div>
-              <button type="button" onClick={() => setShowAddLeadModal(false)} className="rd-modal-close" aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleAddLead} className="rd-modal-form">
-              <div className="rd-modal-body">
-                <LeadFormFields
-                  leadForm={leadForm}
-                  setLeadForm={setLeadForm}
-                  pastedLink={pastedLink}
-                  setPastedLink={setPastedLink}
-                  onAddPastedLink={handleAddPastedLink}
-                  getFolderSelectValue={getFolderSelectValue}
-                  onFolderChange={handleFolderChange}
-                  folders={folders}
-                  userFolders={userFolders}
-                  plan={plan}
-                  templates={templates}
-                  onStatusUpdate={fetchData}
-                  showCustomFields
-                  columnDefs={columnDefs}
-                  view={view}
-                  defaultCountryCode={currentUser?.default_country_code || '+92'}
-                  onClearCustomField={handleRemoveCustomFieldVal}
-                  newFieldName={newFieldName}
-                  setNewFieldName={setNewFieldName}
-                  newFieldType={newFieldType}
-                  setNewFieldType={setNewFieldType}
-                  onAddCustomField={handleAddNewCustomField}
-                />
-              </div>
-              <div className="rd-modal-footer">
-                <button type="button" onClick={() => setShowAddLeadModal(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Add lead
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddLeadModal
+        isOpen={showAddLeadModal}
+        onClose={() => setShowAddLeadModal(false)}
+        folders={folders}
+        userFolders={userFolders}
+        activeFolderId={activeManualFolderId}
+        currentUser={currentUser}
+        statuses={statuses}
+        isLeadLimitReached={isLeadLimitReached}
+        onAddLead={async (newLeadData, addAnother) => {
+          try {
+            const { data, error } = await supabase
+              .from('leads')
+              .insert({
+                ...newLeadData,
+                user_id: currentUser.id,
+              })
+              .select()
+              .single();
+
+            if (error) throw error;
+            setLeads((prev) => [data, ...prev]);
+
+            if (searchQuery || statusFilter || priorityFilter || filterStatuses.length || filterPriorities.length
+              || filterActions.length || filterCallActions.length || filterProjects.length || filterDateRange !== 'all') {
+              resetListFilters();
+            }
+
+            try {
+              const remaining = await getRemainingLeadQuota(currentUser.id);
+              if (shouldShowCountdownToast(remaining)) {
+                setToastRemaining(remaining);
+              }
+            } catch (quotaErr) {
+              console.error('Error fetching remaining lead quota:', quotaErr);
+            }
+
+            showToast?.('Lead added');
+          } catch (err) {
+            if (isPlanLimitError(err)) return;
+            if (err?.message?.includes('Lead limit reached')) {
+              setShowLeadLimitBlockModal(true);
+            } else {
+              console.error('Error adding lead:', err);
+              showToast?.('Failed to add lead: ' + err.message);
+            }
+          }
+        }}
+      />
 
       {/* Floating Quick Add Button for Mobile */}
       <button 
@@ -4183,7 +4361,8 @@ export default function CRM({
                   plan={plan}
                   templates={templates}
                   onStatusUpdate={fetchData}
-                  defaultCountryCode={currentUser?.default_country_code || '+92'}
+                  defaultCountryCode={currentUser?.default_country_code || null}
+                  listCountry={folders.find((f) => f.id === (leadForm.folder_id || activeLead?.folder_id))?.default_country}
                 />
               </div>
               <div className="rd-modal-footer">
@@ -4640,6 +4819,9 @@ export default function CRM({
       {selectedLead && (
         <LeadDrawer
           lead={selectedLead}
+          currentViewName={getActiveFolderLabel()}
+          leadsList={view === 'clients' ? clients : filteredLeads}
+          onSelectLead={setSelectedLead}
           initialTab={drawerInitialTab}
           isClientView={view === 'clients'}
           onClose={() => {
@@ -4654,9 +4836,12 @@ export default function CRM({
             }
             setSelectedLead(updated);
           }}
+          onDeleteLead={handleDeleteLead}
           columnDefs={columnDefs}
           currentUser={currentUser}
           templates={templates}
+          folders={folders}
+          userFolders={userFolders}
           onConvertToClient={setConvertingLead}
           onRefresh={fetchData}
           statuses={statuses}

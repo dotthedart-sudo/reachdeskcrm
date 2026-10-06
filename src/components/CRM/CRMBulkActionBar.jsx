@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import { Download, Trash2 } from 'lucide-react';
-import RdSelect from '../ui/RdSelect';
-import EditableDropdown from './EditableDropdown';
-import GroupedTemplateDropdown from './GroupedTemplateDropdown';
-import { CALL_ACTION_DEFAULT_OPTIONS } from './crmTableColumns';
-import { TEMPLATE_KINDS } from '../../lib/templateKinds';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, Clock, Download, FolderInput, Search, Trash2, X } from 'lucide-react';
+import { DEFAULT_STATUSES } from './GroupedStatusDropdown';
+import { DEFAULT_CALL_STATUSES } from '../../lib/callOutcomeRules';
 import { getChannelDefaults } from '../../lib/customChannels';
-import DateTimePickerCell from './DateTimePickerCell';
-import { getEffectiveUserTimeZone } from '../../lib/dateTime';
+import { COUNTRY_TIMEZONE_OPTIONS } from '../../lib/leadTimezone';
+import { getSupportedTimeZones } from '../../lib/dateTime';
+import { computePortalMenuPosition, portalMenuStyle } from '../../lib/portalMenu';
 
 export default function CRMBulkActionBar({
   selectedIds = [],
@@ -20,6 +19,7 @@ export default function CRMBulkActionBar({
   onStatusChange,
   onChannelChange,
   onMoveToFolder,
+  onSetTimezone,
   onExport,
   onDelete,
   onFieldChange,
@@ -28,208 +28,310 @@ export default function CRMBulkActionBar({
   templates = [],
   teamProfilesMap = {},
   currentUser,
-  canEdit = true
+  canEdit = true,
 }) {
-  const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
-  const [showBulkChannelMenu, setShowBulkChannelMenu] = useState(false);
-  const [showBulkAssignMenu, setShowBulkAssignMenu] = useState(false);
-  const [showCallbackPicker, setShowCallbackPicker] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showFolderMenu, setShowFolderMenu] = useState(false);
+  const [showTzMenu, setShowTzMenu] = useState(false);
+  const [tzQuery, setTzQuery] = useState('');
+  const [folderQuery, setFolderQuery] = useState('');
 
-  if (selectedIds.length === 0) return null;
+  const statusBtnRef = useRef(null);
+  const folderBtnRef = useRef(null);
+  const tzBtnRef = useRef(null);
+  const statusPanelRef = useRef(null);
+  const folderPanelRef = useRef(null);
+  const tzPanelRef = useRef(null);
+
+  const [statusPos, setStatusPos] = useState(null);
+  const [folderPos, setFolderPos] = useState(null);
+  const [tzPos, setTzPos] = useState(null);
 
   const count = selectedIds.length;
-  const userTimeZone = getEffectiveUserTimeZone(currentUser);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (showStatusMenu && !statusBtnRef.current?.contains(e.target) && !statusPanelRef.current?.contains(e.target)) {
+        setShowStatusMenu(false);
+      }
+      if (showFolderMenu && !folderBtnRef.current?.contains(e.target) && !folderPanelRef.current?.contains(e.target)) {
+        setShowFolderMenu(false);
+      }
+      if (showTzMenu && !tzBtnRef.current?.contains(e.target) && !tzPanelRef.current?.contains(e.target)) {
+        setShowTzMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showStatusMenu, showFolderMenu, showTzMenu]);
+
+  if (count === 0) return null;
+
+  const effectiveStatuses = statuses.length > 0
+    ? statuses
+    : (outreachMode === 'calls' ? DEFAULT_CALL_STATUSES : DEFAULT_STATUSES);
+
+  const filteredFolders = folders.filter((f) =>
+    f.name.toLowerCase().includes(folderQuery.trim().toLowerCase()),
+  );
+
+  const allTimezones = [
+    ...COUNTRY_TIMEZONE_OPTIONS.map((c) => ({
+      name: `${c.name} (${c.timezone.split('/').pop()?.replace(/_/g, ' ')})`,
+      tz: c.timezone,
+      dial: c.dial,
+    })),
+  ];
+
+  const filteredTimezones = allTimezones.filter(
+    (item) =>
+      item.name.toLowerCase().includes(tzQuery.toLowerCase()) ||
+      item.tz.toLowerCase().includes(tzQuery.toLowerCase()) ||
+      item.dial.includes(tzQuery.replace(/^\+/, '')),
+  );
+
+  const handleOpenStatus = () => {
+    if (statusBtnRef.current) {
+      setStatusPos(computePortalMenuPosition(statusBtnRef.current, { menuWidth: 180, menuHeight: 240 }));
+    }
+    setShowStatusMenu((p) => !p);
+  };
+
+  const handleOpenFolder = () => {
+    if (folderBtnRef.current) {
+      setFolderPos(computePortalMenuPosition(folderBtnRef.current, { menuWidth: 200, menuHeight: 260 }));
+    }
+    setShowFolderMenu((p) => !p);
+  };
+
+  const handleOpenTz = () => {
+    if (tzBtnRef.current) {
+      setTzPos(computePortalMenuPosition(tzBtnRef.current, { menuWidth: 260, menuHeight: 300 }));
+    }
+    setShowTzMenu((p) => !p);
+  };
 
   return (
-    <div className="bulk-action-bar">
-      <div className="bulk-action-bar__meta">
-        <span>{count} leads selected</span>
+    <div
+      className="bulk-action-bar"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        padding: '0.5rem 0.85rem',
+        background: 'var(--bg-secondary, #1A1A1A)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        marginBottom: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+        <span>{count} selected</span>
         {count === paginatedList.length && activeList.length > paginatedList.length && (
-          <button 
-            onClick={onSelectAll} 
-            className="btn btn-secondary btn-sm bulk-action-bar__link"
+          <button
+            type="button"
+            onClick={onSelectAll}
+            className="btn btn-secondary btn-sm"
+            style={{ fontSize: 11, padding: '2px 6px', height: 22 }}
           >
-            Select all {activeList.length} leads in this view
-          </button>
-        )}
-        {count === activeList.length && activeList.length > paginatedList.length && (
-          <button 
-            onClick={onClearCurrentPage} 
-            className="btn btn-secondary btn-sm bulk-action-bar__link"
-          >
-            Clear selection (keep current page only)
+            Select all {activeList.length} in view
           </button>
         )}
       </div>
-      
-      {!canEdit ? (
-        <div className="bulk-action-bar__actions">
-          <button onClick={onClear} className="btn btn-secondary btn-sm">Clear</button>
-        </div>
-      ) : (
-        <div className="bulk-action-bar__actions">
-          {/* Status Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowBulkStatusMenu(!showBulkStatusMenu)} className="btn btn-secondary btn-sm">
-              Status ▾
-            </button>
-            {showBulkStatusMenu && (
-              <div className="rd-menu rd-menu--anchored" style={{ bottom: '100%', top: 'auto', right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
-                <div className="rd-menu__list">
-                  {(statuses.length > 0 ? statuses : [{label: 'Cold'}, {label: 'Warm'}, {label: 'Hot'}]).map(s => (
-                    <button
-                      key={s.label}
-                      type="button"
-                      className="rd-menu__item"
-                      onClick={() => { onStatusChange(s.label); setShowBulkStatusMenu(false); }}
-                    >
-                      <span className="rd-menu__item-label">{s.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
-          {outreachMode === 'calls' && (
-            <>
-              {/* Call Next Step */}
-              <div style={{ position: 'relative' }}>
-                <EditableDropdown
-                  value=""
-                  columnDef={{ column_type: 'dropdown', dropdown_options: CALL_ACTION_DEFAULT_OPTIONS }}
-                  onChange={(val) => onFieldChange('call_action', val)}
-                  onUpdateColumnDef={() => {}}
-                  placeholder="Call next step"
-                />
-              </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {/* Set timezone */}
+        <button
+          ref={tzBtnRef}
+          type="button"
+          onClick={handleOpenTz}
+          className="btn btn-secondary btn-sm"
+          style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        >
+          <Clock size={13} /> Set timezone
+        </button>
 
-              {/* Script */}
-              <div style={{ position: 'relative' }}>
-                <GroupedTemplateDropdown
-                  value=""
-                  onChange={(val) => onFieldChange('script_used', val)}
-                  templates={templates}
-                  kind={TEMPLATE_KINDS.CALLS}
-                  placeholder="Script"
-                />
-              </div>
-            </>
-          )}
+        {/* Move to list */}
+        <button
+          ref={folderBtnRef}
+          type="button"
+          onClick={handleOpenFolder}
+          className="btn btn-secondary btn-sm"
+          style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        >
+          <FolderInput size={13} /> Move to list
+        </button>
 
-          {/* Channel Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowBulkChannelMenu(!showBulkChannelMenu)} className="btn btn-secondary btn-sm">
-              Channel ▾
-            </button>
-            {showBulkChannelMenu && (
-              <div className="rd-menu rd-menu--anchored" style={{ bottom: '100%', top: 'auto', right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
-                <div className="rd-menu__list">
-                  {getChannelDefaults('messaging').map(c => (
-                    <button
-                      key={c.label}
-                      type="button"
-                      className="rd-menu__item"
-                      onClick={() => { onChannelChange(c.label); setShowBulkChannelMenu(false); }}
-                    >
-                      <span className="rd-menu__item-label">{c.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+        {/* Change status */}
+        <button
+          ref={statusBtnRef}
+          type="button"
+          onClick={handleOpenStatus}
+          className="btn btn-secondary btn-sm"
+          style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        >
+          Change status
+        </button>
 
-          {/* Assign */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowBulkAssignMenu(!showBulkAssignMenu)} className="btn btn-secondary btn-sm">
-              Assign ▾
-            </button>
-            {showBulkAssignMenu && (
-              <div className="rd-menu rd-menu--anchored" style={{ bottom: '100%', top: 'auto', right: 0, left: 'auto', minWidth: 160, zIndex: 9999 }}>
-                <div className="rd-menu__list">
-                  {Object.entries(teamProfilesMap || {}).map(([id, entry]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      className="rd-menu__item"
-                      onClick={() => { onFieldChange('assigned_to', id); setShowBulkAssignMenu(false); }}
-                    >
-                      <span className="rd-menu__item-label">{id === currentUser?.id ? 'You' : (entry.first_name || entry.email)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {outreachMode === 'calls' && (
-            <>
-              {/* Schedule callback */}
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setShowCallbackPicker(!showCallbackPicker)} className="btn btn-secondary btn-sm">
-                  Schedule callback
-                </button>
-                {showCallbackPicker && (
-                  <div style={{ position: 'absolute', bottom: '100%', right: 0, zIndex: 9999, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', marginBottom: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                    <DateTimePickerCell
-                      compact
-                      value={null}
-                      timeZone={userTimeZone}
-                      onChange={(iso) => {
-                        onFieldChange('schedule_callback', iso);
-                        setShowCallbackPicker(false);
-                      }}
-                      placeholder="Select date & time"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to remove these leads from the call queue?")) {
-                    onFieldChange('call_action', 'No call needed');
-                  }
-                }}
-              >
-                Remove from queue
-              </button>
-            </>
-          )}
-
-          {folders.length > 0 && (
-            <RdSelect
-              size="sm"
-              ariaLabel="Move to list"
-              placeholder="Move to list"
-              value=""
-              options={[
-                { value: '__unfiled__', label: '(Unfiled)' },
-                ...folders.map((f) => ({ value: f.id, label: f.name })),
-              ]}
-              onChange={(val) => onMoveToFolder(val === '__unfiled__' ? '' : val)}
-            />
-          )}
-
+        {onExport && (
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
             onClick={onExport}
+            className="btn btn-secondary btn-sm"
+            style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >
-            <Download size={12} /> Export CSV
+            <Download size={13} /> Export
           </button>
-          
-          <button onClick={onDelete} className="btn btn-danger btn-sm" style={{ backgroundColor: 'var(--danger-color)', color: 'white' }}>
-            <Trash2 size={12} /> Delete
+        )}
+
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="btn btn-danger btn-sm"
+            style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <Trash2 size={13} /> Delete
           </button>
-          
-          <button onClick={onClear} className="btn btn-secondary btn-sm">
-            ✕
-          </button>
-        </div>
+        )}
+
+        {/* Clear selection */}
+        <button
+          type="button"
+          onClick={onClear}
+          className="btn btn-secondary btn-sm"
+          title="Clear selection"
+          style={{ height: 28, fontSize: 12, padding: '0 8px' }}
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Portaled Timezone Menu */}
+      {showTzMenu && tzPos && createPortal(
+        <div
+          ref={tzPanelRef}
+          className="rd-menu"
+          style={{ ...portalMenuStyle(tzPos), width: 260, maxHeight: 300, display: 'flex', flexDirection: 'column' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="rd-menu__search" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 6px' }}>
+              <Search size={12} style={{ color: 'var(--text-muted)' }} />
+              <input
+                type="search"
+                className="rd-menu__search-input"
+                placeholder="Search country or timezone…"
+                value={tzQuery}
+                onChange={(e) => setTzQuery(e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 12, color: 'var(--text-primary)' }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="rd-menu__list rd-menu__list--tall" style={{ flex: 1, overflowY: 'auto' }}>
+            {filteredTimezones.map((item) => (
+              <button
+                key={item.tz + item.name}
+                type="button"
+                className="rd-menu__item"
+                onClick={() => {
+                  onSetTimezone?.(item.tz);
+                  setShowTzMenu(false);
+                }}
+                style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 8px' }}
+              >
+                <span className="rd-menu__item-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.name}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+{item.dial}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Portaled Move to List Menu */}
+      {showFolderMenu && folderPos && createPortal(
+        <div
+          ref={folderPanelRef}
+          className="rd-menu"
+          style={{ ...portalMenuStyle(folderPos), width: 200, maxHeight: 260, display: 'flex', flexDirection: 'column' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {folders.length > 5 && (
+            <div className="rd-menu__search" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="search"
+                className="rd-menu__search-input"
+                placeholder="Filter lists…"
+                value={folderQuery}
+                onChange={(e) => setFolderQuery(e.target.value)}
+                style={{ width: '100%', fontSize: 11 }}
+                autoFocus
+              />
+            </div>
+          )}
+          <div className="rd-menu__list" style={{ flex: 1, overflowY: 'auto' }}>
+            <button
+              type="button"
+              className="rd-menu__item"
+              onClick={() => {
+                onMoveToFolder?.('');
+                setShowFolderMenu(false);
+              }}
+              style={{ fontSize: 12, padding: '6px 8px' }}
+            >
+              (Unfiled)
+            </button>
+            {filteredFolders.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="rd-menu__item"
+                onClick={() => {
+                  onMoveToFolder?.(f.id);
+                  setShowFolderMenu(false);
+                }}
+                style={{ fontSize: 12, padding: '6px 8px' }}
+              >
+                <span className="rd-menu__item-label">{f.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Portaled Change Status Menu */}
+      {showStatusMenu && statusPos && createPortal(
+        <div
+          ref={statusPanelRef}
+          className="rd-menu"
+          style={{ ...portalMenuStyle(statusPos), width: 180, maxHeight: 240, overflowY: 'auto' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="rd-menu__list">
+            {effectiveStatuses.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                className="rd-menu__item"
+                onClick={() => {
+                  onStatusChange?.(s.label);
+                  setShowStatusMenu(false);
+                }}
+                style={{ fontSize: 12, padding: '6px 8px' }}
+              >
+                <span className="rd-menu__item-label">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
