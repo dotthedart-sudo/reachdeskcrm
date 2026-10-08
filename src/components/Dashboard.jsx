@@ -465,12 +465,27 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
+  // `invoices` here are rows from revenue_entries (the Revenue Tracker): amount, currency, paid_at, status.
+  // Only money actually received ("paid") this calendar month, in the user's main currency.
+  const mainCurrency = (currentUser?.default_currency || 'USD').toUpperCase();
+  const isPaid = (e) => e.status?.toLowerCase() === 'paid' && e.paid_at;
+  const entryCurrency = (e) => (e.currency || mainCurrency).toUpperCase();
   const thisMonthPaidInvoices = invoices.filter(inv => {
-    if (inv.status?.toLowerCase() !== 'paid') return false;
-    const date = new Date(inv.issue_date || inv.created_at);
+    if (!isPaid(inv)) return false;
+    const date = new Date(inv.paid_at);
     return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
   });
-  const totalRevenueCollected = thisMonthPaidInvoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
+  const totalRevenueCollected = thisMonthPaidInvoices
+    .filter((e) => entryCurrency(e) === mainCurrency)
+    .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+  // Money received this month in other currencies (shown as a small note, not mixed in).
+  const otherCurrencyTotals = thisMonthPaidInvoices
+    .filter((e) => entryCurrency(e) !== mainCurrency)
+    .reduce((acc, e) => { acc[entryCurrency(e)] = (acc[entryCurrency(e)] || 0) + (Number(e.amount) || 0); return acc; }, {});
+  const otherCurrencyNote = Object.entries(otherCurrencyTotals)
+    .filter(([, v]) => v > 0)
+    .map(([cur, v]) => `+ ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v)} ${cur}`)
+    .join(' · ');
   const revenueTarget = Number(currentUser.monthly_revenue_target) || 0;
   const targetPct = revenueTarget > 0 ? Math.min(100, Math.round((totalRevenueCollected / revenueTarget) * 100)) : 0;
 
@@ -557,7 +572,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         <div className="dashboard-kpi-tile">
           <span className="dashboard-kpi-title">Collected</span>
           <span className="dashboard-kpi-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
-          <span className="dashboard-kpi-subtext">this month</span>
+          <span className="dashboard-kpi-subtext">this month{otherCurrencyNote ? ` · ${otherCurrencyNote}` : ''}</span>
         </div>
       </div>
 
@@ -690,7 +705,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
             </div>
             <div className="dashboard-revenue-amount">
               <span className="dashboard-revenue-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
-              <span className="dashboard-revenue-subtext">collected this month</span>
+              <span className="dashboard-revenue-subtext">collected this month{otherCurrencyNote ? ` · ${otherCurrencyNote}` : ''}</span>
             </div>
             <div className="dashboard-revenue-chart">
               {/* Mock 6-month chart layout with actual logic to render bars if we have monthly invoice data */}
@@ -707,7 +722,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 const mYear = d.getFullYear();
                 const mMonth = d.getMonth();
                 const mInvoices = invoices.filter(inv => {
-                  if (inv.status?.toLowerCase() !== 'paid') return false;
+                  if (!isPaid(inv) || entryCurrency(inv) !== mainCurrency) return false;
                   const date = new Date(inv.paid_at);
                   return date.getFullYear() === mYear && date.getMonth() === mMonth;
                 });
