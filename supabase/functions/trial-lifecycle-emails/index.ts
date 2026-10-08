@@ -2,6 +2,25 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requirePrivileged, jsonResponse } from '../_shared/auth.ts';
 import { refreshAccessToken, stopWatchChannel } from '../_shared/googleCalendar.ts';
+import { DEFAULT_FROM_EMAIL } from '../_shared/email.ts';
+
+/** Sends via Resend. Returns true only when Resend accepted the email. */
+async function sendResendEmail(apiKey: string | undefined, payload: Record<string, unknown>): Promise<boolean> {
+  if (!apiKey) {
+    console.error('[trial-lifecycle-emails] RESEND_API_KEY is not set');
+    return false;
+  }
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    console.error(`[trial-lifecycle-emails] Resend failed for ${payload.to}: ${await res.text()}`);
+    return false;
+  }
+  return true;
+}
 
 serve(async (req) => {
   // Check x-cron-secret
@@ -46,17 +65,10 @@ serve(async (req) => {
       try {
         // 1. Trial Ended
         if (daysUntilExpiry <= 0 && !user.trial_ended_email_sent) {
-          if (resendApiKey) {
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${resendApiKey}`,
-              },
-              body: JSON.stringify({
-                from: 'ReachDesk CRM <noreply@reachdeskcrm.com>',
+          const emailSent = await sendResendEmail(resendApiKey, {
+                from: DEFAULT_FROM_EMAIL,
                 reply_to: 'support@reachdeskcrm.com',
-                to: user.email,
+                to: [user.email],
                 subject: 'Your trial has ended — you are now on the Free plan',
                 html: `
                   ${wrapperHeader}
@@ -68,9 +80,7 @@ serve(async (req) => {
                   </div>
                   ${wrapperFooter}
                 `,
-              }),
-            });
-          }
+              });
 
           // Stop Calendar watch
           const { data: calInt } = await supabaseAdmin
@@ -108,23 +118,16 @@ serve(async (req) => {
 
           await supabaseAdmin
             .from('user_profiles')
-            .update({ plan: 'free', trial_ended_email_sent: true })
+            .update({ plan: 'free', trial_ended_email_sent: emailSent })
             .eq('id', user.id);
 
         } 
         // 2. 1-day reminder
         else if (daysUntilExpiry <= 1 && daysUntilExpiry > 0 && !user.trial_reminder_sent) {
-          if (resendApiKey) {
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${resendApiKey}`,
-              },
-              body: JSON.stringify({
-                from: 'ReachDesk CRM <noreply@reachdeskcrm.com>',
+          const emailSent = await sendResendEmail(resendApiKey, {
+                from: DEFAULT_FROM_EMAIL,
                 reply_to: 'support@reachdeskcrm.com',
-                to: user.email,
+                to: [user.email],
                 subject: 'Your trial ends tomorrow',
                 html: `
                   ${wrapperHeader}
@@ -137,24 +140,15 @@ serve(async (req) => {
                   </div>
                   ${wrapperFooter}
                 `,
-              }),
-            });
-          }
-          await supabaseAdmin.from('user_profiles').update({ trial_reminder_sent: true }).eq('id', user.id);
+              });
+          if (emailSent) await supabaseAdmin.from('user_profiles').update({ trial_reminder_sent: true }).eq('id', user.id);
         }
         // 3. 2-day reminder
         else if (daysUntilExpiry <= 2.5 && daysUntilExpiry > 1 && !user.trial_reminder_2day_sent) {
-          if (resendApiKey) {
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${resendApiKey}`,
-              },
-              body: JSON.stringify({
-                from: 'ReachDesk CRM <noreply@reachdeskcrm.com>',
+          const emailSent = await sendResendEmail(resendApiKey, {
+                from: DEFAULT_FROM_EMAIL,
                 reply_to: 'support@reachdeskcrm.com',
-                to: user.email,
+                to: [user.email],
                 subject: 'Your trial ends in 2 days',
                 html: `
                   ${wrapperHeader}
@@ -167,10 +161,8 @@ serve(async (req) => {
                   </div>
                   ${wrapperFooter}
                 `,
-              }),
-            });
-          }
-          await supabaseAdmin.from('user_profiles').update({ trial_reminder_2day_sent: true }).eq('id', user.id);
+              });
+          if (emailSent) await supabaseAdmin.from('user_profiles').update({ trial_reminder_2day_sent: true }).eq('id', user.id);
         }
       } catch (e) {
         console.error(`[trial-lifecycle-emails] Error processing user ${user.id}:`, e);
