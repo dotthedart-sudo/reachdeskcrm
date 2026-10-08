@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 
 import { usePageHeader } from '../context/PageHeaderContext';
+import { getLatestRates, convertToBase } from '../lib/exchangeRates';
 import HelpPopover from './HelpPopover';
 import { celebrateClosedWon } from '../utils/celebrateWin';
 import { useFirstVisitReveal } from '../hooks/useFirstVisitReveal';
@@ -103,6 +104,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
 
   // New States
   const [invoices, setInvoices] = useState([]);
+  const [fxRates, setFxRates] = useState(null); // latest exchange rates, base = user's main currency
   const [suggestionRules, setSuggestionRules] = useState([]);
   const [leadsList, setLeadsList] = useState([]);
   const [upNextFeed, setUpNextFeed] = useState([]);
@@ -341,6 +343,15 @@ export default function Dashboard({ currentUser, onSelectLead }) {
     }
   }, [currentUser?.id, windowDays, dashboardScope]); // removed teamProfilesMap to stop flickering
 
+  // Latest exchange rates into the user's main currency (only needed when some revenue is in another currency).
+  const needsFx = invoices.some((e) => e.currency && e.currency.toUpperCase() !== (currentUser?.default_currency || 'USD').toUpperCase());
+  useEffect(() => {
+    if (!needsFx) return;
+    let cancelled = false;
+    getLatestRates(currentUser?.default_currency || 'USD').then((data) => { if (!cancelled) setFxRates(data); });
+    return () => { cancelled = true; };
+  }, [needsFx, currentUser?.default_currency]);
+
   // Digest push deep-link: scroll to Due Follow-ups
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -466,26 +477,44 @@ export default function Dashboard({ currentUser, onSelectLead }) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
   // `invoices` here are rows from revenue_entries (the Revenue Tracker): amount, currency, paid_at, status.
-  // Only money actually received ("paid") this calendar month, in the user's main currency.
+  // Only money actually received ("paid"). Every currency is converted to the user's main currency at the latest rate.
   const mainCurrency = (currentUser?.default_currency || 'USD').toUpperCase();
   const isPaid = (e) => e.status?.toLowerCase() === 'paid' && e.paid_at;
   const entryCurrency = (e) => (e.currency || mainCurrency).toUpperCase();
+  const fmtNum = (v) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v);
+  // Converted amount of one entry, or null if we have no rate for its currency yet.
+  const inMain = (e) => convertToBase(Number(e.amount) || 0, entryCurrency(e), mainCurrency, fxRates?.rates);
+  const sumInMain = (list) => list.reduce((sum, e) => sum + (inMain(e) ?? 0), 0);
+
   const thisMonthPaidInvoices = invoices.filter(inv => {
     if (!isPaid(inv)) return false;
     const date = new Date(inv.paid_at);
     return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
   });
-  const totalRevenueCollected = thisMonthPaidInvoices
-    .filter((e) => entryCurrency(e) === mainCurrency)
-    .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-  // Money received this month in other currencies (shown as a small note, not mixed in).
-  const otherCurrencyTotals = thisMonthPaidInvoices
-    .filter((e) => entryCurrency(e) !== mainCurrency)
-    .reduce((acc, e) => { acc[entryCurrency(e)] = (acc[entryCurrency(e)] || 0) + (Number(e.amount) || 0); return acc; }, {});
-  const otherCurrencyNote = Object.entries(otherCurrencyTotals)
-    .filter(([, v]) => v > 0)
-    .map(([cur, v]) => `+ ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v)} ${cur}`)
-    .join(' · ');
+  const totalRevenueCollected = sumInMain(thisMonthPaidInvoices);
+
+  // Per-currency breakdown (original amounts) for the hover tooltip.
+  const currencyBreakdown = thisMonthPaidInvoices.reduce((acc, e) => {
+    const cur = entryCurrency(e);
+    acc[cur] = (acc[cur] || 0) + (Number(e.amount) || 0);
+    return acc;
+  }, {});
+  const hasForeign = Object.keys(currencyBreakdown).some((c) => c !== mainCurrency);
+  const unconverted = Object.entries(currencyBreakdown).filter(([cur]) => cur !== mainCurrency && !fxRates?.rates?.[cur]);
+  const revenueTooltip = hasForeign
+    ? [
+        ...Object.entries(currencyBreakdown).map(([cur, v]) => {
+          const c = convertToBase(v, cur, mainCurrency, fxRates?.rates);
+          return cur === mainCurrency ? `${fmtNum(v)} ${cur}` : `${fmtNum(v)} ${cur}${c != null ? ` → ${fmtNum(c)} ${mainCurrency}` : ' (rate not available)'}`;
+        }),
+        fxRates?.date ? `Rates as of ${fxRates.date}` : 'Latest exchange rates',
+      ].join('\n')
+    : undefined;
+  const revenueNote = !hasForeign
+    ? ''
+    : unconverted.length
+      ? `not counted: ${unconverted.map(([cur, v]) => `${fmtNum(v)} ${cur}`).join(', ')} (rate unavailable)`
+      : 'converted at today\'s rate';
   const revenueTarget = Number(currentUser.monthly_revenue_target) || 0;
   const targetPct = revenueTarget > 0 ? Math.min(100, Math.round((totalRevenueCollected / revenueTarget) * 100)) : 0;
 
@@ -571,8 +600,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         </div>
         <div className="dashboard-kpi-tile">
           <span className="dashboard-kpi-title">Collected</span>
-          <span className="dashboard-kpi-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
-          <span className="dashboard-kpi-subtext">this month{otherCurrencyNote ? ` · ${otherCurrencyNote}` : ''}</span>
+          <span className="dashboard-kpi-value" title={revenueTooltip}>{hasForeign ? '≈ ' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
+          <span className="dashboard-kpi-subtext">this month{revenueNote ? ` · ${revenueNote}` : ''}</span>
         </div>
       </div>
 
@@ -704,8 +733,8 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               <button className="dashboard-link" onClick={() => navigate('/settings')}>Set target</button>
             </div>
             <div className="dashboard-revenue-amount">
-              <span className="dashboard-revenue-value">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
-              <span className="dashboard-revenue-subtext">collected this month{otherCurrencyNote ? ` · ${otherCurrencyNote}` : ''}</span>
+              <span className="dashboard-revenue-value" title={revenueTooltip}>{hasForeign ? '≈ ' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
+              <span className="dashboard-revenue-subtext">collected this month{revenueNote ? ` · ${revenueNote}` : ''}</span>
             </div>
             <div className="dashboard-revenue-chart">
               {/* Mock 6-month chart layout with actual logic to render bars if we have monthly invoice data */}
@@ -722,11 +751,11 @@ export default function Dashboard({ currentUser, onSelectLead }) {
                 const mYear = d.getFullYear();
                 const mMonth = d.getMonth();
                 const mInvoices = invoices.filter(inv => {
-                  if (!isPaid(inv) || entryCurrency(inv) !== mainCurrency) return false;
+                  if (!isPaid(inv)) return false;
                   const date = new Date(inv.paid_at);
                   return date.getFullYear() === mYear && date.getMonth() === mMonth;
                 });
-                return mInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+                return sumInMain(mInvoices);
               });
               const maxMonth = Math.max(...sixMonthTotals, 1);
               const chartDivisor = revenueTarget > 0 ? Math.max(maxMonth, revenueTarget) : maxMonth;
