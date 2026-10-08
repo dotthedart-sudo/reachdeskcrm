@@ -25,6 +25,8 @@ export default function DateTimePickerCell({
   customLabel,
   isOverdue = false,
   isPlaceholder = false,
+  /** Show only a small clock button (no date text) — keeps pill columns narrow. */
+  iconOnly = false,
 }) {
   const [open, setOpen] = useState(autoOpen);
   const [draft, setDraft] = useState('');
@@ -205,8 +207,45 @@ export default function DateTimePickerCell({
   );
 
   const displayColor = isOverdue
-    ? 'var(--accent-red, #ef4444)'
+    ? 'var(--rd-overdue, #D97706)'
     : (isPlaceholder || !value ? 'var(--text-muted)' : 'var(--text-secondary)');
+
+  if (iconOnly) {
+    const iconTitle = value
+      ? `${isOverdue ? 'Overdue · ' : ''}${formatActivityDateTime(value, { timeZone: tz, showZone: true })}`
+      : 'Set callback time';
+    return (
+      <div ref={wrapRef} className="dt-picker-cell dt-picker-cell--icon" style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled}
+          aria-label={iconTitle}
+          title={iconTitle}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!disabled) setOpen((v) => !v);
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            padding: 0,
+            border: 'none',
+            borderRadius: 4,
+            background: 'transparent',
+            cursor: disabled ? 'default' : 'pointer',
+            color: isOverdue ? 'var(--rd-overdue, #D97706)' : (value ? 'var(--text-secondary)' : 'var(--text-muted)'),
+          }}
+        >
+          <CalendarClock size={14} />
+        </button>
+        {panel}
+      </div>
+    );
+  }
 
   return (
     <div ref={wrapRef} className="dt-picker-cell" style={{ position: 'relative', width: '100%', minWidth: 0, display: 'block' }}>

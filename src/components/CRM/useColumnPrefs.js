@@ -174,10 +174,20 @@ export function useColumnPrefs({
     applyPatches({ [def.id]: { width: null } });
   }, [defsByKey, legacy, applyPatches]);
 
-  const autoFitWidth = useCallback((key) => {
+  /**
+   * Double-click auto-fit. `measuredWidth` comes from the real rendered cells
+   * (header + every row), so the column ends exactly where the widest content ends.
+   * Pill columns never go below their widest option. Falls back to the estimate.
+   */
+  const autoFitWidth = useCallback((key, measuredWidth) => {
     const def = defsByKey.get(key);
-    const autoW = computePillColumnAutoFitWidth(def || { column_key: key }, optionsContext);
-    setWidth(key, autoW);
+    const ref = def || { column_key: key };
+    if (measuredWidth && Number.isFinite(measuredWidth)) {
+      const minW = computePillColumnMinWidth(ref, optionsContext);
+      setWidth(key, Math.max(minW, Math.min(MAX_COL, measuredWidth)));
+      return;
+    }
+    setWidth(key, computePillColumnAutoFitWidth(ref, optionsContext));
   }, [defsByKey, optionsContext, setWidth]);
 
   // When a user adds/renames a dropdown option to something longer, recompute minWidth and widen the column automatically
@@ -275,6 +285,7 @@ export function useColumnPrefs({
     showColumns,
     resetOrder,
     setColumnOrder,
+    reorderColumns: setColumnOrder,
     setColumnDefs,
   };
 }

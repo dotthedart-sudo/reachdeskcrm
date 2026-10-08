@@ -1,0 +1,47 @@
+.rd-script-panel {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  bottom: 16px;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary);
+  border: 1px solid var(--border, #E8E8E6);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .18), 0 2px 6px rgba(0, 0, 0, .08);
+  z-index: 1003;
+  animation: rdScriptIn .16s ease-out;
+}
+:root:not(.light) .rd-script-panel { box-shadow: 0 16px 40px rgba(0, 0, 0, .55); }
+@keyframes rdScriptIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+.rd-script-panel__head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--border, #E8E8E6); flex-shrink: 0;
+}
+.rd-script-panel__eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.rd-script-panel__title { margin: 2px 0 4px; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-script-panel__lead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
+.rd-script-panel__phone { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); text-decoration: none; font-variant-numeric: tabular-nums; }
+.rd-script-panel__phone:hover { color: var(--text-primary); }
+.rd-script-panel__icon { border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 6px; display: flex; }
+.rd-script-panel__icon:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.rd-script-panel__body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; overscroll-behavior: contain; }
+.rd-script-panel__text { margin: 0; white-space: pre-wrap; font-size: 15px; line-height: 1.7; }
+.rd-script-panel__gap { background: rgba(245, 158, 11, .18); color: var(--rd-overdue, #B45309); border-radius: 3px; padding: 0 2px; }
+.rd-script-panel__empty { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+.rd-script-panel__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 16px; border-top: 1px solid var(--border, #E8E8E6); flex-shrink: 0;
+}
+.rd-script-panel__hint { font-size: 12px; color: var(--text-muted); }
+
+/* Phones: full-screen sheet above the bottom nav */
+@media (max-width: 768px) {
+  .rd-script-panel { top: 0; right: 0; bottom: 0; left: 0; width: auto; max-width: none; border-radius: 0; border: none; height: 100dvh; }
+}

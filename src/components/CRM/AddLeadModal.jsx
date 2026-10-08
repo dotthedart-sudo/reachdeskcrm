@@ -247,6 +247,11 @@ export default function AddLeadModal({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          // Fit the screen (phones included): header + footer stay put, the fields scroll.
+          maxHeight: 'calc(100dvh - 32px)',
+          // The shared .modal-content adds 2rem padding + gap; this modal has its own header/body/footer spacing.
+          padding: 0,
+          gap: 0,
         }}
       >
         {/* Header */}
@@ -257,6 +262,7 @@ export default function AddLeadModal({
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'space-between',
+            flexShrink: 0,
           }}
         >
           <div>
@@ -310,8 +316,21 @@ export default function AddLeadModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div
+            className="rd-modal-scroll"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
             
             {/* Field 1: Name */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -345,7 +364,7 @@ export default function AddLeadModal({
 
             {/* Field 2: Email & Phone on one row */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '10px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                   <label 
                     htmlFor="lead-add-email" 
@@ -491,7 +510,7 @@ export default function AddLeadModal({
                     gap: '10px',
                   }}
                 >
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '10px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted, #8E8D8A)' }}>
                         Status
@@ -514,7 +533,7 @@ export default function AddLeadModal({
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '10px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted, #8E8D8A)' }}>
                         Channel
@@ -609,6 +628,7 @@ export default function AddLeadModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexShrink: 0,
             }}
           >
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary, #6B7280)', cursor: 'pointer' }}>

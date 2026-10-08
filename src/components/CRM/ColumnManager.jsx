@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as Gear, Trash2, Plus, X, RefreshCw, GripVertical, Eye, EyeOff, Pin, PinOff, WrapText, Scissors } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { isAlwaysClipped, DEFAULT_COLUMN_ORDER } from './crmTableColumns';
+import {
+  isAlwaysClipped,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_VISIBLE_COLUMNS,
+  MESSAGE_DEFAULT_DEFS,
+  CALL_QUEUE_DEFAULT_DEFS,
+  RETIRED_COLUMN_KEYS,
+} from './crmTableColumns';
+
+const DEFAULT_DEFS_BY_TAB = { pipeline: MESSAGE_DEFAULT_DEFS, call_queue: CALL_QUEUE_DEFAULT_DEFS };
 
 const TAB_CONFIG = [
-  { id: 'contact_details', label: 'Message · Contact' },
-  { id: 'pipeline', label: 'Message · Pipeline' },
-  { id: 'call_queue', label: 'Cold Calls · Queue' },
+  { id: 'pipeline', label: 'Message Outreach' },
+  { id: 'call_queue', label: 'Cold Calls' },
 ];
 
 function tabLabel(id) {
@@ -22,7 +30,7 @@ export default function ColumnManager({
   onResetToDefault,
   userId,
 }) {
-  const [activeTab, setActiveTab] = useState('contact_details');
+  const [activeTab, setActiveTab] = useState('pipeline');
   const [allCols, setAllCols] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editingLabel, setEditingLabel] = useState('');
@@ -33,14 +41,16 @@ export default function ColumnManager({
 
   useEffect(() => {
     if (isOpen) {
-      const initial = view === 'call_queue' ? 'call_queue' : (view === 'pipeline' ? 'pipeline' : 'contact_details');
+      const initial = view === 'call_queue' ? 'call_queue' : 'pipeline';
       setActiveTab(initial);
       setAllCols(JSON.parse(JSON.stringify(columns || [])));
       setShowAddForm(false);
     }
   }, [isOpen, columns, view]);
 
-  const currentTabCols = allCols.filter((c) => c.table_view === activeTab);
+  const currentTabCols = allCols.filter(
+    (c) => c.table_view === activeTab && !(c.is_default && RETIRED_COLUMN_KEYS[activeTab]?.has(c.column_key)),
+  );
 
   // Group into pinned and unpinned, preserving sort_order
   const pinnedCols = currentTabCols.filter((c) => c.is_pinned).sort((a, b) => a.sort_order - b.sort_order);
@@ -127,41 +137,37 @@ export default function ColumnManager({
   };
 
   const handleReset = () => {
-    const defaultVisible = {
-      pipeline: ['name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email'],
-      contact_details: ['name', 'priority', 'status', 'outreach_channel', 'action_to_take', 'next_checkpoint_at', 'last_contacted_at', 'platform', 'email'],
-      call_queue: ['name', 'phone', 'local_time', 'outcome', 'call_action', 'next_checkpoint_at', 'last_called', 'platform'],
-    }[activeTab] || [];
-
+    const defaultVisible = DEFAULT_VISIBLE_COLUMNS[activeTab] || [];
     const defaultOrder = DEFAULT_COLUMN_ORDER[activeTab] || [];
+    const defaultDefs = DEFAULT_DEFS_BY_TAB[activeTab] || [];
     let tabCols = [...currentTabCols];
 
-    if (!tabCols.some((c) => c.column_key === 'next_checkpoint_at')) {
+    // Add any default column the user doesn't have yet (e.g. Follow-up).
+    defaultDefs.forEach((d) => {
+      if (tabCols.some((c) => c.column_key === d.column_key)) return;
       tabCols.push({
+        ...d,
         id: crypto.randomUUID(),
         user_id: userId,
         table_view: activeTab,
-        column_key: 'next_checkpoint_at',
-        column_label: 'Due',
-        column_type: 'datetime',
-        is_visible: true,
-        is_default: true,
         is_pinned: false,
         wrap_mode: 'clip',
-        sort_order: 5,
-        dropdown_options: [],
       });
-    }
+    });
 
     const updated = tabCols.map((c) => {
       const isVis = defaultVisible.includes(c.column_key);
       const visIdx = defaultVisible.indexOf(c.column_key);
       const hiddenIdx = defaultOrder.indexOf(c.column_key);
+      const def = c.is_default ? defaultDefs.find((d) => d.column_key === c.column_key) : null;
       return {
         ...c,
+        // Default columns get their default name/type back; custom columns keep theirs.
+        ...(def ? { column_label: def.column_label, column_type: def.column_type } : {}),
         is_visible: isVis,
         is_pinned: false,
         wrap_mode: 'clip',
+        width: null,
         sort_order: isVis ? visIdx : (hiddenIdx >= 0 ? 100 + hiddenIdx : 999),
       };
     }).sort((a, b) => a.sort_order - b.sort_order);
@@ -198,6 +204,7 @@ export default function ColumnManager({
             is_default: c.is_default,
             is_pinned: !!c.is_pinned,
             wrap_mode: c.wrap_mode || 'clip',
+            width: c.width ?? null,
             sort_order: idx,
             dropdown_options: c.dropdown_options,
           });

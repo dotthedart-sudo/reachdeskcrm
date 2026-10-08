@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CalendarClock, FileText } from 'lucide-react';
+import ScriptViewerPanel from './ScriptViewerPanel';
 import {
   PhoneCall,
   Settings as Gear,
@@ -22,7 +24,6 @@ import OutcomeBadge from './OutcomeBadge';
 import GroupedTemplateDropdown from '../GroupedTemplateDropdown';
 import GroupedChannelDropdown from '../GroupedChannelDropdown';
 import CustomFieldCell from '../CustomFieldCell';
-import QuickAddLeadRow from '../QuickAddLeadRow';
 import { ReachIcons } from '../../icons/PlatformIcons';
 import { TEMPLATE_KINDS } from '../../../lib/templateKinds';
 import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS } from '../crmTableColumns';
@@ -30,6 +31,7 @@ import { fetchMyCallAttempts } from '../../../lib/callActivity';
 import { getCallActionForStatus, displayCallStatus } from '../../../lib/callOutcomeRules';
 import { attemptsByLeadMap, allAttemptsByLeadMap, buildOutreachSessionQueue } from '../../../lib/outreachQueue';
 import { formatLocalTime, getEffectiveUserTimeZone } from '../../../lib/dateTime';
+import { formatDueText, formatLastContactedText } from '../../../lib/crmTableFormatters';
 import { isLeadCallableNow } from '../../../lib/leadTimezone';
 import CallingSession from './CallingSession';
 import ManageCallAttemptsModal from './ManageCallAttemptsModal';
@@ -81,7 +83,8 @@ export default function CallQueueTable({
   const [editLatest, setEditLatest] = useState(null);
   const [autoOpenCallbackLeadId, setAutoOpenCallbackLeadId] = useState(null);
 
-  const { showToast } = useAppContext() || {};
+  const { showToast, userSnippets = [] } = useAppContext() || {};
+  const [scriptView, setScriptView] = useState(null); // { leadId, scriptId }
 
   const columnPrefs = useColumnPrefs({
     tableView: 'call_queue',
@@ -100,7 +103,7 @@ export default function CallQueueTable({
   const tableCols = useMemo(() => {
     const cols = getTableColumns(columnDefs, 'call_queue').filter((c) => c.column_key !== '_actions');
     if (cols.length > 0) return cols;
-    return CALL_QUEUE_DEFAULT_DEFS.map((d, i) => ({ ...d, id: `default-${d.column_key}`, sort_order: i }));
+    return CALL_QUEUE_DEFAULT_DEFS.filter((d) => d.is_visible).map((d, i) => ({ ...d, id: `default-${d.column_key}`, sort_order: i }));
   }, [columnDefs]);
 
   const callActionColDef = useMemo(
@@ -177,8 +180,8 @@ export default function CallQueueTable({
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
                 <span style={{ fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} data-ph-mask>{displayName}</span>
                 {isCallbackDue && (
-                  <span className="sim-badge" style={{ background: 'var(--status-warm, #f59e0b)', color: '#fff', fontSize: '0.7rem', padding: '1px 5px', borderRadius: '3px' }}>
-                    Callback due
+                  <span title="Callback due" aria-label="Callback due" style={{ display: 'inline-flex', color: 'var(--rd-overdue, #D97706)', flexShrink: 0 }}>
+                    <CalendarClock size={13} />
                   </span>
                 )}
               </div>
@@ -261,36 +264,25 @@ export default function CallQueueTable({
       }
       case 'next_checkpoint_at': {
         const nextTime = lead.next_checkpoint_at;
-        const isOverdue = nextTime && new Date(nextTime) <= new Date();
+        const dueInfo = formatDueText(nextTime, lead.call_action);
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <DateTimePickerCell
-                compact
-                mode="future"
-                autoOpen={autoOpenCallbackLeadId === lead.id}
-                value={nextTime || null}
-                timeZone={userTimeZone}
-                onChange={(iso) => {
-                  onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
-                  if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
-                }}
-                placeholder="—"
-                disabled={viewerFolderAccess}
-              />
-              {isOverdue && (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: '#FBBF24',
-                    fontWeight: 500,
-                  }}
-                  title="Overdue callback"
-                >
-                  Overdue
-                </span>
-              )}
-            </div>
+            <DateTimePickerCell
+              compact
+              mode="future"
+              autoOpen={autoOpenCallbackLeadId === lead.id && !tableCols.some((c) => c.column_key === 'call_action')}
+              value={nextTime || null}
+              timeZone={userTimeZone}
+              customLabel={dueInfo?.text}
+              isOverdue={dueInfo?.isOverdue}
+              isPlaceholder={dueInfo?.isPlaceholder}
+              onChange={(iso) => {
+                onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
+                if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
+              }}
+              placeholder="—"
+              disabled={viewerFolderAccess}
+            />
           </td>
         );
       }
@@ -314,7 +306,8 @@ export default function CallQueueTable({
           </td>
         );
       case 'status': {
-        const isCallbackReq = displayCallStatus(lead.call_status) === 'Callback requested';
+        const isCallbackReq = displayCallStatus(lead.call_status) === 'Callback requested'
+          && !tableCols.some((c) => c.column_key === 'call_action');
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: '100%' }}>
@@ -328,16 +321,16 @@ export default function CallQueueTable({
               />
               {isCallbackReq && (
                 <DateTimePickerCell
-                  compact
+                  iconOnly
                   mode="future"
                   autoOpen={autoOpenCallbackLeadId === lead.id}
                   value={lead.next_checkpoint_at}
                   timeZone={userTimeZone}
+                  isOverdue={!!lead.next_checkpoint_at && new Date(lead.next_checkpoint_at) <= new Date()}
                   onChange={(iso) => {
                     onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
                     if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
                   }}
-                  placeholder="Set time"
                 />
               )}
             </div>
@@ -369,16 +362,16 @@ export default function CallQueueTable({
               />
               {isCallbackScheduled && (
                 <DateTimePickerCell
-                  compact
+                  iconOnly
                   mode="future"
                   autoOpen={autoOpenCallbackLeadId === lead.id}
                   value={lead.next_checkpoint_at}
                   timeZone={userTimeZone}
+                  isOverdue={!!lead.next_checkpoint_at && new Date(lead.next_checkpoint_at) <= new Date()}
                   onChange={(iso) => {
                     onFieldChange?.(lead.id, 'next_checkpoint_at', iso);
                     if (autoOpenCallbackLeadId === lead.id) setAutoOpenCallbackLeadId(null);
                   }}
-                  placeholder="Set time"
                 />
               )}
               {isMismatch && (
@@ -399,19 +392,43 @@ export default function CallQueueTable({
           </td>
         );
       }
-      case 'script_used':
+      case 'script_used': {
+        const isOpen = scriptView?.leadId === lead.id;
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
-            <GroupedTemplateDropdown
-              value={lead.script_used || ''}
-              onChange={(val) => onFieldChange?.(lead.id, 'script_used', val)}
-              templates={templates}
-              kind={TEMPLATE_KINDS.CALLS}
-              placeholder="None"
-              isTableInline={true}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <GroupedTemplateDropdown
+                  value={lead.script_used || ''}
+                  onChange={(val) => {
+                    onFieldChange?.(lead.id, 'script_used', val);
+                    if (val) setScriptView({ leadId: lead.id, scriptId: val });
+                  }}
+                  templates={templates}
+                  kind={TEMPLATE_KINDS.CALLS}
+                  placeholder="None"
+                  isTableInline={true}
+                />
+              </div>
+              {lead.script_used && (
+                <button
+                  type="button"
+                  className="rd-script-open-btn"
+                  title="Open script for this lead"
+                  aria-label="Open script for this lead"
+                  aria-pressed={isOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setScriptView(isOpen ? null : { leadId: lead.id, scriptId: lead.script_used });
+                  }}
+                >
+                  <FileText size={14} />
+                </button>
+              )}
+            </div>
           </td>
         );
+      }
       case 'last_called':
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
@@ -426,19 +443,28 @@ export default function CallQueueTable({
             />
           </td>
         );
-      case 'last_contacted_at':
+      case 'last_contacted_at': {
+        // Most recent touch: a logged call or a manual "last contacted".
+        const touches = [lead.last_contacted_at, lead.last_called_at, last?.occurred_at || last?.created_at]
+          .filter(Boolean)
+          .map((v) => new Date(v))
+          .filter((d) => !isNaN(d));
+        const latest = touches.length ? new Date(Math.max(...touches)).toISOString() : null;
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
             <DateTimePickerCell
               compact
               mode="past"
-              value={lead.last_contacted_at || null}
+              value={latest}
+              customLabel={latest ? formatLastContactedText(latest) : undefined}
               timeZone={userTimeZone}
               onChange={(iso) => onFieldChange?.(lead.id, 'last_contacted_at', iso)}
               placeholder="—"
+              disabled={viewerFolderAccess}
             />
           </td>
         );
+      }
       case 'priority':
         return (
           <td {...cellProps} onClick={(e) => e.stopPropagation()}>
@@ -588,8 +614,6 @@ export default function CallQueueTable({
                 display: 'inline-flex',
                 padding: 2,
                 borderRadius: 6,
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
               }}
             >
               <button
@@ -605,8 +629,6 @@ export default function CallQueueTable({
                   borderRadius: 4,
                   border: 'none',
                   cursor: 'pointer',
-                  background: callSubView === 'queue' ? 'var(--bg-card, #262626)' : 'transparent',
-                  color: callSubView === 'queue' ? 'var(--text-primary)' : 'var(--text-muted)',
                 }}
               >
                 Queue
@@ -624,8 +646,6 @@ export default function CallQueueTable({
                   borderRadius: 4,
                   border: 'none',
                   cursor: 'pointer',
-                  background: callSubView === 'log' ? 'var(--bg-card, #262626)' : 'transparent',
-                  color: callSubView === 'log' ? 'var(--text-primary)' : 'var(--text-muted)',
                 }}
               >
                 Call log
@@ -723,7 +743,7 @@ export default function CallQueueTable({
               )
             : null
         }
-        showRowNumbers={true}
+        showRowNumbers={false}
         getRowNumber={(lead, idx) => (allLeads.length ? allLeads.findIndex((l) => l.id === lead.id) + 1 : idx + 1)}
         renderHeaderLabel={(col) => col.column_label}
         getHeaderText={(col) => col.column_label}
@@ -733,15 +753,6 @@ export default function CallQueueTable({
           const attemptList = scopedAttempts.filter((a) => a.lead_id === lead.id);
           return renderCellContent(col, lead, last, attemptList, cellProps);
         }}
-        topRow={
-          onQuickAddLead ? (
-            <QuickAddLeadRow
-              totalCols={totalCols}
-              onQuickAdd={onQuickAddLead}
-              disabled={viewerFolderAccess}
-            />
-          ) : null
-        }
         reachMode={reachMode}
         onSetReachMode={onSetReachMode}
         emptyMessage="No leads in this calling queue."
@@ -749,6 +760,16 @@ export default function CallQueueTable({
       <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 8, paddingLeft: 4 }}>
         {leads.length} of {allLeads.length || leads.length} leads
       </div>
+
+      <ScriptViewerPanel
+        open={!!scriptView}
+        script={scriptView ? templates.find((t) => t.id === scriptView.scriptId) : null}
+        lead={scriptView ? (allLeads.find((l) => l.id === scriptView.leadId) || leads.find((l) => l.id === scriptView.leadId)) : null}
+        snippets={userSnippets}
+        columnDefs={columnDefs}
+        onClose={() => setScriptView(null)}
+        onCopied={(msg) => (onCopied ? onCopied(msg) : showToast?.(msg))}
+      />
 
       <ManageCallAttemptsModal
         open={!!manageLead}

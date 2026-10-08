@@ -66,6 +66,11 @@
   --bg: #151515;
   --sidebar-bg: #111111;
   --bg-raised: #232323;
+  --rd-overdue: #FBBF24; /* amber: overdue follow-ups */
+  --rd-seg-track: #141414;
+  --rd-seg-border: #262626;
+  --rd-seg-active: #2E2E2E;
+  --rd-seg-shadow: 0 1px 2px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.04);
   --bg-active: #2A2A2A;
   --bg-subtle: #1F1F1F;
   --bg-page:         var(--bg); /* L0 — canvas */
@@ -117,6 +122,11 @@
 :root.light {
   --bg: #FFFFFF;
   --bg-raised: #F3F4F6;
+  --rd-overdue: #B45309;
+  --rd-seg-track: #EDEDEB;
+  --rd-seg-border: #E2E2DF;
+  --rd-seg-active: #FFFFFF;
+  --rd-seg-shadow: 0 1px 2px rgba(0,0,0,.10), 0 0 0 1px rgba(0,0,0,.04);
   --bg-active: #E5E7EB;
   --bg-subtle: #F9FAFB;
   --bg-page:         #FFFFFF;
@@ -253,6 +263,9 @@ h3 { font-size: var(--text-md); }
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Without this, on phones (.app-container is a column) app-main grows to the full
+     content height, .app-container clips it, and .main-content never scrolls. */
+  min-height: 0;
 }
 
 /* Shared app header — sticky, full content width, ~56px */
@@ -839,8 +852,8 @@ html[data-theme="dark"] .rd-pill__dot,
   gap: 2px;
   padding: 2px;
   border-radius: 8px;
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border);
+  background: var(--rd-seg-track);
+  border: 1px solid var(--rd-seg-border);
   width: fit-content;
 }
 
@@ -860,10 +873,19 @@ html[data-theme="dark"] .rd-pill__dot,
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+.rd-segmented__btn:not(.rd-segmented__btn--active):hover {
+  color: var(--text-secondary);
+}
+
 .rd-segmented__btn--active {
-  background: var(--bg-card);
+  background: var(--rd-seg-active);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--rd-seg-shadow);
+}
+
+.rd-segmented__btn:focus-visible {
+  outline: 2px solid var(--accent-blue, #2563EB);
+  outline-offset: 1px;
 }
 
 .rd-segmented__icon {
@@ -6982,7 +7004,8 @@ select option {
   border-radius: 10px;
   border: none;
   white-space: nowrap;
-  background: var(--bg-elevated, var(--bg-secondary));
+  --tip-bg: #FFFFFF;
+  background: var(--tip-bg);
   color: var(--text-primary);
   font-size: 12px;
   line-height: 1;
@@ -6999,7 +7022,7 @@ select option {
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: var(--bg-elevated, var(--bg-secondary));
+  border-top-color: var(--tip-bg);
 }
 .dashboard-pipeline-segment:hover .pipeline-tip {
   opacity: 1;
@@ -7043,7 +7066,8 @@ select option {
   transform: none;
 }
 [data-theme="dark"] .pipeline-tip {
-  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  --tip-bg: #2C2C2C;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.04);
 }
 
 .dashboard-pipeline-legend {
@@ -7297,3 +7321,45 @@ select option {
 
 
 
+
+/* ── Reach column: icons + "+N" overflow ─────────────────────────── */
+.rd-reach-icon { opacity: .85; transition: opacity .15s ease; }
+.rd-reach-icon:hover { opacity: 1; }
+.rd-reach-more {
+  flex-shrink: 0;
+  height: 18px;
+  min-width: 22px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: var(--bg-hover, rgba(0,0,0,.05));
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+}
+.rd-reach-more:hover { color: var(--text-primary); }
+.rd-reach-menu .rd-menu__item { display: flex; align-items: center; gap: 8px; }
+
+/* Calls table: "open script" button next to the Script dropdown */
+.rd-script-open-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.rd-script-open-btn:hover,
+.rd-script-open-btn[aria-pressed="true"] {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}

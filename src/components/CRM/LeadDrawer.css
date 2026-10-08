@@ -431,3 +431,13 @@ html[data-theme="dark"] .lead-drawer__action-btn--primary,
   background-color: #262626;
   border-color: #383838;
 }
+
+/* Phones: the drawer is a full-screen sheet above the bottom nav bar (z 1000),
+   and uses the dynamic viewport height so the mobile browser bar doesn't cut it. */
+@media (max-width: 768px) {
+  .lead-drawer__backdrop { z-index: 1001; }
+  .lead-drawer__panel {
+    z-index: 1002;
+    height: 100dvh;
+  }
+}

@@ -47,7 +47,10 @@ export default function Templates({
   const [toastMessage, setToastMessage] = useState('');
   const [showTemplateLimitBlockModal, setShowTemplateLimitBlockModal] = useState(false);
   const [expandedSections, setExpandedSections] = useState({ 'MY TEMPLATES': true });
-  const [libraryTab, setLibraryTab] = useState('messages');
+  // ?tab=scripts opens the call-scripts library directly (linked from the Calls table).
+  const [libraryTab, setLibraryTab] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('tab') === 'scripts' ? 'scripts' : 'messages'; } catch { return 'messages'; }
+  });
   const [selectedTag, setSelectedTag] = useState('All');
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);

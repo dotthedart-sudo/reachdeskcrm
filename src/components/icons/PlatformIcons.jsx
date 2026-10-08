@@ -350,107 +350,192 @@ export const ReachIcons = ({ lead, columnDefs = [], onReachClick, reachMode = 'i
   }
 
   // ── Icons display mode: icons with platform colors ──
+  const items = uniqueLinks.map(({ platform, url }) => {
+    let IconComp = null;
+    let iconColor = '#6B7280';
+    const mapKey = (platform || '').toLowerCase();
+    let displayPlatform = platform || 'Website';
+
+    if (mapKey.includes('linkedin')) {
+      IconComp = PLATFORM_MAP.linkedin.icon; iconColor = PLATFORM_MAP.linkedin.color; displayPlatform = 'LinkedIn';
+    } else if (mapKey.includes('instagram')) {
+      IconComp = PLATFORM_MAP.instagram.icon; iconColor = PLATFORM_MAP.instagram.color; displayPlatform = 'Instagram';
+    } else if (mapKey.includes('twitter') || mapKey === 'x') {
+      IconComp = PLATFORM_MAP.twitter.icon; iconColor = PLATFORM_MAP.twitter.color; displayPlatform = 'Twitter/X';
+    } else if (mapKey.includes('facebook')) {
+      IconComp = SiFacebook; iconColor = '#1877F2'; displayPlatform = 'Facebook';
+    } else if (mapKey.includes('tiktok')) {
+      IconComp = SiTiktok; iconColor = '#000000'; displayPlatform = 'TikTok';
+    } else if (mapKey.includes('youtube')) {
+      IconComp = SiYoutube; iconColor = '#FF0000'; displayPlatform = 'YouTube';
+    } else if (mapKey.includes('email')) {
+      IconComp = PLATFORM_MAP.email.icon; iconColor = PLATFORM_MAP.email.color; displayPlatform = 'Email';
+    } else if (mapKey.includes('whatsapp')) {
+      IconComp = PLATFORM_MAP.whatsapp.icon; iconColor = PLATFORM_MAP.whatsapp.color; displayPlatform = 'WhatsApp';
+    } else if (mapKey === 'sms') {
+      IconComp = PLATFORM_MAP.sms.icon; iconColor = PLATFORM_MAP.sms.color; displayPlatform = 'SMS';
+    } else if (mapKey === 'phone') {
+      IconComp = PLATFORM_MAP.phone.icon; iconColor = PLATFORM_MAP.phone.color; displayPlatform = 'Phone (SIM)';
+    } else if (mapKey === 'website') {
+      IconComp = PLATFORM_MAP.website.icon; iconColor = PLATFORM_MAP.website.color; displayPlatform = 'Website';
+    }
+
+    if (!IconComp) {
+      const config = detectDomainIcon(url);
+      IconComp = config.icon;
+      iconColor = config.color;
+      displayPlatform = detectPlatformLabel(url);
+    }
+
+    const href = url.startsWith('http') || url.includes(':') ? url : `https://${url}`;
+    const pretty = url.replace(/^(tel|mailto|sms|whatsapp):/i, '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '');
+    return { key: url, platform, url, href, IconComp, iconColor, label: displayPlatform, pretty };
+  });
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        overflow: 'hidden',
-        maxWidth: '100%',
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {uniqueLinks.map(({ platform, url }) => {
-        let IconComp = null;
-        let iconColor = '#6B7280';
-
-        const mapKey = (platform || '').toLowerCase();
-        let displayPlatform = platform || 'Website';
-
-        if (mapKey.includes('linkedin')) {
-          IconComp = PLATFORM_MAP.linkedin.icon;
-          iconColor = PLATFORM_MAP.linkedin.color;
-          displayPlatform = 'LinkedIn';
-        } else if (mapKey.includes('instagram')) {
-          IconComp = PLATFORM_MAP.instagram.icon;
-          iconColor = PLATFORM_MAP.instagram.color;
-          displayPlatform = 'Instagram';
-        } else if (mapKey.includes('twitter') || mapKey === 'x') {
-          IconComp = PLATFORM_MAP.twitter.icon;
-          iconColor = PLATFORM_MAP.twitter.color;
-          displayPlatform = 'Twitter/X';
-        } else if (mapKey.includes('facebook')) {
-          IconComp = SiFacebook;
-          iconColor = '#1877F2';
-          displayPlatform = 'Facebook';
-        } else if (mapKey.includes('tiktok')) {
-          IconComp = SiTiktok;
-          iconColor = '#000000';
-          displayPlatform = 'TikTok';
-        } else if (mapKey.includes('youtube')) {
-          IconComp = SiYoutube;
-          iconColor = '#FF0000';
-          displayPlatform = 'YouTube';
-        } else if (mapKey.includes('email')) {
-          IconComp = PLATFORM_MAP.email.icon;
-          iconColor = PLATFORM_MAP.email.color;
-          displayPlatform = 'Email';
-        } else if (mapKey.includes('whatsapp')) {
-          IconComp = PLATFORM_MAP.whatsapp.icon;
-          iconColor = PLATFORM_MAP.whatsapp.color;
-          displayPlatform = 'WhatsApp';
-        } else if (mapKey === 'sms') {
-          IconComp = PLATFORM_MAP.sms.icon;
-          iconColor = PLATFORM_MAP.sms.color;
-          displayPlatform = 'SMS';
-        } else if (mapKey === 'phone') {
-          IconComp = PLATFORM_MAP.phone.icon;
-          iconColor = PLATFORM_MAP.phone.color;
-          displayPlatform = 'Phone (SIM)';
-        } else if (mapKey === 'website') {
-          IconComp = PLATFORM_MAP.website.icon;
-          iconColor = PLATFORM_MAP.website.color;
-          displayPlatform = 'Website';
-        }
-
-        if (!IconComp) {
-          const config = detectDomainIcon(url);
-          IconComp = config.icon;
-          iconColor = config.color;
-          displayPlatform = detectPlatformLabel(url);
-        }
-
-        const handleIconClick = (e) => {
-          if (onReachClick) {
-            onReachClick(e, platform, url, lead);
-          }
-        };
-
-        const targetHref = url.startsWith('http') || url.includes(':') ? url : `https://${url}`;
-
-        return (
-          <a
-            key={url}
-            href={targetHref}
-            onClick={handleIconClick}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={displayPlatform}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              lineHeight: 1,
-              opacity: 0.85,
-              transition: 'opacity 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.85')}
-          >
-            <IconComp size={15} color={iconColor} />
-          </a>
-        );
-      })}
-    </div>
+    <ReachIconStrip
+      items={items}
+      onItemClick={(e, it) => onReachClick && onReachClick(e, it.platform, it.url, lead)}
+    />
   );
 };
+
+/** Size constants shared with table auto-fit (see reachIconsNaturalWidth). */
+export const REACH_ICON_SIZE = 15;
+export const REACH_ICON_GAP = 6;
+const REACH_MORE_WIDTH = 26;
+
+/** Width the icons need to show every link (no "+N"). */
+export function reachIconsNaturalWidth(count) {
+  if (!count) return 0;
+  return count * REACH_ICON_SIZE + (count - 1) * REACH_ICON_GAP;
+}
+
+/**
+ * Shows as many icons as fit in the cell. The rest collapse into "+N",
+ * which opens a small list of the remaining links. Widening the column shows more.
+ */
+function ReachIconStrip({ items, onItemClick }) {
+  const wrapRef = useRef(null);
+  const moreRef = useRef(null);
+  const menuRef = useRef(null);
+  const [avail, setAvail] = useState(null);
+  const [menuPos, setMenuPos] = useState(null);
+
+  useEffect(() => {
+    const el = wrapRef.current?.parentElement;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const inner = el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+      setAvail(Math.max(0, inner));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!menuPos) return undefined;
+    const close = (e) => {
+      if (menuRef.current?.contains(e.target) || moreRef.current?.contains(e.target)) return;
+      setMenuPos(null);
+    };
+    const onScroll = () => setMenuPos(null);
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [menuPos]);
+
+  const step = REACH_ICON_SIZE + REACH_ICON_GAP;
+  let fit = items.length;
+  if (avail != null && reachIconsNaturalWidth(items.length) > avail) {
+    fit = Math.max(1, Math.floor((avail - REACH_MORE_WIDTH + REACH_ICON_GAP) / step));
+  }
+  const shown = items.slice(0, fit);
+  const hidden = items.slice(fit);
+
+  const openMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (menuPos) { setMenuPos(null); return; }
+    const r = moreRef.current.getBoundingClientRect();
+    const width = 240;
+    setMenuPos({
+      top: r.bottom + 4,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      width,
+    });
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className="rd-reach-strip"
+      data-reach-count={items.length}
+      style={{ display: 'flex', alignItems: 'center', gap: REACH_ICON_GAP, overflow: 'hidden', maxWidth: '100%' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {shown.map((it) => (
+        <a
+          key={it.key}
+          href={it.href}
+          onClick={(e) => onItemClick(e, it)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`${it.label} · ${it.pretty}`}
+          aria-label={`Open ${it.label}`}
+          className="rd-reach-icon"
+          style={{ display: 'flex', alignItems: 'center', lineHeight: 1, flexShrink: 0 }}
+        >
+          <it.IconComp size={REACH_ICON_SIZE} color={it.iconColor} />
+        </a>
+      ))}
+      {hidden.length > 0 && (
+        <button
+          ref={moreRef}
+          type="button"
+          className="rd-reach-more"
+          onClick={openMenu}
+          title={`${hidden.length} more link${hidden.length > 1 ? 's' : ''}`}
+          aria-expanded={!!menuPos}
+        >
+          +{hidden.length}
+        </button>
+      )}
+      {menuPos && createPortal(
+        <div
+          ref={menuRef}
+          className="rd-menu rd-reach-menu"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: menuPos.width, zIndex: 99999 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="rd-menu__list">
+            {hidden.map((it) => (
+              <a
+                key={it.key}
+                href={it.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rd-menu__item"
+                onClick={(e) => { onItemClick(e, it); setMenuPos(null); }}
+                style={{ textDecoration: 'none' }}
+              >
+                <it.IconComp size={14} color={it.iconColor} style={{ flexShrink: 0 }} />
+                <span className="rd-menu__item-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {it.label} <span style={{ color: 'var(--text-muted)' }}>· {it.pretty}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+

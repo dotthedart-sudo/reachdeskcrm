@@ -5,8 +5,8 @@ const WIDTH_PREFIX = 'crm_column_widths_';
 const ROW_PREFIX = 'crm_row_heights_';
 
 const DEFAULT_WIDTHS = {
-  name: 180,
-  priority: 110,
+  name: 160,
+  priority: 90,
   status: 140,
   call_status: 140,
   outcome: 140,
@@ -16,17 +16,17 @@ const DEFAULT_WIDTHS = {
   call_action: 150,
   next_checkpoint_at: 130,
   due: 130,
-  last_contacted_at: 130,
+  last_contacted_at: 110,
   last_called: 160,
   last_activity: 160,
-  platform: 90,
-  reach: 90,
+  platform: 120,
+  reach: 120,
   phone: 140,
-  local_time: 166,
+  local_time: 150,
   email: 180,
   company: 160,
   niche: 140,
-  template_used: 150,
+  template_used: 130,
   script_used: 150,
   attempts: 80,
   created_at: 130,
@@ -35,7 +35,7 @@ const DEFAULT_WIDTHS = {
   twitter_url: 160,
   website: 160,
   project: 140,
-  _added_by: 140,
+  _added_by: 110,
 };
 
 const DEFAULT_ROW_HEIGHT = 44;

@@ -49,8 +49,8 @@ export function isPillColumn(col) {
 }
 
 const SPEC_DEFAULT_WIDTHS = {
-  name: 180,
-  priority: 110,
+  name: 160,
+  priority: 90,
   status: 140,
   call_status: 140,
   outcome: 140,
@@ -60,15 +60,15 @@ const SPEC_DEFAULT_WIDTHS = {
   call_action: 150,
   next_checkpoint_at: 130,
   due: 130,
-  last_contacted_at: 130,
+  last_contacted_at: 110,
   last_called: 160,
   last_activity: 160,
   platform: 120,
   reach: 120,
   phone: 140,
-  local_time: 166,
+  local_time: 150,
   email: 180,
-  template_used: 150,
+  template_used: 130,
   script_used: 150,
 };
 
@@ -79,7 +79,8 @@ const DEFAULT_OPTIONS_BY_COL = {
   outreach_channel: ['Email', 'LinkedIn', 'WhatsApp', 'Instagram', 'Phone', 'Twitter', 'Facebook'],
   channel: ['Email', 'LinkedIn', 'WhatsApp', 'Instagram', 'Phone', 'Twitter', 'Facebook'],
   action_to_take: ['Send first pitch', 'Follow up', 'Book a call', 'Research', 'Send proposal', 'None'],
-  call_action: ['Callback', 'Try again', 'Send proposal', 'First call', 'None'],
+  // Keep in sync with CALL_ACTION_DEFAULT_OPTIONS (components/CRM/crmTableColumns.js)
+  call_action: ['Call now', 'Leave voicemail', 'Callback scheduled', 'Try again tomorrow', 'Wrong number — remove', 'Not interested — close', 'Send info by email', 'No call needed'],
   outcome: ['No answer', 'Voicemail left', 'Answered', 'Busy', 'Callback requested', 'Not interested', 'Closed won'],
 };
 
@@ -151,16 +152,13 @@ export function computePillColumnMinWidth(col, context = {}) {
   const specDefault = SPEC_DEFAULT_WIDTHS[key] || 80;
 
   if (key === 'platform' || key === 'reach' || col?.column_type === 'reach') {
-    let maxIcons = 0;
-    if (Array.isArray(context.leads) && context.leads.length > 0) {
-      context.leads.forEach((l) => {
-        const cnt = countLeadReachIcons(l, context.columnDefs);
-        if (cnt > maxIcons) maxIcons = cnt;
-      });
-    }
-    const iconsToFit = maxIcons > 0 ? maxIcons : 4;
-    const reachMinW = (iconsToFit * 24) + 24;
-    return Math.max(96, reachMinW);
+    // Reach can always shrink to one icon + "+N"; extra links collapse into the "+N" menu.
+    return 72;
+  }
+
+  // Template names can be long; the cell shows them with an ellipsis instead of forcing width.
+  if (key === 'template_used' || key === 'script_used' || col?.column_type === 'template') {
+    return 100;
   }
 
   const isPill = isPillColumn(col);
@@ -178,7 +176,9 @@ export function computePillColumnMinWidth(col, context = {}) {
   }
 
   // 24px cell padding (12px left + 12px right padding)
-  const minWidth = maxPillWidth > 0 ? maxPillWidth + 24 : 80;
+  // Calls "Next step" shows a callback clock after the pill; keep room so it never clips.
+  const trailingIcon = key === 'call_action' ? 30 : 0;
+  const minWidth = maxPillWidth > 0 ? maxPillWidth + 24 + trailingIcon : 80;
   return Math.max(80, minWidth);
 }
 

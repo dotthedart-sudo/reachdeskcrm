@@ -6,6 +6,7 @@ import {
   sectionsForKind,
   myLibrarySectionName,
   filterTemplatesByKind,
+  formatSectionLabel,
 } from '../../lib/templateKinds';
 
 export default function GroupedTemplateDropdown({
@@ -18,7 +19,9 @@ export default function GroupedTemplateDropdown({
 }) {
   const SECTIONS = sectionsForKind(kind);
   const mySectionName = myLibrarySectionName(kind);
-  const kindTemplates = filterTemplatesByKind(templates, kind);
+  // Hide empty starter placeholders (e.g. "Openers (add your script)") — nothing to use yet.
+  const kindTemplates = filterTemplatesByKind(templates, kind)
+    .filter((t) => !(t.is_starter && !String(t.body || t.content || '').trim()));
 
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 260, openUp: false });
@@ -135,7 +138,7 @@ export default function GroupedTemplateDropdown({
             textAlign: 'left',
           }}
         >
-          <span>{groupName} ({items.length})</span>
+          <span>{groupName === 'OTHER TEMPLATES' ? 'Starter templates' : formatSectionLabel(groupName)} ({items.length})</span>
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
 
@@ -195,6 +198,14 @@ export default function GroupedTemplateDropdown({
         {noResults && (
           <div className="rd-menu__empty">
             {kind === TEMPLATE_KINDS.CALLS ? 'No scripts found' : 'No templates found'}
+          </div>
+        )}
+        {!search.trim() && kindTemplates.length === 0 && (
+          <div className="rd-menu__empty" style={{ lineHeight: 1.5 }}>
+            {kind === TEMPLATE_KINDS.CALLS ? 'No scripts yet. ' : 'No templates yet. '}
+            <a href={kind === TEMPLATE_KINDS.CALLS ? '/templates?tab=scripts' : '/templates'} style={{ color: 'var(--accent-blue, #2563EB)' }}>
+              {kind === TEMPLATE_KINDS.CALLS ? 'Write your first script' : 'Create a template'}
+            </a>
           </div>
         )}
       </div>

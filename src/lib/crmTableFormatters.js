@@ -20,8 +20,9 @@ export function formatDueText(iso, nextStep) {
   const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   if (isOverdue) {
+    const daysLate = Math.floor((now.getTime() - d.getTime()) / 86400000);
     return {
-      text: `Overdue · ${dateStr}`,
+      text: daysLate < 1 ? 'Overdue' : `${daysLate}d overdue`,
       fullTime: `${dateStr}, ${timeStr}`,
       isOverdue: true,
       isPlaceholder: false,
@@ -94,11 +95,21 @@ export function formatLastContactedText(iso) {
   if (isNaN(d.getTime())) return '—';
 
   const now = new Date();
+  const mins = Math.round((now - d) / 60000);
+  if (mins >= 0 && mins < 60) return mins <= 1 ? 'Just now' : `${mins}m ago`;
   if (d.toDateString() === now.toDateString()) return 'Today';
 
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
 
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const days = Math.floor((now - d) / 86400000);
+  if (days >= 2 && days < 7) return `${days}d ago`;
+  if (days >= 7 && days < 35) return `${Math.floor(days / 7)}w ago`;
+
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
 }

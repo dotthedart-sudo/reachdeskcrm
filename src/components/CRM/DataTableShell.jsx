@@ -4,6 +4,7 @@ import { Check, ChevronDown, EyeOff, GripVertical, Pin, PinOff, Scissors, WrapTe
 import { isAlwaysClipped } from './crmTableColumns';
 import { isPersistableColumn } from './useColumnPrefs';
 import './DataTableShell.css';
+import { reachIconsNaturalWidth } from '../icons/PlatformIcons';
 
 const SELECT_W = 40;
 const ROWNUM_W = 48;
@@ -136,6 +137,49 @@ function ColumnHeaderMenu({
   );
 }
 
+/* ── Auto-fit measurement (Google Sheets style) ─────────────────────────
+ * Double-click a column edge: width = widest of the header and every rendered
+ * cell in that column, measured from the real DOM so nothing clips. */
+function measureColumnFromDom(fromEl, key) {
+  const table = fromEl?.closest('table');
+  if (!table || !key) return null;
+  const sel = `[data-col="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key}"]`;
+  const cells = table.querySelectorAll(sel);
+  if (!cells.length) return null;
+  const host = document.createElement('div');
+  host.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none';
+  document.body.appendChild(host);
+  let max = 0;
+  cells.forEach((cell) => {
+    const cs = getComputedStyle(cell);
+    const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    let w = 0;
+    const strip = cell.querySelector('[data-reach-count]');
+    if (strip) {
+      w = reachIconsNaturalWidth(Number(strip.dataset.reachCount) || 0);
+    } else {
+      const clone = cell.cloneNode(true);
+      clone.querySelectorAll('.rd-dt-resize, [role="separator"], .rd-dt-col-menu-btn').forEach((n) => n.remove());
+      const box = document.createElement('div');
+      box.style.cssText = `display:inline-flex;align-items:center;width:max-content;font:${cs.font};letter-spacing:${cs.letterSpacing}`;
+      while (clone.firstChild) box.appendChild(clone.firstChild);
+      box.querySelectorAll('*').forEach((n) => {
+        n.style.maxWidth = 'none';
+        if (n.style.width === '100%') n.style.width = 'auto';
+        n.style.overflow = 'visible';
+        n.style.textOverflow = 'clip';
+        if (n.style.flex) n.style.flex = 'none';
+      });
+      host.appendChild(box);
+      w = box.getBoundingClientRect().width;
+      host.removeChild(box);
+    }
+    max = Math.max(max, Math.ceil(w + pad + 2));
+  });
+  host.remove();
+  return max || null;
+}
+
 /* ── Resize handle (sits on the column divider) ─────────────────────────── */
 function ResizeHandle({ columnKey, width, minWidth = 80, onResize, onReset, onAutoFit }) {
   const [active, setActive] = useState(false);
@@ -174,7 +218,7 @@ function ResizeHandle({ columnKey, width, minWidth = 80, onResize, onReset, onAu
         e.preventDefault();
         e.stopPropagation();
         if (onAutoFit) {
-          onAutoFit(columnKey);
+          onAutoFit(columnKey, measureColumnFromDom(e.currentTarget, columnKey));
         } else if (onReset) {
           onReset(columnKey);
         }
@@ -289,7 +333,7 @@ export default function DataTableShell({
   layoutRef.current = {
     pinnedKeys: pinnedCols.filter(isPersistableColumn).map((c) => c.column_key),
     unpinnedKeys: unpinnedCols.filter(isPersistableColumn).map((c) => c.column_key),
-    reorder: prefs.reorderColumns,
+    reorder: prefs?.reorderColumns || prefs?.setColumnOrder,
   };
 
   const computeDrop = useCallback(() => {
@@ -378,8 +422,17 @@ export default function DataTableShell({
     const nextGroup = [...others.slice(0, d.dropIndex), d.key, ...others.slice(d.dropIndex)];
     const full = d.group === 'pinned' ? [...nextGroup, ...unpinnedKeys] : [...pinnedKeys, ...nextGroup];
     const current = [...pinnedKeys, ...unpinnedKeys];
-    if (full.join('|') !== current.join('|')) reorder(full);
+    if (full.join('|') !== current.join('|') && typeof reorder === 'function') {
+      reorder(full);
+    }
   }, []);
+
+  const autoScrollLoopRef = useRef(autoScrollLoop);
+  autoScrollLoopRef.current = autoScrollLoop;
+  const refreshDragVisualRef = useRef(refreshDragVisual);
+  refreshDragVisualRef.current = refreshDragVisual;
+  const endDragRef = useRef(endDrag);
+  endDragRef.current = endDrag;
 
   const onPointerMoveRef = useRef(null);
   const onPointerUpRef = useRef(null);
@@ -396,21 +449,16 @@ export default function DataTableShell({
       setMenu(null);
       window.getSelection?.()?.removeAllRanges?.();
       document.body.classList.add('rd-dt-col-dragging');
-      d.raf = requestAnimationFrame(autoScrollLoopRef.current);
+      if (typeof autoScrollLoopRef.current === 'function') {
+        d.raf = requestAnimationFrame(autoScrollLoopRef.current);
+      }
     }
-    refreshDragVisualRef.current();
+    refreshDragVisualRef.current?.();
   });
-  onPointerUpRef.current = onPointerUpRef.current || (() => endDragRef.current(true));
-  onPointerCancelRef.current = onPointerCancelRef.current || (() => endDragRef.current(false));
+  onPointerUpRef.current = onPointerUpRef.current || (() => endDragRef.current?.(true));
+  onPointerCancelRef.current = onPointerCancelRef.current || (() => endDragRef.current?.(false));
 
-  const autoScrollLoopRef = useRef(autoScrollLoop);
-  autoScrollLoopRef.current = autoScrollLoop;
-  const refreshDragVisualRef = useRef(refreshDragVisual);
-  refreshDragVisualRef.current = refreshDragVisual;
-  const endDragRef = useRef(endDrag);
-  endDragRef.current = endDrag;
-
-  useEffect(() => () => endDragRef.current(false), []);
+  useEffect(() => () => endDragRef.current?.(false), []);
 
   const onHeaderPointerDown = (e, col, label) => {
     if (e.button !== 0) return;

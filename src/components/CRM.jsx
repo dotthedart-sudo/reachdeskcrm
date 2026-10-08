@@ -42,7 +42,7 @@ import CopyableCell from './CRM/CopyableCell';
 import CustomFieldCell from './CRM/CustomFieldCell';
 import DataTableShell from './CRM/DataTableShell';
 import { useColumnPrefs } from './CRM/useColumnPrefs';
-import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS, CALL_ACTION_DEFAULT_OPTIONS } from './CRM/crmTableColumns';
+import { getTableColumns, getLeadCellCopyValue, CALL_QUEUE_DEFAULT_DEFS, CALL_ACTION_DEFAULT_OPTIONS, MESSAGE_DEFAULT_DEFS } from './CRM/crmTableColumns';
 import './CRM/DataTableEnhancements.css';
 import ConvertModal from './CRM/ConvertModal';
 import LeadFormFields from './CRM/LeadFormFields';
@@ -346,9 +346,8 @@ export default function CRM({
         try { return localStorage.getItem('crm_outreach_mode') || 'messages'; } catch { return 'messages'; }
       })());
   const callSubView = searchParams.get('callView') || 'queue';
-  const view = legacyOutreachView && !modeParam
-    ? 'contact_details'
-    : (searchParams.get('view') || 'contact_details');
+  // Messages use ONE column layout ('pipeline'). Old 'contact_details' links map to it.
+  const view = searchParams.get('view') === 'clients' ? 'clients' : 'pipeline';
   const folderParam = searchParams.get('folder');
   const searchParam = searchParams.get('search');
 
@@ -477,11 +476,6 @@ export default function CRM({
     try {
       const saved = localStorage.getItem('crm_columns');
       const parsed = saved ? JSON.parse(saved) : [];
-      parsed.forEach(c => {
-        if (c.table_view === 'call_queue' && c.column_key === 'next_checkpoint_at') {
-          c.is_visible = true;
-        }
-      });
       return parsed;
     } catch (e) {
       return [];
@@ -554,7 +548,7 @@ export default function CRM({
 
   const tableCols = useMemo(() => {
     const cols = getTableColumns(columnDefs, view);
-    if (!activeListShowsLocalTime || view !== 'contact_details') return cols;
+    if (!activeListShowsLocalTime || view !== 'pipeline') return cols;
     if (cols.some((c) => c.column_key === 'local_time')) return cols;
     const phoneIdx = cols.findIndex((c) => c.column_key === 'phone');
     const localTimeCol = {
@@ -763,7 +757,8 @@ export default function CRM({
         const updates = { last_contacted_at: new Date().toISOString() };
         if (selectedReachTemplateId) {
           const tmpl = templates.find((t) => t.id === selectedReachTemplateId);
-          if (tmpl?.name) updates.template_used = tmpl.name;
+          // leads.template_used is a uuid FK to templates.id
+          if (tmpl?.id) updates.template_used = tmpl.id;
         }
         const { data, error } = await supabase
           .from('leads')
@@ -782,7 +777,7 @@ export default function CRM({
           summary: `Message sent via ${reachChannel}`,
           detail: {
             channel: reachChannel,
-            template: updates.template_used || null,
+            template: templates.find((t) => t.id === updates.template_used)?.title || null,
           },
           timeZone: getEffectiveUserTimeZone(currentUser),
         }).catch(() => {});
@@ -1146,24 +1141,13 @@ export default function CRM({
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'twitter_url',       column_label: 'Twitter / X',      column_type: 'text',     is_visible: false, is_default: true, sort_order: 14, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'contact_details', column_key: 'created_at',        column_label: 'Added On',         column_type: 'date',     is_visible: false, is_default: true, sort_order: 15, dropdown_options: [] },
 
-          // ── Pipeline view — Default visible: Name, Priority, Status, Action to Take, Last Contacted At, Template Used, Reach
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'name',              column_label: 'Name',              column_type: 'text',     is_visible: true,  is_default: true, sort_order: 0, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'priority',          column_label: 'Priority',          column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 1, dropdown_options: [
-            { label: 'Hot', color: '#ef4444' },
-            { label: 'Warm', color: '#f59e0b' },
-            { label: 'Cold', color: '#3b82f6' }
-          ] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'status',            column_label: 'Status',            column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 2, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'outreach_channel',  column_label: 'Channel',           column_type: 'channel',  is_visible: true,  is_default: true, sort_order: 3, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  is_default: true, sort_order: 4, dropdown_options: ACTION_TO_TAKE_SEED },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',     is_visible: true,  is_default: true, sort_order: 4, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'template_used',     column_label: 'Template Used',    column_type: 'link',     is_visible: true,  is_default: true, sort_order: 5, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'platform',          column_label: 'Reach',             column_type: 'reach',    is_visible: true,  is_default: true, sort_order: 6, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'niche',             column_label: 'Niche',             column_type: 'text',     is_visible: false, is_default: true, sort_order: 7, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'email',             column_label: 'Email',             column_type: 'text',     is_visible: false, is_default: true, sort_order: 8, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'phone',             column_label: 'Phone',             column_type: 'text',     is_visible: false, is_default: true, sort_order: 9, dropdown_options: [] },
-          { user_id: currentUser.id, table_view: 'pipeline', column_key: 'company',           column_label: 'Company',           column_type: 'text',     is_visible: false, is_default: true, sort_order: 10, dropdown_options: [] },
-          
+          // ── Message Outreach view (single layout) ──
+          ...MESSAGE_DEFAULT_DEFS.map((d) => ({
+            ...d,
+            user_id: currentUser.id,
+            dropdown_options: d.column_key === 'action_to_take' ? ACTION_TO_TAKE_SEED : d.dropdown_options,
+          })),
+
           { user_id: currentUser.id, table_view: 'clients', column_key: 'name', column_label: 'Client Name', column_type: 'text', is_visible: true, is_default: true, sort_order: 0, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'clients', column_key: 'email', column_label: 'Email', column_type: 'text', is_visible: true, is_default: true, sort_order: 1, dropdown_options: [] },
           { user_id: currentUser.id, table_view: 'clients', column_key: 'phone', column_label: 'Phone', column_type: 'text', is_visible: true, is_default: true, sort_order: 2, dropdown_options: [] },
@@ -1233,36 +1217,21 @@ export default function CRM({
           { table_view: 'contact_details', column_key: 'linkedin_url',      column_label: 'LinkedIn',          column_type: 'text',    is_visible: false, sort_order: 13, dropdown_options: [] },
           { table_view: 'contact_details', column_key: 'twitter_url',       column_label: 'Twitter / X',       column_type: 'text',    is_visible: false, sort_order: 14, dropdown_options: [] },
           { table_view: 'contact_details', column_key: 'created_at',        column_label: 'Added On',          column_type: 'date',    is_visible: false, sort_order: 15, dropdown_options: [] },
-          // pipeline
-          { table_view: 'pipeline', column_key: 'name',              column_label: 'Name',              column_type: 'text',     is_visible: true,  sort_order: 0, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'priority',          column_label: 'Priority',          column_type: 'dropdown', is_visible: true,  sort_order: 1, dropdown_options: [
-            { label: 'Hot', color: '#ef4444' }, { label: 'Warm', color: '#f59e0b' }, { label: 'Cold', color: '#3b82f6' }
-          ] },
-          { table_view: 'pipeline', column_key: 'status',            column_label: 'Status',            column_type: 'dropdown', is_visible: true,  sort_order: 2, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'outreach_channel',  column_label: 'Channel',           column_type: 'channel',  is_visible: true,  sort_order: 3, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'action_to_take',    column_label: 'Action to Take',    column_type: 'dropdown', is_visible: true,  sort_order: 4, dropdown_options: ACTION_TO_TAKE_SEED },
-          { table_view: 'pipeline', column_key: 'last_contacted_at', column_label: 'Last Contacted At', column_type: 'date',     is_visible: true,  sort_order: 5, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'template_used',     column_label: 'Template Used',     column_type: 'link',     is_visible: true,  sort_order: 6, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'platform',          column_label: 'Reach',             column_type: 'reach',    is_visible: true,  sort_order: 7, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'niche',             column_label: 'Niche',             column_type: 'text',     is_visible: false, sort_order: 8, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'email',             column_label: 'Email',             column_type: 'text',     is_visible: false, sort_order: 9, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'phone',             column_label: 'Phone',             column_type: 'text',     is_visible: false, sort_order: 10, dropdown_options: [] },
-          { table_view: 'pipeline', column_key: 'company',           column_label: 'Company',           column_type: 'text',     is_visible: false, sort_order: 11, dropdown_options: [] },
+          // pipeline (Message Outreach)
+          ...MESSAGE_DEFAULT_DEFS.map((d) => ({
+            ...d,
+            dropdown_options: d.column_key === 'action_to_take' ? ACTION_TO_TAKE_SEED : d.dropdown_options,
+          })),
           ...CALL_QUEUE_DEFAULT_DEFS,
         ];
 
         const existingKeys = new Set(dedupedCols.map(c => `${c.table_view}::${c.column_key}`));
         
-        // Force Callback column to be visible for users with saved settings
-        dedupedCols.forEach(c => {
-          if (c.table_view === 'call_queue' && c.column_key === 'next_checkpoint_at') {
-            c.is_visible = true;
-          }
-        });
 
         const missingDefs = allDefaultKeys
           .filter(d => !existingKeys.has(`${d.table_view}::${d.column_key}`))
-          .map(d => ({ ...d, user_id: currentUser.id, is_default: true }));
+          // New defaults go to the end (hidden ones stay out of the way of the user's order).
+          .map(d => ({ ...d, user_id: currentUser.id, is_default: true, sort_order: 100 + (d.sort_order || 0) }));
 
         if (missingDefs.length > 0) {
           const { data: newCols } = await supabase
@@ -1393,8 +1362,7 @@ export default function CRM({
 
   const handleResetToDefault = async (targetView) => {
     const viewToReset = targetView || (outreachMode === 'calls' ? 'call_queue' : view);
-    const label = viewToReset === 'call_queue' ? 'Cold Calls · Queue'
-      : viewToReset === 'contact_details' ? 'Message · Contact' : 'Message · Pipeline';
+    const label = viewToReset === 'call_queue' ? 'Cold Calls' : 'Message Outreach';
     if (!confirm(`Reset ${label} columns to default? Custom columns for this view will be deleted.`)) return;
     try {
       await supabase
@@ -2794,7 +2762,7 @@ export default function CRM({
       return next;
     });
     if (view === 'clients' && id !== 'home' && id !== null) {
-      handleViewChange('contact_details');
+      handleViewChange('pipeline');
     }
   };
 
@@ -3026,8 +2994,6 @@ export default function CRM({
               display: 'inline-flex',
               padding: 3,
               borderRadius: 8,
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
             }}
           >
             <button
@@ -3044,8 +3010,6 @@ export default function CRM({
                 borderRadius: 6,
                 border: 'none',
                 cursor: 'pointer',
-                background: outreachMode === 'messages' ? 'var(--bg-card, #262626)' : 'transparent',
-                color: outreachMode === 'messages' ? 'var(--text-primary)' : 'var(--text-muted)',
               }}
             >
               Message Outreach
@@ -3064,8 +3028,6 @@ export default function CRM({
                 borderRadius: 6,
                 border: 'none',
                 cursor: 'pointer',
-                background: outreachMode === 'calls' ? 'var(--bg-card, #262626)' : 'transparent',
-                color: outreachMode === 'calls' ? 'var(--text-primary)' : 'var(--text-muted)',
               }}
             >
               Cold Calls
@@ -3683,7 +3645,7 @@ export default function CRM({
                 {selectedIds.includes(lead.id) ? <CheckSquare size={16} /> : <Square size={16} />}
               </button>
             )}
-            showRowNumbers={view === 'contact_details'}
+            showRowNumbers={false}
             getRowNumber={(lead, rowIndex) => (currentPage - 1) * pageSize + rowIndex + 1}
             renderHeaderLabel={(col) => (col.column_key === 'action_to_take' ? 'Next step' : col.column_label)}
             getHeaderText={(col) => (col.column_key === 'action_to_take' ? 'Next step' : col.column_label)}
@@ -4027,11 +3989,15 @@ export default function CRM({
                 header: 'Added By',
                 resizable: true,
                 renderCell: (lead, cellProps) => {
-                  const addedByEmail = teamMemberEmail(teamProfilesMap[lead.user_id]);
+                  const prof = teamProfilesMap[lead.user_id];
+                  const addedByEmail = teamMemberEmail(prof);
+                  // Short label keeps the column narrow; full email on hover / copy.
+                  const shortName = (prof?.full_name || '').trim().split(/\s+/)[0]
+                    || (addedByEmail ? addedByEmail.split('@')[0] : '');
                   return (
-                    <td {...cellProps} style={{ ...cellProps.style, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <td {...cellProps} title={addedByEmail || ''} style={{ ...cellProps.style, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                       <CopyableCell value={addedByEmail || ''} onCopied={handleCopyCell}>
-                        {addedByEmail || 'Unknown'}
+                        {shortName || 'Unknown'}
                       </CopyableCell>
                     </td>
                   );
