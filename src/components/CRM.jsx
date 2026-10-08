@@ -498,17 +498,28 @@ export default function CRM({
 
   const userTimeZone = useMemo(() => getEffectiveUserTimeZone(currentUser), [currentUser?.timezone]);
 
-  // N key shortcut opens Add lead modal
+  // Keyboard shortcuts on the Leads page:
+  //   N = Add lead · M = Message Outreach · C = Cold Calls
+  const modeChangeRef = useRef(null);
+  modeChangeRef.current = handleModeChange;
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName) || e.target?.isContentEditable) {
         return;
       }
-      if (e.key === 'n' || e.key === 'N') {
-        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-          e.preventDefault();
-          setShowAddLeadModal(true);
-        }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      // Don't switch views behind an open modal, drawer or menu.
+      if (document.querySelector('.modal-backdrop, .lead-drawer__panel, .rd-script-panel, [role="dialog"], .rd-menu')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'n') {
+        e.preventDefault();
+        setShowAddLeadModal(true);
+      } else if (k === 'm') {
+        e.preventDefault();
+        modeChangeRef.current?.('messages');
+      } else if (k === 'c') {
+        e.preventDefault();
+        modeChangeRef.current?.('calls');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1318,7 +1329,10 @@ export default function CRM({
           eventType: isTimestamp ? 'timestamp_corrected' : 'field_changed',
           summary: isTimestamp
             ? `${field === 'last_called_at' ? 'Last called' : 'Last contacted'} updated`
-            : `${field.replace(/_/g, ' ')} → ${newVal || 'cleared'}`,
+            : (field === 'script_used' || field === 'template_used')
+              // Show the script/template name, not its id.
+              ? `${field === 'script_used' ? 'Script' : 'Template'} → ${templates.find((t) => t.id === newVal)?.title || (newVal ? 'set' : 'cleared')}`
+              : `${field.replace(/_/g, ' ')} → ${newVal || 'cleared'}`,
           detail: { field, from: originalVal || null, to: newVal },
           timeZone: getEffectiveUserTimeZone(currentUser),
           occurredAt: isTimestamp && newVal ? newVal : undefined,

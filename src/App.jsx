@@ -262,6 +262,7 @@ const ReportsPageView = lazyWithRetry(() => import('./components/Reports'));
 import SetupModal from './components/SetupModal';
 import { HelmetProvider } from 'react-helmet-async';
 import GlobalHelmet from './components/GlobalHelmet';
+import { installEnterToSave } from './lib/enterToSave';
 
 const BlogIndex = lazyWithRetry(() => import('./components/BlogIndex'));
 const BlogPost = lazyWithRetry(() => import('./components/BlogPost'));
@@ -1803,6 +1804,9 @@ function HomepagePage() {
 // Root app
 export default function App() {
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
+
+  // Enter saves forms/panels app-wide (Ctrl/Cmd+Enter inside text areas).
+  useEffect(() => installEnterToSave(), []);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
