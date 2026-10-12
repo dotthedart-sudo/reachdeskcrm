@@ -5757,7 +5757,7 @@ select option {
 }
 
 .hp-hero-inner {
-  max-width: 1120px; /* same as nav + sections so the left edges line up */
+  max-width: var(--hp-max-width, 1360px); /* same as nav + sections so the left edges line up */
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
@@ -5768,7 +5768,7 @@ select option {
 @media (min-width: 768px) {
   .hp-hero-inner {
     /* Product shot takes ~55% so it fills the marked hero media area */
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     gap: clamp(24px, 3vw, 40px);
     align-items: center;
   }
@@ -5790,17 +5790,21 @@ select option {
 
 .hp-hero-premium .hp-hero-h1 {
   font-family: var(--font-display);
-  font-size: clamp(2.25rem, 5.2vw, 3.75rem);
+  font-size: clamp(2.25rem, 4.4vw, 3.5rem);
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.04em;
   color: var(--text-primary);
   margin: 0 0 var(--space-4);
-  max-width: 14ch;
+  max-width: none; /* lines are explicit spans, so 3 lines max */
 }
 
 .hp-hero-line {
   display: block;
+}
+
+@media (min-width: 1024px) {
+  .hp-hero-line { white-space: nowrap; }
 }
 
 .hp-hero-premium .hp-hero-subhead {
@@ -5928,7 +5932,7 @@ select option {
 .hp-problem-section .hp-section-inner {
   max-width: 720px;
   margin: 0;
-  margin-left: max(0px, calc((100% - 1120px) / 2));
+  margin-left: max(0px, calc((100% - var(--hp-max-width, 1360px)) / 2));
 }
 
 .hp-problem-text {
@@ -5977,7 +5981,7 @@ select option {
   letter-spacing: -0.035em;
   color: var(--text-primary);
   margin: 0 0 var(--space-8);
-  max-width: 18ch;
+  max-width: 26ch;
 }
 
 .hp-section-h2-tight {
@@ -6645,7 +6649,7 @@ img.hp-step-media {
 .hp-final-cta-inner {
   max-width: 640px;
   margin: 0;
-  margin-left: max(0px, calc((100% - 1120px) / 2));
+  margin-left: max(0px, calc((100% - var(--hp-max-width, 1360px)) / 2));
 }
 
 .hp-final-cta-title {
