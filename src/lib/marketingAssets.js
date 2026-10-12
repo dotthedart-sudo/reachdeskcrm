@@ -5,8 +5,8 @@
 export const MARKETING_MEDIA = {
   heroVideo: '/marketing/hero-demo.mp4',
   heroVideoWebm: '/marketing/hero-demo.webm',
-  heroLight: '/marketing/hero-light.png',
-  heroDark: '/marketing/hero-dark.png',
+  heroLight: '/marketing/hero-light.webp',
+  heroDark: '/marketing/hero-dark.webp',
   paywallBg: '/marketing/paywall-bg.webp',
 };
 
@@ -15,6 +15,7 @@ export const FEATURE_MEDIA = {
   reminders: { dark: '/marketing/feature-reminders-dark.webp', light: '/marketing/feature-reminders-light.webp' },
   templates: { dark: '/marketing/feature-templates-dark.webp', light: '/marketing/feature-templates-light.webp' },
   revenue: { dark: '/marketing/feature-revenue-dark.webp', light: '/marketing/feature-revenue-light.webp' },
+  calls: { dark: '/marketing/feature-calls-dark.webp', light: '/marketing/feature-calls-light.webp' },
 };
 
 export const HOW_IT_WORKS_MEDIA = {

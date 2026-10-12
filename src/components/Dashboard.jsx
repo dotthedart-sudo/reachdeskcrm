@@ -600,7 +600,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
         </div>
         <div className="dashboard-kpi-tile">
           <span className="dashboard-kpi-title">Collected</span>
-          <span className="dashboard-kpi-value" title={revenueTooltip}>{hasForeign ? '≈ ' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
+          <span className="dashboard-kpi-value" title={revenueTooltip}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
           <span className="dashboard-kpi-subtext">this month{revenueNote ? ` · ${revenueNote}` : ''}</span>
         </div>
       </div>
@@ -733,7 +733,7 @@ export default function Dashboard({ currentUser, onSelectLead }) {
               <button className="dashboard-link" onClick={() => navigate('/settings')}>Set target</button>
             </div>
             <div className="dashboard-revenue-amount">
-              <span className="dashboard-revenue-value" title={revenueTooltip}>{hasForeign ? '≈ ' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
+              <span className="dashboard-revenue-value" title={revenueTooltip}>{hasForeign ? '≈\u00A0' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currentUser?.default_currency || 'USD', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(totalRevenueCollected)}</span>
               <span className="dashboard-revenue-subtext">collected this month{revenueNote ? ` · ${revenueNote}` : ''}</span>
             </div>
             <div className="dashboard-revenue-chart">

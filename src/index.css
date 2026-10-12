@@ -5755,7 +5755,7 @@ select option {
 }
 
 .hp-hero-inner {
-  max-width: 1280px;
+  max-width: 1120px; /* same as nav + sections so the left edges line up */
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
@@ -6106,9 +6106,34 @@ select option {
   width: 100%;
   height: auto;
   display: block;
-  border-radius: 10px;
+  border-radius: 3px;
   border: 1px solid var(--border);
   background: var(--bg-card);
+}
+
+/* Screenshots sit on a fixed-ratio "stage" so every card in a row lines up,
+   whatever the screenshot's own shape. object-fit: contain = nothing is cropped. */
+img.hp-feature-media,
+img.hp-step-media {
+  box-sizing: border-box;
+  object-fit: contain;
+  object-position: center;
+  background: var(--bg-card);
+}
+
+img.hp-feature-media {
+  aspect-ratio: 16 / 10;
+  padding: clamp(14px, 2.2vw, 28px);
+}
+
+img.hp-step-media {
+  aspect-ratio: 4 / 3;
+  padding: clamp(12px, 1.6vw, 20px);
+}
+
+.hp-feature-card > .hp-feature-media,
+.hp-feature-card > .hp-ui-mock-svg {
+  margin-bottom: var(--space-4);
 }
 
 .hp-integrations-note {
