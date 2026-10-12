@@ -3140,6 +3140,7 @@ select option {
   --accent-green: #D4D4D4;
   --accent-on: #050505;
   --white: #F5F5F5;
+  --hp-max-width: 1360px;
 
   background-color: var(--bg);
   color: var(--text);
@@ -5675,9 +5676,10 @@ select option {
 
 .hp-section-inner,
 .hp-nav-inner,
-.hp-footer-inner {
+.hp-footer-inner,
+.hp-hero-inner {
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--hp-max-width, 1360px);
   margin: 0 auto;
   box-sizing: border-box;
 }
@@ -5704,7 +5706,7 @@ select option {
   justify-content: space-between;
   gap: var(--space-5);
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--hp-max-width, 1360px);
 }
 
 .hp-nav-center {
